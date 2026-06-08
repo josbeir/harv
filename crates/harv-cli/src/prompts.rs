@@ -102,17 +102,20 @@ pub fn ask_date(default: NaiveDate) -> color_eyre::eyre::Result<NaiveDate> {
 }
 
 /// Prompt for hours. Empty or 0 = start a running timer.
+/// Accepts decimal (1.5) or HH:MM (1:30) format.
 pub fn ask_hours() -> color_eyre::eyre::Result<Option<f64>> {
-    let input = CustomType::<String>::new("Hours (enter 0 to start timer):")
+    let input = CustomType::<String>::new("Hours (0 to start timer, e.g. 1.5 or 1:30):")
         .with_default("".into())
         .with_validator(|input: &String| {
             if input.is_empty() {
                 return Ok(Validation::Valid);
             }
-            match input.parse::<f64>() {
+            match harv_core::datetime::parse_hours(input) {
                 Ok(h) if h >= 0.0 => Ok(Validation::Valid),
                 Ok(_) => Ok(Validation::Invalid("Hours must be non-negative".into())),
-                Err(_) => Ok(Validation::Invalid("Enter a valid number".into())),
+                Err(e) => Ok(Validation::Invalid(
+                    inquire::validator::ErrorMessage::Custom(e),
+                )),
             }
         })
         .prompt()?;
@@ -120,9 +123,8 @@ pub fn ask_hours() -> color_eyre::eyre::Result<Option<f64>> {
     if input.is_empty() {
         return Ok(None);
     }
-    let hours: f64 = input
-        .parse()
-        .map_err(|_| color_eyre::eyre::eyre!("Invalid hours"))?;
+    let hours =
+        harv_core::datetime::parse_hours(&input).map_err(|e| color_eyre::eyre::eyre!("{}", e))?;
     if hours == 0.0 {
         Ok(None)
     } else {

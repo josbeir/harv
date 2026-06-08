@@ -58,7 +58,7 @@ pub struct TrackArgs {
     pub project_id: Option<u64>,
     #[arg(short = 't', long)]
     pub task_id: Option<u64>,
-    #[arg(short = 'H', long)]
+    #[arg(short = 'H', long, value_parser = parse_hours_arg)]
     pub hours: Option<f64>,
     #[arg(short = 'n', long)]
     pub notes: Option<String>,
@@ -96,6 +96,7 @@ pub struct StopArgs {
 
 #[derive(clap::Args, Clone, Debug)]
 pub struct LogArgs {
+    #[arg(value_parser = parse_hours_arg)]
     pub hours: f64,
     #[arg(short = 'p', long)]
     pub project_id: Option<u64>,
@@ -150,4 +151,9 @@ pub fn setup_tracing() {
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("harv=warn")),
         )
         .init();
+}
+
+/// Custom clap value parser for hours. Accepts decimal (1.5) or HH:MM (1:30).
+fn parse_hours_arg(s: &str) -> Result<f64, String> {
+    harv_core::datetime::parse_hours(s)
 }

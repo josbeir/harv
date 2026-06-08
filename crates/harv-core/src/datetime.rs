@@ -57,6 +57,39 @@ pub fn format_time(dt: DateTime<Utc>) -> String {
     format!("{}:{:02}{}", hour12, local.minute(), ampm)
 }
 
+/// Parse hours from decimal (`1.5`) or HH:MM (`1:30`) format.
+///
+/// Returns decimal hours as `f64`.
+pub fn parse_hours(input: &str) -> Result<f64, String> {
+    if input.contains(':') {
+        let parts: Vec<&str> = input.split(':').collect();
+        if parts.len() != 2 {
+            return Err("Use HH:MM format (e.g. 1:30)".into());
+        }
+        let hours: f64 = parts[0]
+            .parse()
+            .map_err(|_| "Invalid hours in HH:MM".to_string())?;
+        let minutes: f64 = parts[1]
+            .parse()
+            .map_err(|_| "Invalid minutes in HH:MM".to_string())?;
+        if !(0.0..60.0).contains(&minutes) {
+            return Err("Minutes must be 0-59".into());
+        }
+        if hours < 0.0 {
+            return Err("Hours must be non-negative".into());
+        }
+        Ok(hours + minutes / 60.0)
+    } else {
+        let h: f64 = input
+            .parse()
+            .map_err(|_| "Enter a valid number or HH:MM format (e.g. 1:30)".to_string())?;
+        if h < 0.0 {
+            return Err("Hours must be non-negative".into());
+        }
+        Ok(h)
+    }
+}
+
 /// Calculates the `started_time` and `ended_time` values for a completed
 /// time entry based on the current time and the number of hours worked.
 ///
@@ -149,5 +182,30 @@ mod tests {
     fn test_parse_date_invalid_format() {
         assert!(parse_date("06-08-2026").is_err());
         assert!(parse_date("June 8, 2026").is_err());
+    }
+
+    #[test]
+    fn test_parse_hours_decimal() {
+        assert!((parse_hours("1.5").unwrap() - 1.5).abs() < f64::EPSILON);
+        assert!((parse_hours("0.0").unwrap() - 0.0).abs() < f64::EPSILON);
+        assert!((parse_hours("0").unwrap() - 0.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_parse_hours_hhmm() {
+        assert!((parse_hours("1:30").unwrap() - 1.5).abs() < f64::EPSILON);
+        assert!((parse_hours("0:30").unwrap() - 0.5).abs() < f64::EPSILON);
+        assert!((parse_hours("2:15").unwrap() - 2.25).abs() < f64::EPSILON);
+        assert!((parse_hours("0:00").unwrap() - 0.0).abs() < f64::EPSILON);
+        assert!((parse_hours("00:45").unwrap() - 0.75).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_parse_hours_invalid() {
+        assert!(parse_hours("abc").is_err());
+        assert!(parse_hours("1:75").is_err());
+        assert!(parse_hours("-1:30").is_err());
+        assert!(parse_hours(":").is_err());
+        assert!(parse_hours("1:30:00").is_err());
     }
 }
