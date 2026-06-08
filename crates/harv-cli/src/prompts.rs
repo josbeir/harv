@@ -1,7 +1,7 @@
 use chrono::NaiveDate;
 use harv_core::{ProjectAssignment, Reference, TaskAssignment};
 use harv_sdk::HarvConfig;
-use inquire::{validator::Validation, Confirm, CustomType, Select, Text};
+use inquire::{validator::Validation, CustomType, Select, Text};
 
 use crate::OutputFormat;
 
@@ -160,20 +160,10 @@ pub fn ask_notes(use_editor: bool) -> color_eyre::eyre::Result<Option<String>> {
         return Ok(notes);
     }
 
-    let confirmed = Confirm::new("Add notes?").with_default(false).prompt()?;
-
-    if !confirmed {
-        return Ok(None);
-    }
-
-    let notes = Text::new("Notes:").prompt()?;
-
-    let trimmed = notes.trim();
-    if trimmed.is_empty() {
-        Ok(None)
-    } else {
-        Ok(Some(trimmed.to_string()))
-    }
+    let notes = Text::new("Notes (empty to skip):")
+        .prompt_skippable()?
+        .filter(|s| !s.trim().is_empty());
+    Ok(notes)
 }
 
 /// Format a time entry confirmation message.
