@@ -12,6 +12,7 @@ pub async fn run() -> color_eyre::eyre::Result<()> {
     let config = HarvConfig {
         access_token,
         account_id,
+        cache_ttl_hours: 24,
         aliases: Default::default(),
     };
 

@@ -12,12 +12,13 @@ pub async fn execute(
     notes: Option<String>,
     editor: bool,
     date: Option<String>,
+    refresh: bool,
     alias: Option<String>,
 ) -> color_eyre::eyre::Result<()> {
     let config = client.config().clone();
 
     let pb = spinner::new_spinner("Loading project assignments...");
-    let assignments = client.projects().my_assignments().await?;
+    let assignments = client.projects().my_assignments(refresh).await?;
     pb.finish_and_clear();
 
     let choices = prompts::build_project_choices(&assignments);
@@ -133,6 +134,7 @@ pub async fn execute(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn run(
     project_id: Option<u64>,
     task_id: Option<u64>,
@@ -140,11 +142,12 @@ pub async fn run(
     notes: Option<String>,
     editor: bool,
     date: Option<String>,
+    refresh: bool,
     alias: Option<String>,
 ) -> color_eyre::eyre::Result<()> {
     let client = HarvClient::from_config_file().await?;
     execute(
-        &client, project_id, task_id, hours, notes, editor, date, alias,
+        &client, project_id, task_id, hours, notes, editor, date, refresh, alias,
     )
     .await
 }

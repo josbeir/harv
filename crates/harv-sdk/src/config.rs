@@ -9,8 +9,14 @@ use tokio::fs;
 pub struct HarvConfig {
     pub access_token: String,
     pub account_id: String,
+    #[serde(default = "default_cache_ttl")]
+    pub cache_ttl_hours: u64,
     #[serde(default)]
     pub aliases: HashMap<String, Alias>,
+}
+
+fn default_cache_ttl() -> u64 {
+    24
 }
 
 /// A named shortcut mapping an alias to a project + task pair.
@@ -83,6 +89,7 @@ mod tests {
         HarvConfig {
             access_token: "test-token".into(),
             account_id: "1234567".into(),
+            cache_ttl_hours: 24,
             aliases: HashMap::new(),
         }
     }
@@ -236,5 +243,19 @@ mod tests {
 
         let result = HarvConfig::load().await;
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_default_cache_ttl() {
+        let json = r#"{"access_token":"tok","account_id":"1"}"#;
+        let config: HarvConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.cache_ttl_hours, 24);
+    }
+
+    #[test]
+    fn test_deserialize_custom_cache_ttl() {
+        let json = r#"{"access_token":"tok","account_id":"1","cache_ttl_hours":48}"#;
+        let config: HarvConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.cache_ttl_hours, 48);
     }
 }

@@ -9,9 +9,12 @@ struct ProjectsCache {
 }
 
 impl ProjectsCache {
-    fn is_fresh(&self) -> bool {
+    fn is_fresh(&self, ttl_hours: u64) -> bool {
+        if ttl_hours == 0 {
+            return false;
+        }
         let age = chrono::Utc::now() - self.fetched_at;
-        age.num_seconds() < 300
+        age.num_hours() < ttl_hours as i64
     }
 
     fn path(account_id: &str) -> std::path::PathBuf {
@@ -50,15 +53,19 @@ impl ProjectsCache {
 
 pub(crate) async fn get_cached_assignments(
     account_id: &str,
+    ttl_hours: u64,
+    force: bool,
     fetch: impl std::future::Future<Output = Result<Vec<ProjectAssignment>, HarvError>>,
 ) -> Result<Vec<ProjectAssignment>, HarvError> {
-    if let Ok(Some(cache)) = ProjectsCache::load(account_id).await {
-        if cache.is_fresh() {
-            tracing::debug!(
-                "Using cached project assignments (fetched {})",
-                cache.fetched_at
-            );
-            return Ok(cache.assignments);
+    if !force {
+        if let Ok(Some(cache)) = ProjectsCache::load(account_id).await {
+            if cache.is_fresh(ttl_hours) {
+                tracing::debug!(
+                    "Using cached project assignments (fetched {})",
+                    cache.fetched_at
+                );
+                return Ok(cache.assignments);
+            }
         }
     }
 

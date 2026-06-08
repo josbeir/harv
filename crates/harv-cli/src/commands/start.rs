@@ -10,13 +10,15 @@ pub async fn execute(
     notes: Option<String>,
     editor: bool,
     date: Option<String>,
+    refresh: bool,
 ) -> color_eyre::eyre::Result<()> {
     track::execute(
-        client, project_id, task_id, None, notes, editor, date, alias,
+        client, project_id, task_id, None, notes, editor, date, refresh, alias,
     )
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn run(
     alias: Option<String>,
     project_id: Option<u64>,
@@ -24,7 +26,11 @@ pub async fn run(
     notes: Option<String>,
     editor: bool,
     date: Option<String>,
+    refresh: bool,
 ) -> color_eyre::eyre::Result<()> {
     let client = HarvClient::from_config_file().await?;
-    execute(&client, alias, project_id, task_id, notes, editor, date).await
+    execute(
+        &client, alias, project_id, task_id, notes, editor, date, refresh,
+    )
+    .await
 }

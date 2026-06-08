@@ -9,6 +9,7 @@ fn test_config() -> HarvConfig {
     HarvConfig {
         access_token: "test-token".into(),
         account_id: "1234567".into(),
+        cache_ttl_hours: 24,
         aliases: HashMap::new(),
     }
 }
@@ -449,7 +450,7 @@ async fn test_projects_my_assignments() {
         .mount(&server)
         .await;
 
-    let assignments = client.projects().my_assignments().await.unwrap();
+    let assignments = client.projects().my_assignments(false).await.unwrap();
     assert_eq!(assignments.len(), 1);
     assert_eq!(assignments[0].project.name, "Test Project");
     assert_eq!(assignments[0].task_assignments.len(), 1);

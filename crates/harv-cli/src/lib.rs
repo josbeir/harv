@@ -27,8 +27,8 @@ pub struct Cli {
 pub enum Commands {
     /// Authenticate with Harvest via OAuth2
     Connect,
-    /// Show current configuration
-    Config,
+    /// Show or modify configuration
+    Config(ConfigArgs),
     /// Interactive time entry wizard
     Track(TrackArgs),
     /// Start a running timer
@@ -53,6 +53,20 @@ pub enum Commands {
 }
 
 #[derive(clap::Args, Clone, Debug)]
+pub struct ConfigArgs {
+    #[command(subcommand)]
+    pub action: Option<ConfigAction>,
+}
+
+#[derive(Subcommand, Clone, Debug)]
+pub enum ConfigAction {
+    /// Set a configuration value
+    Set { setting: String, value: String },
+    /// Get a configuration value
+    Get { setting: String },
+}
+
+#[derive(clap::Args, Clone, Debug)]
 pub struct TrackArgs {
     #[arg(short = 'p', long)]
     pub project_id: Option<u64>,
@@ -66,6 +80,8 @@ pub struct TrackArgs {
     pub editor: bool,
     #[arg(short = 'd', long)]
     pub date: Option<String>,
+    #[arg(short = 'R', long)]
+    pub refresh: bool,
     pub alias: Option<String>,
 }
 
@@ -81,6 +97,8 @@ pub struct StartArgs {
     pub editor: bool,
     #[arg(short = 'd', long)]
     pub date: Option<String>,
+    #[arg(short = 'R', long)]
+    pub refresh: bool,
     pub alias: Option<String>,
 }
 
@@ -108,6 +126,8 @@ pub struct LogArgs {
     pub editor: bool,
     #[arg(short = 'd', long)]
     pub date: Option<String>,
+    #[arg(short = 'R', long)]
+    pub refresh: bool,
     pub alias: Option<String>,
 }
 
@@ -125,6 +145,8 @@ pub struct NoteArgs {
 pub struct ProjectsArgs {
     #[arg(short = 's', long)]
     pub search: Option<String>,
+    #[arg(short = 'R', long)]
+    pub refresh: bool,
 }
 
 #[derive(clap::Args, Clone, Debug)]

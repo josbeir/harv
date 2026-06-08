@@ -12,6 +12,7 @@ fn test_config() -> HarvConfig {
     HarvConfig {
         access_token: "t".into(),
         account_id: "1".into(),
+        cache_ttl_hours: 24,
         aliases: HashMap::new(),
     }
 }
@@ -57,7 +58,7 @@ async fn test_projects_execute() {
         .mount(&server)
         .await;
 
-    commands::projects::execute(&c, None, &harv_cli::OutputFormat::Table)
+    commands::projects::execute(&c, None, false, &harv_cli::OutputFormat::Table)
         .await
         .unwrap();
 }
@@ -72,9 +73,14 @@ async fn test_projects_with_search() {
         .mount(&server)
         .await;
 
-    commands::projects::execute(&c, Some("Test".into()), &harv_cli::OutputFormat::Table)
-        .await
-        .unwrap();
+    commands::projects::execute(
+        &c,
+        Some("Test".into()),
+        false,
+        &harv_cli::OutputFormat::Table,
+    )
+    .await
+    .unwrap();
 }
 
 // --- Tasks command ---
@@ -236,7 +242,9 @@ async fn test_config_execute_no_file() {
     let tmp = tempfile::tempdir().unwrap();
     std::env::remove_var("XDG_CONFIG_HOME");
     std::env::set_var("HOME", tmp.path());
-    commands::config_cmd::execute().await.unwrap();
+    commands::config_cmd::execute(&harv_cli::ConfigArgs { action: None })
+        .await
+        .unwrap();
 }
 
 // --- Track command (with provided IDs, bypasses prompts) ---
@@ -269,6 +277,7 @@ async fn test_track_with_ids() {
         Some("notes".into()),
         false,
         Some("2026-06-08".into()),
+        false,
         None,
     )
     .await
@@ -306,6 +315,7 @@ async fn test_log_with_ids() {
         None,
         false,
         Some("2026-06-08".into()),
+        false,
     )
     .await
     .unwrap();
@@ -437,6 +447,7 @@ async fn test_start_delegation() {
         None,
         false,
         Some("2026-06-08".into()),
+        false,
     )
     .await
     .unwrap();

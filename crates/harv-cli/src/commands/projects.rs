@@ -6,10 +6,11 @@ use harv_sdk::HarvClient;
 pub async fn execute(
     client: &HarvClient,
     search: Option<String>,
+    refresh: bool,
     format: &OutputFormat,
 ) -> color_eyre::eyre::Result<()> {
     let pb = spinner::new_spinner("Loading project assignments...");
-    let assignments = client.projects().my_assignments().await?;
+    let assignments = client.projects().my_assignments(refresh).await?;
     pb.finish_and_clear();
 
     let mut filtered: Vec<_> = if let Some(query) = &search {
@@ -56,7 +57,11 @@ pub async fn execute(
     Ok(())
 }
 
-pub async fn run(search: Option<String>, format: &OutputFormat) -> color_eyre::eyre::Result<()> {
+pub async fn run(
+    search: Option<String>,
+    refresh: bool,
+    format: &OutputFormat,
+) -> color_eyre::eyre::Result<()> {
     let client = HarvClient::from_config_file().await?;
-    execute(&client, search, format).await
+    execute(&client, search, refresh, format).await
 }
