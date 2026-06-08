@@ -19,18 +19,31 @@
 
 ## Installation
 
+### From GitHub
+
 ```bash
-cargo install --git https://github.com/josbeir/harv
+cargo install --git https://github.com/josbeir/harv harv-cli
 ```
 
-Or build from source:
+This compiles in release mode and installs `harv` to `~/.cargo/bin/` (which must be in your `$PATH`).
+
+### From local source
 
 ```bash
 git clone https://github.com/josbeir/harv
 cd harv
-cargo build --release
-cp target/release/harv ~/.local/bin/
+cargo install --path crates/harv-cli
 ```
+
+### Shell completions
+
+Add to `~/.bashrc` (or the equivalent for your shell):
+
+```bash
+source <(harv completion bash)
+```
+
+Other shells: replace `bash` with `zsh`, `fish`, `elvish`, or `powershell`.
 
 ## Quick Start
 
@@ -126,7 +139,7 @@ Project assignments are cached with the configured TTL. Subsequent `track`/`star
 By default `harv` ships with a built-in Harvest OAuth2 client ID. To use your own application (registered at [id.getharvest.com/developers](https://id.getharvest.com/developers)), set the `HARV_CLIENT_ID` environment variable at compile time:
 
 ```bash
-HARV_CLIENT_ID="your-app-id" cargo install --git https://github.com/josbeir/harv
+HARV_CLIENT_ID="your-app-id" cargo install --git https://github.com/josbeir/harv harv-cli
 ```
 
 When registering your app, set the redirect URI to `http://localhost:5006`.
