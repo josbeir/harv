@@ -146,6 +146,10 @@ harv-sdk  (Harvest API v2 client)
 harv-cli  (CLI binary)
 ```
 
+## Disclaimer
+
+This project is **not affiliated, associated, authorized, endorsed by, or in any way officially connected** with [Harvest](https://www.getharvest.com/) or its parent company. "Harvest" is a registered trademark of Iridesco, LLC. This is an independent, community-built CLI client for the Harvest public API.
+
 ## License
 
 MIT
