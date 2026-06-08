@@ -5,7 +5,20 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use tokio::net::TcpListener;
 
-const OAUTH_CLIENT_ID: &str = "xqrh-RWpCecJlp9L-i0dwu_K";
+/// Default Harvest OAuth2 client ID. Override at compile time by setting
+/// `HARV_CLIENT_ID` in the environment:
+/// ```bash
+/// HARV_CLIENT_ID="your-app-id" cargo build --release
+/// ```
+///
+/// Custom OAuth2 applications can be created at:
+/// https://id.getharvest.com/developers
+///
+/// When registering your app, set the redirect URI to `http://localhost:5006`.
+pub const OAUTH_CLIENT_ID: &str = match option_env!("HARV_CLIENT_ID") {
+    Some(id) => id,
+    None => "I4jYaGkAYUyfrlcmJBFilpCF",
+};
 const OAUTH_BASE_URL: &str = "https://id.getharvest.com";
 const CALLBACK_PORT: u16 = 5006;
 

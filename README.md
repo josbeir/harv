@@ -121,6 +121,16 @@ Config is stored at `~/.config/harv/config.json`. View with `harv config`, modif
 
 Project assignments are cached with the configured TTL. Subsequent `track`/`start`/`log` commands return instantly. Use `--refresh` to bypass the cache.
 
+### Custom OAuth2 Application
+
+By default `harv` ships with a built-in Harvest OAuth2 client ID. To use your own application (registered at [id.getharvest.com/developers](https://id.getharvest.com/developers)), set the `HARV_CLIENT_ID` environment variable at compile time:
+
+```bash
+HARV_CLIENT_ID="your-app-id" cargo install --git https://github.com/josbeir/harv
+```
+
+When registering your app, set the redirect URI to `http://localhost:5006`.
+
 ## Development
 
 ### Prerequisites
