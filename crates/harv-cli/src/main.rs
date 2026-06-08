@@ -6,9 +6,15 @@ fn main() -> color_eyre::eyre::Result<()> {
     color_eyre::install()?;
     harv_cli::setup_tracing();
 
+    let args: Vec<String> = std::env::args().collect();
+    let rt = tokio::runtime::Runtime::new()?;
+
+    if args.len() <= 1 {
+        harv_cli::header::show();
+    }
+
     let cli = Cli::parse();
 
-    let rt = tokio::runtime::Runtime::new()?;
     let result: color_eyre::eyre::Result<()> = rt.block_on(async {
         match cli.command {
             Commands::Connect => commands::connect::run().await?,
