@@ -95,7 +95,7 @@ fn main() -> color_eyre::eyre::Result<()> {
             let seed = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
-                .subsec_millis() as usize;
+                .as_millis() as usize;
             let msg = GOODBYES[seed % GOODBYES.len()];
             eprintln!("\n{msg}");
             std::process::exit(130)
