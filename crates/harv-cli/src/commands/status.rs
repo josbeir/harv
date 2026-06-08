@@ -2,9 +2,10 @@ use crate::prompts;
 use crate::spinner;
 use harv_sdk::HarvClient;
 
-pub async fn run(output: &crate::OutputFormat) -> color_eyre::eyre::Result<()> {
-    let client = HarvClient::from_config_file().await?;
-
+pub async fn execute(
+    client: &HarvClient,
+    output: &crate::OutputFormat,
+) -> color_eyre::eyre::Result<()> {
     let pb = spinner::new_spinner("Loading...");
     let user = client.users().me().await?;
     let running = client.time_entries().running(user.id).await?;
@@ -20,7 +21,6 @@ pub async fn run(output: &crate::OutputFormat) -> color_eyre::eyre::Result<()> {
                 let duration = now - ts;
                 duration.num_minutes()
             });
-
             let display = prompts::format_timer_display(timer, elapsed, output);
             println!("{}", display);
             if running.len() > 1 {
@@ -29,7 +29,6 @@ pub async fn run(output: &crate::OutputFormat) -> color_eyre::eyre::Result<()> {
         }
     }
 
-    // Show today's entries
     let today = harv_core::datetime::today();
     let params = harv_sdk::resources::time_entries::TimeEntryListParams {
         user_id: Some(user.id),
@@ -38,7 +37,6 @@ pub async fn run(output: &crate::OutputFormat) -> color_eyre::eyre::Result<()> {
         ..Default::default()
     };
     let today_entries = client.time_entries().list(&params).await?;
-
     let total: f64 = today_entries.iter().filter_map(|e| e.hours).sum();
 
     match output {
@@ -50,12 +48,13 @@ pub async fn run(output: &crate::OutputFormat) -> color_eyre::eyre::Result<()> {
                         .hours
                         .map(|h| format!("{:.2}h", h))
                         .unwrap_or_default();
-                    let project = &entry.project.name;
-                    let task = &entry.task.name;
-                    let notes = entry.notes.as_deref().unwrap_or("");
                     println!(
                         "  #{}\t{}\t{} → {}\t{}",
-                        entry.id, hours, project, task, notes
+                        entry.id,
+                        hours,
+                        entry.project.name,
+                        entry.task.name,
+                        entry.notes.as_deref().unwrap_or("")
                     );
                 }
             }
@@ -65,25 +64,21 @@ pub async fn run(output: &crate::OutputFormat) -> color_eyre::eyre::Result<()> {
                 "{}",
                 serde_json::json!({
                     "running": running.iter().map(|t| serde_json::json!({
-                        "id": t.id,
-                        "project": t.project.name,
-                        "task": t.task.name,
+                        "id": t.id, "project": t.project.name, "task": t.task.name,
                         "started_at": t.timer_started_at.map(|ts| ts.to_rfc3339()),
                     })).collect::<Vec<_>>(),
-                    "today": {
-                        "total_hours": total,
-                        "entries": today_entries.iter().map(|e| serde_json::json!({
-                            "id": e.id,
-                            "hours": e.hours,
-                            "project": e.project.name,
-                            "task": e.task.name,
-                            "notes": e.notes,
-                        })).collect::<Vec<_>>(),
-                    }
+                    "today": { "total_hours": total, "entries": today_entries.iter().map(|e| serde_json::json!({
+                        "id": e.id, "hours": e.hours, "project": e.project.name, "task": e.task.name, "notes": e.notes,
+                    })).collect::<Vec<_>>() }
                 })
             );
         }
     }
 
     Ok(())
+}
+
+pub async fn run(output: &crate::OutputFormat) -> color_eyre::eyre::Result<()> {
+    let client = HarvClient::from_config_file().await?;
+    execute(&client, output).await
 }

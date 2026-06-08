@@ -1,0 +1,364 @@
+use harv_cli::commands;
+use harv_sdk::{HarvClient, HarvConfig};
+use serde_json::json;
+use std::collections::HashMap;
+use wiremock::matchers::{method, path};
+use wiremock::{Mock, MockServer, ResponseTemplate};
+
+fn test_config() -> HarvConfig {
+    HarvConfig {
+        access_token: "t".into(),
+        account_id: "1".into(),
+        aliases: HashMap::new(),
+    }
+}
+
+fn client(uri: &str) -> HarvClient {
+    HarvClient::new(test_config()).unwrap().with_base_url(uri)
+}
+
+fn json_response(body: serde_json::Value) -> ResponseTemplate {
+    ResponseTemplate::new(200)
+        .set_body_json(body)
+        .insert_header("Content-Type", "application/json")
+}
+
+fn project_assignments_json() -> serde_json::Value {
+    json!({
+        "project_assignments": [{
+            "id": 1, "project": {"id": 100, "name": "Test Project"},
+            "client": {"id": 1, "name": "Test Client"},
+            "task_assignments": [
+                {"id": 10, "task": {"id": 200, "name": "Development"}},
+                {"id": 11, "task": {"id": 201, "name": "Design"}}
+            ],
+            "is_active": true
+        }],
+        "total_pages": 1, "page": 1, "total_entries": 1, "per_page": 100
+    })
+}
+
+fn user_json() -> serde_json::Value {
+    json!({"id": 1, "first_name": "Test", "last_name": "User", "email": "test@test.com", "is_active": true, "created_at": null, "updated_at": null})
+}
+
+// --- Projects command ---
+
+#[tokio::test]
+async fn test_projects_execute() {
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+    Mock::given(method("GET"))
+        .and(path("/users/me/project_assignments"))
+        .respond_with(json_response(project_assignments_json()))
+        .mount(&server)
+        .await;
+
+    commands::projects::execute(&c, None, &harv_cli::OutputFormat::Table)
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn test_projects_with_search() {
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+    Mock::given(method("GET"))
+        .and(path("/users/me/project_assignments"))
+        .respond_with(json_response(project_assignments_json()))
+        .mount(&server)
+        .await;
+
+    commands::projects::execute(&c, Some("Test".into()), &harv_cli::OutputFormat::Table)
+        .await
+        .unwrap();
+}
+
+// --- Tasks command ---
+
+#[tokio::test]
+async fn test_tasks_execute() {
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+    Mock::given(method("GET"))
+        .and(path("/projects/100/task_assignments"))
+        .respond_with(json_response(json!({
+            "task_assignments": [
+                {"id": 10, "task": {"id": 200, "name": "Development"}}
+            ],
+            "total_pages": 1, "page": 1, "total_entries": 1, "per_page": 100
+        })))
+        .mount(&server)
+        .await;
+
+    commands::tasks::execute(&c, 100, &harv_cli::OutputFormat::Table)
+        .await
+        .unwrap();
+}
+
+// --- Stop command ---
+
+#[tokio::test]
+async fn test_stop_no_timer() {
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+    Mock::given(method("GET"))
+        .and(path("/users/me"))
+        .respond_with(json_response(user_json()))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET")).and(path("/time_entries"))
+        .respond_with(json_response(json!({"time_entries": [], "total_pages": 1, "page": 1, "total_entries": 0, "per_page": 100})))
+        .mount(&server).await;
+
+    commands::stop::execute(&c, None, false, false)
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn test_stop_single_timer() {
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+
+    let running_entry = json!({
+        "id": 1, "is_running": true, "hours": null, "timer_started_at": "2026-06-08T14:00:00Z",
+        "project": {"id": 100, "name": "Test Project"}, "task": {"id": 200, "name": "Development"},
+        "user": {"id": 1, "name": "Test User"}, "client": {"id": 1, "name": "Test Client"},
+        "is_billed": false, "billable": true, "billable_rate": null, "cost_rate": null,
+        "created_at": null, "updated_at": null,
+        "spent_date": null, "notes": null, "started_time": null, "ended_time": null
+    });
+
+    Mock::given(method("GET"))
+        .and(path("/users/me"))
+        .respond_with(json_response(user_json()))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET")).and(path("/time_entries"))
+        .respond_with(json_response(json!({"time_entries": [running_entry], "total_pages": 1, "page": 1, "total_entries": 1, "per_page": 100})))
+        .mount(&server).await;
+    Mock::given(method("PATCH")).and(path("/time_entries/1/stop"))
+        .respond_with(json_response(json!({
+            "id": 1, "is_running": false, "hours": 1.5,
+            "project": {"id": 100, "name": "Test Project"}, "task": {"id": 200, "name": "Development"},
+            "user": {"id": 1, "name": "Test User"}, "client": {"id": 1, "name": "Test Client"},
+            "is_billed": false, "billable": true, "billable_rate": null, "cost_rate": null,
+            "created_at": null, "updated_at": null,
+            "spent_date": null, "notes": null, "timer_started_at": null, "started_time": null, "ended_time": null
+        })))
+        .mount(&server).await;
+
+    commands::stop::execute(&c, None, false, false)
+        .await
+        .unwrap();
+}
+
+// --- Note command ---
+
+#[tokio::test]
+async fn test_note_no_timer() {
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+    Mock::given(method("GET"))
+        .and(path("/users/me"))
+        .respond_with(json_response(user_json()))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET")).and(path("/time_entries"))
+        .respond_with(json_response(json!({"time_entries": [], "total_pages": 1, "page": 1, "total_entries": 0, "per_page": 100})))
+        .mount(&server).await;
+
+    commands::note::execute(&c, None, false, false)
+        .await
+        .unwrap();
+}
+
+// --- Status command ---
+
+#[tokio::test]
+async fn test_status_no_timers() {
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+    Mock::given(method("GET"))
+        .and(path("/users/me"))
+        .respond_with(json_response(user_json()))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET")).and(path("/time_entries"))
+        .respond_with(json_response(json!({"time_entries": [], "total_pages": 1, "page": 1, "total_entries": 0, "per_page": 100})))
+        .mount(&server).await;
+
+    commands::status::execute(&c, &harv_cli::OutputFormat::Table)
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn test_status_with_timers() {
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+
+    let running = json!({
+        "id": 1, "is_running": true, "timer_started_at": "2026-06-08T14:00:00Z",
+        "project": {"id": 100, "name": "Test Project"}, "task": {"id": 200, "name": "Development"},
+        "user": {"id": 1, "name": "Test User"}, "client": {"id": 1, "name": "Test Client"},
+        "is_billed": false, "billable": true, "billable_rate": null, "cost_rate": null,
+        "created_at": null, "updated_at": null,
+        "spent_date": null, "notes": null, "hours": null, "started_time": null, "ended_time": null
+    });
+
+    Mock::given(method("GET"))
+        .and(path("/users/me"))
+        .respond_with(json_response(user_json()))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET")).and(path("/time_entries"))
+        .respond_with(json_response(json!({"time_entries": [running], "total_pages": 1, "page": 1, "total_entries": 1, "per_page": 100})))
+        .mount(&server).await;
+    Mock::given(method("GET")).and(path("/time_entries"))
+        .respond_with(json_response(json!({"time_entries": [], "total_pages": 1, "page": 1, "total_entries": 0, "per_page": 100})))
+        .mount(&server).await;
+
+    commands::status::execute(&c, &harv_cli::OutputFormat::Table)
+        .await
+        .unwrap();
+}
+
+// --- Config command ---
+
+#[tokio::test]
+async fn test_config_execute_no_file() {
+    let tmp = tempfile::tempdir().unwrap();
+    std::env::set_var("XDG_CONFIG_HOME", tmp.path());
+    commands::config_cmd::execute().await.unwrap();
+}
+
+// --- Track command (with provided IDs, bypasses prompts) ---
+
+#[tokio::test]
+async fn test_track_with_ids() {
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+
+    Mock::given(method("GET"))
+        .and(path("/users/me/project_assignments"))
+        .respond_with(json_response(project_assignments_json()))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST")).and(path("/time_entries"))
+        .respond_with(json_response(json!({
+            "id": 99, "spent_date": "2026-06-08", "hours": 2.0, "notes": null,
+            "is_running": false, "timer_started_at": null, "started_time": null, "ended_time": null,
+            "project": {"id": 100, "name": "Test Project"}, "task": {"id": 200, "name": "Development"},
+            "user": {"id": 1, "name": "Test User"}, "client": null,
+            "is_billed": false, "billable": true, "billable_rate": null, "cost_rate": null,
+            "created_at": null, "updated_at": null
+        }))).mount(&server).await;
+
+    commands::track::execute(
+        &c,
+        Some(100),
+        Some(200),
+        Some(2.0),
+        Some("notes".into()),
+        false,
+        Some("2026-06-08".into()),
+        None,
+    )
+    .await
+    .unwrap();
+}
+
+// --- Log command ---
+
+#[tokio::test]
+async fn test_log_with_ids() {
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+
+    Mock::given(method("GET"))
+        .and(path("/users/me/project_assignments"))
+        .respond_with(json_response(project_assignments_json()))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST")).and(path("/time_entries"))
+        .respond_with(json_response(json!({
+            "id": 99, "spent_date": "2026-06-08", "hours": 2.0, "notes": null,
+            "is_running": false, "timer_started_at": null, "started_time": null, "ended_time": null,
+            "project": {"id": 100, "name": "Test Project"}, "task": {"id": 200, "name": "Development"},
+            "user": {"id": 1, "name": "Test User"}, "client": null,
+            "is_billed": false, "billable": true, "billable_rate": null, "cost_rate": null,
+            "created_at": null, "updated_at": null
+        }))).mount(&server).await;
+
+    commands::log::execute(
+        &c,
+        2.0,
+        None,
+        Some(100),
+        Some(200),
+        None,
+        false,
+        Some("2026-06-08".into()),
+    )
+    .await
+    .unwrap();
+}
+
+// --- Note command with inline notes ---
+
+#[tokio::test]
+async fn test_note_single_timer() {
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+
+    let running = json!({
+        "id": 1, "is_running": true, "timer_started_at": "2026-06-08T14:00:00Z",
+        "project": {"id": 100, "name": "Test Project"}, "task": {"id": 200, "name": "Development"},
+        "user": {"id": 1, "name": "Test User"}, "client": {"id": 1, "name": "Test Client"},
+        "is_billed": false, "billable": true, "billable_rate": null, "cost_rate": null,
+        "created_at": null, "updated_at": null,
+        "spent_date": null, "notes": null, "hours": null, "started_time": null, "ended_time": null
+    });
+
+    Mock::given(method("GET"))
+        .and(path("/users/me"))
+        .respond_with(json_response(user_json()))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET")).and(path("/time_entries"))
+        .respond_with(json_response(json!({"time_entries": [running], "total_pages": 1, "page": 1, "total_entries": 1, "per_page": 100})))
+        .mount(&server).await;
+    Mock::given(method("PATCH")).and(path("/time_entries/1"))
+        .respond_with(json_response(json!({
+            "id": 1, "is_running": true, "notes": "updated notes",
+            "project": {"id": 100, "name": "Test Project"}, "task": {"id": 200, "name": "Development"},
+            "user": {"id": 1, "name": "Test User"}, "client": {"id": 1, "name": "Test Client"},
+            "is_billed": false, "billable": true, "billable_rate": null, "cost_rate": null,
+            "created_at": null, "updated_at": null,
+            "spent_date": null, "hours": null, "timer_started_at": null, "started_time": null, "ended_time": null
+        }))).mount(&server).await;
+
+    commands::note::execute(&c, Some("updated notes".into()), false, false)
+        .await
+        .unwrap();
+}
+
+// --- Alias list ---
+
+#[tokio::test]
+async fn test_alias_list_empty() {
+    let tmp = tempfile::tempdir().unwrap();
+    std::env::set_var("XDG_CONFIG_HOME", tmp.path());
+    let harv_dir = tmp.path().join("harv");
+    std::fs::create_dir_all(&harv_dir).unwrap();
+    std::fs::write(
+        harv_dir.join("config.json"),
+        r#"{"access_token":"t","account_id":"1"}"#,
+    )
+    .unwrap();
+    commands::alias::list_execute(&harv_cli::OutputFormat::Table)
+        .await
+        .unwrap();
+}

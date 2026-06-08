@@ -2,8 +2,11 @@ use crate::output;
 use crate::OutputFormat;
 use harv_sdk::HarvClient;
 
-pub async fn run(project_id: u64, format: &OutputFormat) -> color_eyre::eyre::Result<()> {
-    let client = HarvClient::from_config_file().await?;
+pub async fn execute(
+    client: &HarvClient,
+    project_id: u64,
+    format: &OutputFormat,
+) -> color_eyre::eyre::Result<()> {
     let assignments = client.projects().task_assignments(project_id).await?;
 
     let headers = ["Task", "Task ID", "Billable"];
@@ -20,4 +23,9 @@ pub async fn run(project_id: u64, format: &OutputFormat) -> color_eyre::eyre::Re
 
     println!("{}", output::render(&headers, &rows, format));
     Ok(())
+}
+
+pub async fn run(project_id: u64, format: &OutputFormat) -> color_eyre::eyre::Result<()> {
+    let client = HarvClient::from_config_file().await?;
+    execute(&client, project_id, format).await
 }

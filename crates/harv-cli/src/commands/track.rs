@@ -3,7 +3,9 @@ use crate::spinner;
 use harv_core::{CreateTimeEntry, HarvError};
 use harv_sdk::HarvClient;
 
-pub async fn run(
+#[allow(clippy::too_many_arguments)]
+pub async fn execute(
+    client: &HarvClient,
     project_id: Option<u64>,
     task_id: Option<u64>,
     hours: Option<f64>,
@@ -12,7 +14,6 @@ pub async fn run(
     date: Option<String>,
     alias: Option<String>,
 ) -> color_eyre::eyre::Result<()> {
-    let client = HarvClient::from_config_file().await?;
     let config = client.config().clone();
 
     let pb = spinner::new_spinner("Loading project assignments...");
@@ -27,7 +28,6 @@ pub async fn run(
         ));
     }
 
-    // Resolve alias if provided
     let (resolved_project_id, resolved_task_id) = if let Some(alias_name) = &alias {
         let alias_obj = config.alias(alias_name).ok_or_else(|| {
             color_eyre::eyre::eyre!(HarvError::AliasNotFound(alias_name.clone()).user_message())
@@ -37,7 +37,6 @@ pub async fn run(
         (project_id, task_id)
     };
 
-    // Pick or use project
     let (p_id, task_assignments) = if let Some(pid) = resolved_project_id {
         let choice = choices
             .iter()
@@ -51,7 +50,6 @@ pub async fn run(
         (choice.project_id, choice.task_assignments.clone())
     };
 
-    // Pick or use task
     let t_id = if let Some(tid) = resolved_task_id {
         task_assignments
             .iter()
@@ -61,13 +59,11 @@ pub async fn run(
                 color_eyre::eyre::eyre!("Task ID {} not assigned to project {}", tid, p_id)
             })?
     } else {
-        // We need to reconstruct a ProjectChoice for the pick_task function
         let choice = choices.iter().find(|c| c.project_id == p_id).unwrap();
         let task = prompts::pick_task(choice)?;
         task.task.id
     };
 
-    // Date
     let spent_date = if let Some(ref d) = date {
         harv_core::datetime::parse_date_not_future(d)
             .map_err(|e| color_eyre::eyre::eyre!(e.user_message()))?
@@ -76,17 +72,14 @@ pub async fn run(
         prompts::ask_date(today)?
     };
 
-    // Hours
     let resolved_hours = if hours.is_some() {
         hours
     } else if date.is_none() && alias.is_none() && project_id.is_none() && task_id.is_none() {
-        // Only prompt for hours in interactive mode (no flags, no alias)
         prompts::ask_hours()?
     } else {
         None
     };
 
-    // Notes
     let resolved_notes = if let Some(n) = notes {
         Some(n)
     } else if editor {
@@ -97,7 +90,6 @@ pub async fn run(
         None
     };
 
-    // Calculate start/end time if hours provided
     let (started_time, ended_time) = resolved_hours
         .map(|h| {
             let (start, end) = harv_core::datetime::time_window(h);
@@ -139,4 +131,20 @@ pub async fn run(
     }
 
     Ok(())
+}
+
+pub async fn run(
+    project_id: Option<u64>,
+    task_id: Option<u64>,
+    hours: Option<f64>,
+    notes: Option<String>,
+    editor: bool,
+    date: Option<String>,
+    alias: Option<String>,
+) -> color_eyre::eyre::Result<()> {
+    let client = HarvClient::from_config_file().await?;
+    execute(
+        &client, project_id, task_id, hours, notes, editor, date, alias,
+    )
+    .await
 }

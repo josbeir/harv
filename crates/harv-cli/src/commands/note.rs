@@ -1,13 +1,12 @@
 use crate::spinner;
 use harv_sdk::HarvClient;
 
-pub async fn run(
+pub async fn execute(
+    client: &HarvClient,
     notes: Option<String>,
     overwrite: bool,
     editor: bool,
 ) -> color_eyre::eyre::Result<()> {
-    let client = HarvClient::from_config_file().await?;
-
     let pb = spinner::new_spinner("Loading...");
     let user = client.users().me().await?;
     let running = client.time_entries().running(user.id).await?;
@@ -45,7 +44,6 @@ pub async fn run(
     };
 
     let existing = timer.notes.clone().unwrap_or_default();
-
     let updated = if let Some(n) = notes {
         if n.is_empty() {
             return Ok(());
@@ -82,4 +80,13 @@ pub async fn run(
     }
 
     Ok(())
+}
+
+pub async fn run(
+    notes: Option<String>,
+    overwrite: bool,
+    editor: bool,
+) -> color_eyre::eyre::Result<()> {
+    let client = HarvClient::from_config_file().await?;
+    execute(&client, notes, overwrite, editor).await
 }

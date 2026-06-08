@@ -4,14 +4,12 @@ use crate::spinner;
 use crate::OutputFormat;
 use harv_sdk::{Alias, HarvClient, HarvConfig};
 
-pub async fn create(name: String) -> color_eyre::eyre::Result<()> {
-    let client = HarvClient::from_config_file().await?;
-
+pub async fn create_execute(client: &HarvClient, name: &str) -> color_eyre::eyre::Result<()> {
     let pb = spinner::new_spinner("Loading project assignments...");
     let assignments = client.projects().my_assignments().await?;
     pb.finish_and_clear();
-    let choices = prompts::build_project_choices(&assignments);
 
+    let choices = prompts::build_project_choices(&assignments);
     if choices.is_empty() {
         println!("No project assignments found.");
         return Ok(());
@@ -23,7 +21,7 @@ pub async fn create(name: String) -> color_eyre::eyre::Result<()> {
     let mut config = HarvConfig::load().await?;
     config
         .set_alias(
-            &name,
+            name,
             Alias {
                 project_id: project_choice.project_id,
                 task_id: task.task.id,
@@ -35,45 +33,45 @@ pub async fn create(name: String) -> color_eyre::eyre::Result<()> {
         "Alias '{}' created: {} => {}",
         name, project_choice.display, task.task.name
     );
-
     Ok(())
 }
 
-pub async fn list(format: &OutputFormat) -> color_eyre::eyre::Result<()> {
-    let config = HarvConfig::load().await?;
+pub async fn create(name: String) -> color_eyre::eyre::Result<()> {
+    let client = HarvClient::from_config_file().await?;
+    create_execute(&client, &name).await
+}
 
+pub async fn list_execute(format: &OutputFormat) -> color_eyre::eyre::Result<()> {
+    let config = HarvConfig::load().await?;
     if config.aliases.is_empty() {
-        println!("No aliases defined.");
-        println!("Use `harv alias create <name>` to create one.");
+        println!("No aliases defined.\nUse `harv alias create <name>` to create one.");
         return Ok(());
     }
-
     let headers = ["Alias", "Project ID", "Task ID"];
     let rows: Vec<[String; 3]> = config
         .aliases
         .iter()
-        .map(|(name, alias)| {
-            [
-                name.clone(),
-                alias.project_id.to_string(),
-                alias.task_id.to_string(),
-            ]
-        })
+        .map(|(n, a)| [n.clone(), a.project_id.to_string(), a.task_id.to_string()])
         .collect();
-
     println!("{}", output::render(&headers, &rows, format));
     Ok(())
 }
 
-pub async fn delete(name: String) -> color_eyre::eyre::Result<()> {
-    let mut config = HarvConfig::load().await?;
+pub async fn list(format: &OutputFormat) -> color_eyre::eyre::Result<()> {
+    list_execute(format).await
+}
 
-    if config.alias(&name).is_none() {
+pub async fn delete_execute(name: &str) -> color_eyre::eyre::Result<()> {
+    let mut config = HarvConfig::load().await?;
+    if config.alias(name).is_none() {
         println!("Alias '{}' not found.", name);
         return Ok(());
     }
-
-    config.remove_alias(&name).await?;
+    config.remove_alias(name).await?;
     println!("Alias '{}' deleted.", name);
     Ok(())
+}
+
+pub async fn delete(name: String) -> color_eyre::eyre::Result<()> {
+    delete_execute(&name).await
 }

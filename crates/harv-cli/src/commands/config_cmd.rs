@@ -1,6 +1,6 @@
 use harv_sdk::HarvConfig;
 
-pub async fn run() -> color_eyre::eyre::Result<()> {
+pub async fn execute() -> color_eyre::eyre::Result<()> {
     let path = HarvConfig::path();
 
     print!("Config file: {}", path.display());
@@ -36,4 +36,8 @@ pub async fn run() -> color_eyre::eyre::Result<()> {
     }
 
     Ok(())
+}
+
+pub async fn run() -> color_eyre::eyre::Result<()> {
+    execute().await
 }

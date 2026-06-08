@@ -1,13 +1,12 @@
 use crate::spinner;
 use harv_sdk::HarvClient;
 
-pub async fn run(
+pub async fn execute(
+    client: &HarvClient,
     notes: Option<String>,
     overwrite: bool,
     editor: bool,
 ) -> color_eyre::eyre::Result<()> {
-    let client = HarvClient::from_config_file().await?;
-
     let pb = spinner::new_spinner("Loading...");
     let user = client.users().me().await?;
     let running = client.time_entries().running(user.id).await?;
@@ -21,7 +20,6 @@ pub async fn run(
     let timer = if running.len() == 1 {
         &running[0]
     } else {
-        // Multiple timers: pick one
         let items: Vec<String> = running
             .iter()
             .map(|t| {
@@ -46,7 +44,6 @@ pub async fn run(
         &running[idx]
     };
 
-    // Handle notes update before stopping
     if notes.is_some() || editor {
         let existing = timer.notes.clone().unwrap_or_default();
         let updated = if editor {
@@ -78,11 +75,9 @@ pub async fn run(
                 ..Default::default()
             };
             client.time_entries().update(timer.id, &update).await?;
-            tracing::info!("Updated notes for timer #{}", timer.id);
         }
     }
 
-    // Stop the timer
     let stopped = client.time_entries().stop(timer.id).await?;
     println!("Timer stopped.");
     println!(
@@ -99,4 +94,13 @@ pub async fn run(
     );
 
     Ok(())
+}
+
+pub async fn run(
+    notes: Option<String>,
+    overwrite: bool,
+    editor: bool,
+) -> color_eyre::eyre::Result<()> {
+    let client = HarvClient::from_config_file().await?;
+    execute(&client, notes, overwrite, editor).await
 }
