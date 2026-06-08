@@ -53,8 +53,10 @@ An interactive wizard that prompts for:
 - **Project** — fuzzy search, pick with arrow keys
 - **Task** — filtered to the selected project
 - **Date** — defaults to today
-- **Hours** — enter 0 or leave empty to start a running timer
-- **Notes** — optional, can open `$EDITOR`
+- **Hours** — decimal (`1.5`) or HH:MM (`1:30`); enter 0 or leave empty to start a running timer
+- **Notes** — optional
+
+Once you track time, your last-used project and task are remembered — next time you run `harv track`, that project appears at the top with a `●` for a quick Enter skip.
 
 ### 3. Quick commands
 
@@ -88,7 +90,9 @@ harv log 1.5 dev
 | Command | Description |
 |---------|-------------|
 | `harv connect` | Authenticate with Harvest via OAuth2 |
-| `harv config` | Show configuration path and values |
+| `harv config` | Show full configuration |
+| `harv config get <key>` | Get a config value (e.g. `cache-ttl`) |
+| `harv config set <key> <val>` | Set a config value (e.g. `cache-ttl 48`) |
 | `harv track` | Interactive time entry wizard |
 | `harv start [alias]` | Start a running timer |
 | `harv stop` | Stop the current running timer |
@@ -98,12 +102,24 @@ harv log 1.5 dev
 | `harv projects` | List project assignments |
 | `harv tasks <project-id>` | List tasks for a project |
 | `harv alias` | Manage project/task aliases |
+| `harv completion <shell>` | Generate shell completion script |
 
 ## Global Options
 
 | Flag | Description |
 |------|-------------|
 | `-o, --output <table\|json>` | Output format (default: table) |
+| `-R, --refresh` | Force-refresh cached data from the API |
+
+## Configuration
+
+Config is stored at `~/.config/harv/config.json`. View with `harv config`, modify with `harv config set`.
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `cache-ttl` | `24` | Cache lifetime in hours (0 = always fetch) |
+
+Project assignments are cached with the configured TTL. Subsequent `track`/`start`/`log` commands return instantly. Use `--refresh` to bypass the cache.
 
 ## Development
 
