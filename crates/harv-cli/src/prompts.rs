@@ -141,10 +141,7 @@ pub fn ask_notes(use_editor: bool) -> color_eyre::eyre::Result<Option<String>> {
         return Ok(notes);
     }
 
-    let confirmed = Confirm::new("Add notes?")
-        .with_default(false)
-        .prompt()
-        .unwrap_or(false);
+    let confirmed = Confirm::new("Add notes?").with_default(false).prompt()?;
 
     if !confirmed {
         return Ok(None);
