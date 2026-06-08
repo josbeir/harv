@@ -322,4 +322,63 @@ mod tests {
         assert_eq!(user.first_name, "Kim");
         assert_eq!(user.email, "kim@example.com");
     }
+
+    #[test]
+    fn test_client_deserialize() {
+        let json = r#"{
+            "id": 1,
+            "name": "Test Client",
+            "is_active": true,
+            "address": "123 Main St",
+            "currency": "USD",
+            "created_at": null,
+            "updated_at": null
+        }"#;
+        let client: Client = serde_json::from_str(json).unwrap();
+        assert_eq!(client.name, "Test Client");
+        assert_eq!(client.currency, Some("USD".into()));
+    }
+
+    #[test]
+    fn test_company_deserialize() {
+        let json = r#"{"name": "Acme Corp"}"#;
+        let company: Company = serde_json::from_str(json).unwrap();
+        assert_eq!(company.name, "Acme Corp");
+    }
+
+    #[test]
+    fn test_project_deserialize() {
+        let json = r#"{
+            "id": 1,
+            "name": "Test Project",
+            "client": null,
+            "is_active": true,
+            "code": "PRJ-001",
+            "notes": null,
+            "starts_on": null,
+            "ends_on": null,
+            "created_at": null,
+            "updated_at": null
+        }"#;
+        let project: Project = serde_json::from_str(json).unwrap();
+        assert_eq!(project.name, "Test Project");
+        assert_eq!(project.code, Some("PRJ-001".into()));
+    }
+
+    #[test]
+    fn test_task_deserialize() {
+        let json = r#"{
+            "id": 1,
+            "name": "Development",
+            "billable_by_default": true,
+            "default_hourly_rate": null,
+            "is_default": false,
+            "is_active": true,
+            "created_at": null,
+            "updated_at": null
+        }"#;
+        let task: Task = serde_json::from_str(json).unwrap();
+        assert_eq!(task.name, "Development");
+        assert!(task.billable_by_default);
+    }
 }

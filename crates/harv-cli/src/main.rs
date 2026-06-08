@@ -2,7 +2,8 @@ pub mod commands;
 pub(crate) mod output;
 pub(crate) mod prompts;
 
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
+use clap_complete::Shell;
 
 /// Harv — A CLI for Harvest time tracking.
 #[derive(Parser)]
@@ -47,6 +48,9 @@ pub enum Commands {
 
     /// Show current timer status and today's entries
     Status,
+
+    /// Generate shell completion script
+    Completion(CompletionArgs),
 
     /// List your project assignments
     Projects(ProjectsArgs),
@@ -125,7 +129,7 @@ pub struct StopArgs {
     pub notes: Option<String>,
 
     /// Overwrite existing notes instead of appending
-    #[arg(short = 'o', long)]
+    #[arg(long)]
     pub overwrite: bool,
 
     /// Open $EDITOR for notes
@@ -171,7 +175,7 @@ pub struct NoteArgs {
     pub notes: Option<String>,
 
     /// Overwrite existing notes instead of appending
-    #[arg(short = 'o', long)]
+    #[arg(long)]
     pub overwrite: bool,
 
     /// Open $EDITOR for notes
@@ -209,6 +213,13 @@ pub enum AliasCommand {
         /// Alias name
         name: String,
     },
+}
+
+/// Arguments for the completion command
+#[derive(clap::Args, Clone, Debug)]
+pub struct CompletionArgs {
+    /// Shell to generate completions for
+    pub shell: Shell,
 }
 
 pub(crate) fn setup_tracing() {
@@ -279,6 +290,11 @@ async fn main() -> color_eyre::eyre::Result<()> {
             AliasCommand::List => commands::alias::list(&cli.output).await?,
             AliasCommand::Delete { name } => commands::alias::delete(name).await?,
         },
+        Commands::Completion(args) => {
+            let mut cmd = Cli::command();
+            let name = cmd.get_name().to_string();
+            clap_complete::generate(args.shell, &mut cmd, name, &mut std::io::stdout());
+        }
     }
 
     Ok(())

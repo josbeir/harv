@@ -134,4 +134,41 @@ mod tests {
         let config = test_config();
         assert!(config.alias("nonexistent").is_none());
     }
+
+    #[test]
+    fn test_serialize_with_aliases() {
+        let mut config = test_config();
+        config.aliases.insert(
+            "dev".into(),
+            Alias {
+                project_id: 10,
+                task_id: 20,
+            },
+        );
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains("dev"));
+        assert!(json.contains("10"));
+    }
+
+    #[test]
+    fn test_deserialize_with_aliases() {
+        let json = r#"{"access_token":"tok","account_id":"1","aliases":{"dev":{"project_id":10,"task_id":20}}}"#;
+        let config: HarvConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.access_token, "tok");
+        assert!(config.alias("dev").is_some());
+    }
+
+    #[test]
+    fn test_deserialize_without_aliases() {
+        let json = r#"{"access_token":"tok","account_id":"1"}"#;
+        let config: HarvConfig = serde_json::from_str(json).unwrap();
+        assert!(config.aliases.is_empty());
+    }
+
+    #[test]
+    fn test_path_ends_with_config_json() {
+        let path = HarvConfig::path();
+        assert!(path.to_string_lossy().contains("harv"));
+        assert!(path.ends_with("config.json"));
+    }
 }

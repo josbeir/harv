@@ -1,0 +1,140 @@
+# Harv
+
+[![CI](https://github.com/josbeir/harv/actions/workflows/ci.yml/badge.svg)](https://github.com/josbeir/harv/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Rust](https://img.shields.io/badge/Rust-1.80%2B-orange.svg)](https://www.rust-lang.org)
+
+A Rust CLI for [Harvest](https://www.getharvest.com) time tracking. Fast, intuitive, and fully async.
+
+## Installation
+
+```bash
+cargo install --git https://github.com/josbeir/harv
+```
+
+Or build from source:
+
+```bash
+git clone https://github.com/josbeir/harv
+cd harv
+cargo build --release
+cp target/release/harv ~/.local/bin/
+```
+
+## Quick Start
+
+### 1. Authenticate
+
+```bash
+harv connect
+```
+
+Opens your browser to authenticate with Harvest via OAuth2. Credentials are stored at `~/.config/harv/config.json`.
+
+### 2. Track time
+
+```bash
+harv track
+```
+
+An interactive wizard that prompts for:
+
+- **Project** — fuzzy search, pick with arrow keys
+- **Task** — filtered to the selected project
+- **Date** — defaults to today
+- **Hours** — enter 0 or leave empty to start a running timer
+- **Notes** — optional, can open `$EDITOR`
+
+### 3. Quick commands
+
+```bash
+harv start [alias]       # Start a running timer
+harv stop                # Stop the running timer
+harv log 2.5 [alias]     # Log 2.5 hours
+harv note                # Edit running timer notes (append by default)
+harv status              # Show current timer + today's entries
+```
+
+### 4. Aliases
+
+Create shortcuts for frequently used project/task pairs:
+
+```bash
+harv alias create dev    # Interactive: pick project + task
+harv alias list
+harv alias delete dev
+```
+
+Use aliases to skip prompts:
+
+```bash
+harv start dev
+harv log 1.5 dev
+```
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `harv connect` | Authenticate with Harvest via OAuth2 |
+| `harv config` | Show configuration path and values |
+| `harv track` | Interactive time entry wizard |
+| `harv start [alias]` | Start a running timer |
+| `harv stop` | Stop the current running timer |
+| `harv log <hours> [alias]` | Log time with specified hours |
+| `harv note` | Edit notes on the running timer |
+| `harv status` | Show current timer + today's entries |
+| `harv projects` | List project assignments |
+| `harv tasks <project-id>` | List tasks for a project |
+| `harv alias` | Manage project/task aliases |
+
+## Global Options
+
+| Flag | Description |
+|------|-------------|
+| `-o, --output <table\|json>` | Output format (default: table) |
+
+## Development
+
+### Prerequisites
+
+- Rust 1.80+
+
+### Build
+
+```bash
+cargo build --workspace
+```
+
+### Test
+
+```bash
+cargo test --workspace
+```
+
+### Lint
+
+```bash
+cargo clippy --all-targets -- -D warnings
+cargo fmt --all -- --check
+```
+
+### Coverage
+
+```bash
+cargo tarpaulin --workspace
+```
+
+## Architecture
+
+```
+harv-core (domain types, errors)
+  ↓
+harv-sdk  (Harvest API v2 client)
+  ↓
+harv-cli  (CLI binary)
+```
+
+## License
+
+MIT

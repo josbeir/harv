@@ -159,4 +159,72 @@ mod tests {
         let err = HarvError::Other("something went wrong".into());
         assert_eq!(err.to_string(), "something went wrong");
     }
+
+    #[test]
+    fn test_config_malformed() {
+        let err = HarvError::ConfigMalformed("bad json".into());
+        assert!(err.to_string().contains("malformed"));
+        assert!(err.to_string().contains("bad json"));
+    }
+
+    #[test]
+    fn test_http_error() {
+        let err = HarvError::Http("connection refused".into());
+        assert!(err.to_string().contains("HTTP error"));
+        assert!(err.to_string().contains("connection refused"));
+    }
+
+    #[test]
+    fn test_invalid_date() {
+        let err = HarvError::InvalidDate("2026-13-01".into());
+        assert!(err.to_string().contains("Invalid date"));
+    }
+
+    #[test]
+    fn test_invalid_time() {
+        let err = HarvError::InvalidTime("25:00".into());
+        assert!(err.to_string().contains("Invalid time"));
+    }
+
+    #[test]
+    fn test_no_project_assignments_display() {
+        let err = HarvError::NoProjectAssignments;
+        assert!(err.to_string().contains("No project assignments"));
+    }
+
+    #[test]
+    fn test_no_project_assignments_user_message() {
+        let err = HarvError::NoProjectAssignments;
+        assert_eq!(err.user_message(), "You have no project assignments.");
+    }
+
+    #[test]
+    fn test_no_task_assignments_display() {
+        let err = HarvError::NoTaskAssignments { project_id: 42 };
+        assert!(err.to_string().contains("project 42"));
+    }
+
+    #[test]
+    fn test_no_task_assignments_user_message() {
+        let err = HarvError::NoTaskAssignments { project_id: 42 };
+        assert!(err.user_message().contains("42"));
+    }
+
+    #[test]
+    fn test_oauth_failed_display() {
+        let err = HarvError::OAuthFailed;
+        assert!(err.to_string().contains("access token"));
+    }
+
+    #[test]
+    fn test_oauth_denied_display() {
+        let err = HarvError::OAuthDenied;
+        assert!(err.to_string().contains("denied"));
+    }
+
+    #[test]
+    fn test_oauth_denied_user_message() {
+        let err = HarvError::OAuthDenied;
+        assert!(err.user_message().contains("harv connect"));
+    }
 }

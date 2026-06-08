@@ -12,7 +12,7 @@ use crate::resources::time_entries::TimeEntriesApi;
 use crate::resources::users::UsersApi;
 
 const BASE_URL: &str = "https://api.harvestapp.com/v2";
-const USER_AGENT_STRING: &str = "harv-cli (https://github.com/anomalyco/harv-rust)";
+const USER_AGENT_STRING: &str = "harv-cli (https://github.com/josbeir/harv)";
 
 /// The main entry point for interacting with the Harvest API v2.
 pub struct HarvClient {

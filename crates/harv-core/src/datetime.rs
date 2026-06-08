@@ -125,9 +125,29 @@ mod tests {
     #[test]
     fn test_time_window_zero_hours() {
         let (start, end) = time_window(0.0);
-        // With zero hours, start and end should be the same minute
-        let start_clean = &start[..start.len() - 2]; // strip am/pm
+        let start_clean = &start[..start.len() - 2];
         let end_clean = &end[..end.len() - 2];
         assert_eq!(start_clean, end_clean);
+    }
+
+    #[test]
+    fn test_parse_date_not_future_allows_today() {
+        let today_str = format_date(today());
+        assert!(parse_date_not_future(&today_str).is_ok());
+    }
+
+    #[test]
+    fn test_format_local() {
+        let dt = Utc::now();
+        let formatted = format_local(dt, false);
+        assert!(!formatted.contains("at"));
+        let formatted = format_local(dt, true);
+        assert!(formatted.contains("at"));
+    }
+
+    #[test]
+    fn test_parse_date_invalid_format() {
+        assert!(parse_date("06-08-2026").is_err());
+        assert!(parse_date("June 8, 2026").is_err());
     }
 }
