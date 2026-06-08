@@ -12,8 +12,12 @@ pub struct ProjectChoice {
     pub task_assignments: Vec<TaskAssignment>,
 }
 
-/// Build project choices from assignments.
-pub fn build_project_choices(assignments: &[ProjectAssignment]) -> Vec<ProjectChoice> {
+/// Build project choices from assignments. If `last_project_id` is set,
+/// the matching project is moved to the top with a ● prefix.
+pub fn build_project_choices(
+    assignments: &[ProjectAssignment],
+    last_project_id: Option<u64>,
+) -> Vec<ProjectChoice> {
     let mut choices: Vec<ProjectChoice> = assignments
         .iter()
         .filter(|a| !a.task_assignments.is_empty())
@@ -31,13 +35,28 @@ pub fn build_project_choices(assignments: &[ProjectAssignment]) -> Vec<ProjectCh
         })
         .collect();
     choices.sort_by(|a, b| a.display.cmp(&b.display));
+
+    if let Some(pid) = last_project_id {
+        if let Some(idx) = choices.iter().position(|c| c.project_id == pid) {
+            let mut choice = choices.remove(idx);
+            choice.display = format!("● {}", choice.display);
+            choices.insert(0, choice);
+        }
+    }
+
     choices
 }
 
 /// Interactive prompt to select a project.
-pub fn pick_project(choices: &[ProjectChoice]) -> color_eyre::eyre::Result<&ProjectChoice> {
+/// `starting_cursor` sets which item is pre-selected (0-based).
+pub fn pick_project(
+    choices: &[ProjectChoice],
+    starting_cursor: usize,
+) -> color_eyre::eyre::Result<&ProjectChoice> {
     let choice_items: Vec<&str> = choices.iter().map(|c| c.display.as_str()).collect();
-    let selection = Select::new("Project:", choice_items.clone()).prompt()?;
+    let selection = Select::new("Project:", choice_items.clone())
+        .with_starting_cursor(starting_cursor)
+        .prompt()?;
 
     let idx = choice_items
         .iter()
@@ -302,9 +321,63 @@ mod tests {
                 is_active: true,
             },
         ];
-        let choices = build_project_choices(&assignments);
+        let choices = build_project_choices(&assignments, None);
         assert_eq!(choices.len(), 1); // empty task_assignments filtered out
         assert_eq!(choices[0].display, "Client => Beta");
+    }
+
+    #[test]
+    fn test_build_project_choices_with_last_used() {
+        let assignments = vec![
+            ProjectAssignment {
+                id: 1,
+                project: Reference {
+                    id: 100,
+                    name: "Beta".into(),
+                },
+                client: Some(Reference {
+                    id: 1,
+                    name: "Client".into(),
+                }),
+                task_assignments: vec![TaskAssignment {
+                    id: 1,
+                    task: Reference {
+                        id: 200,
+                        name: "Dev".into(),
+                    },
+                    billable: true,
+                    hourly_rate: None,
+                    is_active: true,
+                    budget: None,
+                }],
+                is_active: true,
+            },
+            ProjectAssignment {
+                id: 2,
+                project: Reference {
+                    id: 101,
+                    name: "Alpha".into(),
+                },
+                client: None,
+                task_assignments: vec![TaskAssignment {
+                    id: 2,
+                    task: Reference {
+                        id: 201,
+                        name: "Design".into(),
+                    },
+                    billable: false,
+                    hourly_rate: None,
+                    is_active: true,
+                    budget: None,
+                }],
+                is_active: true,
+            },
+        ];
+        let choices = build_project_choices(&assignments, Some(101));
+        assert_eq!(choices.len(), 2);
+        assert!(choices[0].display.starts_with("●"));
+        assert!(choices[0].display.contains("Alpha"));
+        assert_eq!(choices[1].display, "Client => Beta");
     }
 
     #[test]

@@ -10,6 +10,8 @@ fn test_config() -> HarvConfig {
         access_token: "test-token".into(),
         account_id: "1234567".into(),
         cache_ttl_hours: 24,
+        last_project_id: None,
+        last_task_id: None,
         aliases: HashMap::new(),
     }
 }

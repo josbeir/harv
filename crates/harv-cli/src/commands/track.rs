@@ -21,7 +21,7 @@ pub async fn execute(
     let assignments = client.projects().my_assignments(refresh).await?;
     pb.finish_and_clear();
 
-    let choices = prompts::build_project_choices(&assignments);
+    let choices = prompts::build_project_choices(&assignments, config.last_project_id);
 
     if choices.is_empty() {
         return Err(color_eyre::eyre::eyre!(
@@ -38,17 +38,19 @@ pub async fn execute(
         (project_id, task_id)
     };
 
-    let (p_id, task_assignments) = if let Some(pid) = resolved_project_id {
+    let (p_id, task_assignments, is_last) = if let Some(pid) = resolved_project_id {
         let choice = choices
             .iter()
             .find(|c| c.project_id == pid)
             .ok_or_else(|| {
                 color_eyre::eyre::eyre!("Project ID {} not found in your assignments", pid)
             })?;
-        (choice.project_id, choice.task_assignments.clone())
+        let is_last = config.last_project_id == Some(pid);
+        (choice.project_id, choice.task_assignments.clone(), is_last)
     } else {
-        let choice = prompts::pick_project(&choices)?;
-        (choice.project_id, choice.task_assignments.clone())
+        let choice = prompts::pick_project(&choices, 0)?;
+        let is_last = config.last_project_id == Some(choice.project_id);
+        (choice.project_id, choice.task_assignments.clone(), is_last)
     };
 
     let t_id = if let Some(tid) = resolved_task_id {
@@ -59,10 +61,19 @@ pub async fn execute(
             .ok_or_else(|| {
                 color_eyre::eyre::eyre!("Task ID {} not assigned to project {}", tid, p_id)
             })?
+    } else if is_last {
+        let use_last = config
+            .last_task_id
+            .is_some_and(|ltid| task_assignments.iter().any(|t| t.task.id == ltid));
+        if use_last {
+            config.last_task_id.unwrap()
+        } else {
+            let choice = choices.iter().find(|c| c.project_id == p_id).unwrap();
+            prompts::pick_task(choice)?.task.id
+        }
     } else {
         let choice = choices.iter().find(|c| c.project_id == p_id).unwrap();
-        let task = prompts::pick_task(choice)?;
-        task.task.id
+        prompts::pick_task(choice)?.task.id
     };
 
     let spent_date = if let Some(ref d) = date {
@@ -130,6 +141,10 @@ pub async fn execute(
     } else {
         println!("Created: {}", confirmation);
     }
+
+    let mut saved_cfg = client.config().clone();
+    saved_cfg.set_last_used(p_id, t_id);
+    let _ = saved_cfg.save().await;
 
     Ok(())
 }

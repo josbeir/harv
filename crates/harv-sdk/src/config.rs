@@ -12,6 +12,10 @@ pub struct HarvConfig {
     #[serde(default = "default_cache_ttl")]
     pub cache_ttl_hours: u64,
     #[serde(default)]
+    pub last_project_id: Option<u64>,
+    #[serde(default)]
+    pub last_task_id: Option<u64>,
+    #[serde(default)]
     pub aliases: HashMap<String, Alias>,
 }
 
@@ -75,6 +79,12 @@ impl HarvConfig {
         self.aliases.remove(name);
         self.save().await
     }
+
+    /// Record the last used project and task IDs.
+    pub fn set_last_used(&mut self, project_id: u64, task_id: u64) {
+        self.last_project_id = Some(project_id);
+        self.last_task_id = Some(task_id);
+    }
 }
 
 #[cfg(test)]
@@ -90,6 +100,8 @@ mod tests {
             access_token: "test-token".into(),
             account_id: "1234567".into(),
             cache_ttl_hours: 24,
+            last_project_id: None,
+            last_task_id: None,
             aliases: HashMap::new(),
         }
     }
@@ -257,5 +269,21 @@ mod tests {
         let json = r#"{"access_token":"tok","account_id":"1","cache_ttl_hours":48}"#;
         let config: HarvConfig = serde_json::from_str(json).unwrap();
         assert_eq!(config.cache_ttl_hours, 48);
+    }
+
+    #[test]
+    fn test_deserialize_last_used_default_none() {
+        let json = r#"{"access_token":"tok","account_id":"1"}"#;
+        let config: HarvConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.last_project_id, None);
+        assert_eq!(config.last_task_id, None);
+    }
+
+    #[test]
+    fn test_set_last_used() {
+        let mut config = test_config();
+        config.set_last_used(42, 99);
+        assert_eq!(config.last_project_id, Some(42));
+        assert_eq!(config.last_task_id, Some(99));
     }
 }

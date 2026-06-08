@@ -13,12 +13,21 @@ fn test_config() -> HarvConfig {
         access_token: "t".into(),
         account_id: "1".into(),
         cache_ttl_hours: 24,
+        last_project_id: None,
+        last_task_id: None,
         aliases: HashMap::new(),
     }
 }
 
 fn client(uri: &str) -> HarvClient {
     HarvClient::new(test_config()).unwrap().with_base_url(uri)
+}
+
+fn client_with_last_used(uri: &str, pid: u64, tid: u64) -> HarvClient {
+    let mut config = test_config();
+    config.last_project_id = Some(pid);
+    config.last_task_id = Some(tid);
+    HarvClient::new(config).unwrap().with_base_url(uri)
 }
 
 fn json_response(body: serde_json::Value) -> ResponseTemplate {
@@ -247,6 +256,117 @@ async fn test_config_execute_no_file() {
         .unwrap();
 }
 
+#[tokio::test]
+async fn test_config_show_with_file() {
+    let _guard = ENV_MUTEX.lock().await;
+    let tmp = tempfile::tempdir().unwrap();
+    std::env::remove_var("XDG_CONFIG_HOME");
+    std::env::set_var("HOME", tmp.path());
+    let harv_dir = tmp.path().join(".config").join("harv");
+    std::fs::create_dir_all(&harv_dir).unwrap();
+    std::fs::write(
+        harv_dir.join("config.json"),
+        r#"{"access_token":"tok","account_id":"1","cache_ttl_hours":48}"#,
+    )
+    .unwrap();
+    commands::config_cmd::execute(&harv_cli::ConfigArgs { action: None })
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn test_config_get_cache_ttl() {
+    let _guard = ENV_MUTEX.lock().await;
+    let tmp = tempfile::tempdir().unwrap();
+    std::env::remove_var("XDG_CONFIG_HOME");
+    std::env::set_var("HOME", tmp.path());
+    let harv_dir = tmp.path().join(".config").join("harv");
+    std::fs::create_dir_all(&harv_dir).unwrap();
+    std::fs::write(
+        harv_dir.join("config.json"),
+        r#"{"access_token":"tok","account_id":"1","cache_ttl_hours":48}"#,
+    )
+    .unwrap();
+    commands::config_cmd::execute(&harv_cli::ConfigArgs {
+        action: Some(harv_cli::ConfigAction::Get {
+            setting: "cache-ttl".into(),
+        }),
+    })
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn test_config_get_invalid() {
+    let _guard = ENV_MUTEX.lock().await;
+    let tmp = tempfile::tempdir().unwrap();
+    std::env::remove_var("XDG_CONFIG_HOME");
+    std::env::set_var("HOME", tmp.path());
+    let harv_dir = tmp.path().join(".config").join("harv");
+    std::fs::create_dir_all(&harv_dir).unwrap();
+    std::fs::write(
+        harv_dir.join("config.json"),
+        r#"{"access_token":"tok","account_id":"1"}"#,
+    )
+    .unwrap();
+    let result = commands::config_cmd::execute(&harv_cli::ConfigArgs {
+        action: Some(harv_cli::ConfigAction::Get {
+            setting: "bogus".into(),
+        }),
+    })
+    .await;
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_config_set_cache_ttl() {
+    let _guard = ENV_MUTEX.lock().await;
+    let tmp = tempfile::tempdir().unwrap();
+    std::env::remove_var("XDG_CONFIG_HOME");
+    std::env::set_var("HOME", tmp.path());
+    let harv_dir = tmp.path().join(".config").join("harv");
+    std::fs::create_dir_all(&harv_dir).unwrap();
+    std::fs::write(
+        harv_dir.join("config.json"),
+        r#"{"access_token":"tok","account_id":"1"}"#,
+    )
+    .unwrap();
+    commands::config_cmd::execute(&harv_cli::ConfigArgs {
+        action: Some(harv_cli::ConfigAction::Set {
+            setting: "cache-ttl".into(),
+            value: "72".into(),
+        }),
+    })
+    .await
+    .unwrap();
+
+    let config = HarvConfig::load().await.unwrap();
+    assert_eq!(config.cache_ttl_hours, 72);
+}
+
+#[tokio::test]
+async fn test_config_set_invalid() {
+    let _guard = ENV_MUTEX.lock().await;
+    let tmp = tempfile::tempdir().unwrap();
+    std::env::remove_var("XDG_CONFIG_HOME");
+    std::env::set_var("HOME", tmp.path());
+    let harv_dir = tmp.path().join(".config").join("harv");
+    std::fs::create_dir_all(&harv_dir).unwrap();
+    std::fs::write(
+        harv_dir.join("config.json"),
+        r#"{"access_token":"tok","account_id":"1"}"#,
+    )
+    .unwrap();
+    let result = commands::config_cmd::execute(&harv_cli::ConfigArgs {
+        action: Some(harv_cli::ConfigAction::Set {
+            setting: "bogus".into(),
+            value: "1".into(),
+        }),
+    })
+    .await;
+    assert!(result.is_err());
+}
+
 // --- Track command (with provided IDs, bypasses prompts) ---
 
 #[tokio::test]
@@ -275,6 +395,48 @@ async fn test_track_with_ids() {
         Some(200),
         Some(2.0),
         Some("notes".into()),
+        false,
+        Some("2026-06-08".into()),
+        false,
+        None,
+    )
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn test_track_with_last_used_auto_task() {
+    let _guard = ENV_MUTEX.lock().await;
+    let tmp = tempfile::tempdir().unwrap();
+    std::env::remove_var("XDG_CONFIG_HOME");
+    std::env::set_var("HOME", tmp.path());
+    let harv_dir = tmp.path().join(".config").join("harv");
+    std::fs::create_dir_all(&harv_dir).unwrap();
+
+    let server = MockServer::start().await;
+    let c = client_with_last_used(&server.uri(), 100, 200);
+
+    Mock::given(method("GET"))
+        .and(path("/users/me/project_assignments"))
+        .respond_with(json_response(project_assignments_json()))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST")).and(path("/time_entries"))
+        .respond_with(json_response(json!({
+            "id": 99, "spent_date": "2026-06-08", "hours": 2.0, "notes": null,
+            "is_running": false, "timer_started_at": null, "started_time": null, "ended_time": null,
+            "project": {"id": 100, "name": "Test Project"}, "task": {"id": 200, "name": "Development"},
+            "user": {"id": 1, "name": "Test User"}, "client": null,
+            "is_billed": false, "billable": true, "billable_rate": null, "cost_rate": null,
+            "created_at": null, "updated_at": null
+        }))).mount(&server).await;
+
+    commands::track::execute(
+        &c,
+        Some(100),
+        None,
+        Some(2.0),
+        None,
         false,
         Some("2026-06-08".into()),
         false,

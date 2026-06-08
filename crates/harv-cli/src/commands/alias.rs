@@ -9,13 +9,13 @@ pub async fn create_execute(client: &HarvClient, name: &str) -> color_eyre::eyre
     let assignments = client.projects().my_assignments(false).await?;
     pb.finish_and_clear();
 
-    let choices = prompts::build_project_choices(&assignments);
+    let choices = prompts::build_project_choices(&assignments, None);
     if choices.is_empty() {
         println!("No project assignments found.");
         return Ok(());
     }
 
-    let project_choice = prompts::pick_project(&choices)?;
+    let project_choice = prompts::pick_project(&choices, 0)?;
     let task = prompts::pick_task(project_choice)?;
 
     let mut config = HarvConfig::load().await?;
