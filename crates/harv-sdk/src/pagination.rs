@@ -23,6 +23,9 @@ where
         let mut query: Vec<(&str, &str)> = base_query.to_vec();
         let page_str = current_page.to_string();
         query.push(("page", &page_str));
+        if !base_query.iter().any(|(k, _)| *k == "per_page") {
+            query.push(("per_page", "100"));
+        }
 
         let response: serde_json::Value = client.get(path, &query).await?;
 

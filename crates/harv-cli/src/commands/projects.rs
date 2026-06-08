@@ -1,10 +1,14 @@
 use crate::output;
+use crate::spinner;
 use crate::OutputFormat;
 use harv_sdk::HarvClient;
 
 pub async fn run(search: Option<String>, format: &OutputFormat) -> color_eyre::eyre::Result<()> {
     let client = HarvClient::from_config_file().await?;
+
+    let pb = spinner::new_spinner("Loading project assignments...");
     let assignments = client.projects().my_assignments().await?;
+    pb.finish_and_clear();
 
     let mut filtered: Vec<_> = if let Some(query) = &search {
         let q = query.to_lowercase();

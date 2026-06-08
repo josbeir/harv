@@ -1,4 +1,5 @@
 use crate::prompts;
+use crate::spinner;
 use harv_core::{CreateTimeEntry, HarvError};
 use harv_sdk::HarvClient;
 
@@ -13,7 +14,11 @@ pub async fn run(
 ) -> color_eyre::eyre::Result<()> {
     let client = HarvClient::from_config_file().await?;
     let config = client.config().clone();
+
+    let pb = spinner::new_spinner("Loading project assignments...");
     let assignments = client.projects().my_assignments().await?;
+    pb.finish_and_clear();
+
     let choices = prompts::build_project_choices(&assignments);
 
     if choices.is_empty() {
@@ -110,11 +115,13 @@ pub async fn run(
         ended_time,
     };
 
+    let pb = spinner::new_spinner("Creating time entry...");
     let created = client
         .time_entries()
         .create(&entry)
         .await
         .map_err(|e| color_eyre::eyre::eyre!(e.user_message()))?;
+    pb.finish_and_clear();
 
     let confirmation = prompts::format_entry_confirmation(
         resolved_hours,

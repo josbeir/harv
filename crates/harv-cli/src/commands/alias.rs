@@ -1,11 +1,15 @@
 use crate::output;
 use crate::prompts;
+use crate::spinner;
 use crate::OutputFormat;
 use harv_sdk::{Alias, HarvClient, HarvConfig};
 
 pub async fn create(name: String) -> color_eyre::eyre::Result<()> {
     let client = HarvClient::from_config_file().await?;
+
+    let pb = spinner::new_spinner("Loading project assignments...");
     let assignments = client.projects().my_assignments().await?;
+    pb.finish_and_clear();
     let choices = prompts::build_project_choices(&assignments);
 
     if choices.is_empty() {

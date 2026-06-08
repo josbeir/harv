@@ -24,12 +24,16 @@ impl<'c> ProjectsApi<'c> {
 
     /// List the authenticated user's project assignments.
     pub async fn my_assignments(&self) -> Result<Vec<ProjectAssignment>, harv_core::HarvError> {
-        crate::pagination::fetch_all_pages(
-            self.client,
-            "/users/me/project_assignments",
-            &[],
-            "project_assignments",
-        )
+        let account_id = self.client.config().account_id.clone();
+        crate::cache::get_cached_assignments(&account_id, async {
+            crate::pagination::fetch_all_pages(
+                self.client,
+                "/users/me/project_assignments",
+                &[],
+                "project_assignments",
+            )
+            .await
+        })
         .await
     }
 

@@ -1,10 +1,14 @@
 use crate::prompts;
+use crate::spinner;
 use harv_sdk::HarvClient;
 
 pub async fn run(output: &crate::OutputFormat) -> color_eyre::eyre::Result<()> {
     let client = HarvClient::from_config_file().await?;
+
+    let pb = spinner::new_spinner("Loading...");
     let user = client.users().me().await?;
     let running = client.time_entries().running(user.id).await?;
+    pb.finish_and_clear();
 
     if running.is_empty() {
         println!("No timer is currently running.");

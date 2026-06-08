@@ -1,6 +1,7 @@
 pub mod commands;
 pub(crate) mod output;
 pub(crate) mod prompts;
+pub(crate) mod spinner;
 
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::Shell;
