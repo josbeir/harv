@@ -74,8 +74,10 @@ impl HarvConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::env;
     use tempfile::tempdir;
+    use tokio::sync::Mutex;
+
+    static ENV_MUTEX: Mutex<()> = Mutex::const_new(());
 
     fn test_config() -> HarvConfig {
         HarvConfig {
@@ -87,9 +89,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_load_nonexistent() {
+        let _guard = ENV_MUTEX.lock().await;
         // Point config_dir to a temp dir that has no harv/config.json
         let dir = tempdir().unwrap();
-        env::set_var("XDG_CONFIG_HOME", dir.path());
+        std::env::remove_var("XDG_CONFIG_HOME");
+        std::env::set_var("HOME", dir.path());
         let _ = dirs::config_dir(); // force dirs to pick up the env var (best-effort)
 
         // Since dirs may cache, we test load failure differently
@@ -170,5 +174,67 @@ mod tests {
         let path = HarvConfig::path();
         assert!(path.to_string_lossy().contains("harv"));
         assert!(path.ends_with("config.json"));
+    }
+
+    #[tokio::test]
+    async fn test_save_load_with_tempdir() {
+        let _guard = ENV_MUTEX.lock().await;
+        let tmp = tempdir().unwrap();
+        std::env::remove_var("XDG_CONFIG_HOME");
+        std::env::set_var("HOME", tmp.path());
+        let harv_dir = tmp.path().join(".config").join("harv");
+        std::fs::create_dir_all(&harv_dir).unwrap();
+
+        let config = test_config();
+        config.save().await.unwrap();
+
+        let loaded = HarvConfig::load().await.unwrap();
+        assert_eq!(loaded.access_token, "test-token");
+        assert_eq!(loaded.account_id, "1234567");
+    }
+
+    #[tokio::test]
+    async fn test_save_set_and_remove_alias() {
+        let _guard = ENV_MUTEX.lock().await;
+        let tmp = tempdir().unwrap();
+        std::env::remove_var("XDG_CONFIG_HOME");
+        std::env::set_var("HOME", tmp.path());
+        let harv_dir = tmp.path().join(".config").join("harv");
+        std::fs::create_dir_all(&harv_dir).unwrap();
+
+        let mut config = test_config();
+        config.save().await.unwrap();
+
+        config
+            .set_alias(
+                "dev",
+                Alias {
+                    project_id: 1,
+                    task_id: 2,
+                },
+            )
+            .await
+            .unwrap();
+        let loaded = HarvConfig::load().await.unwrap();
+        assert!(loaded.alias("dev").is_some());
+
+        let mut loaded = loaded;
+        loaded.remove_alias("dev").await.unwrap();
+        let after = HarvConfig::load().await.unwrap();
+        assert!(after.alias("dev").is_none());
+    }
+
+    #[tokio::test]
+    async fn test_load_malformed_config() {
+        let _guard = ENV_MUTEX.lock().await;
+        let tmp = tempdir().unwrap();
+        std::env::remove_var("XDG_CONFIG_HOME");
+        std::env::set_var("HOME", tmp.path());
+        let harv_dir = tmp.path().join(".config").join("harv");
+        std::fs::create_dir_all(&harv_dir).unwrap();
+        std::fs::write(harv_dir.join("config.json"), "not valid json").unwrap();
+
+        let result = HarvConfig::load().await;
+        assert!(result.is_err());
     }
 }

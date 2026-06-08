@@ -307,4 +307,88 @@ mod tests {
         assert_eq!(choices.len(), 1); // empty task_assignments filtered out
         assert_eq!(choices[0].display, "Client => Beta");
     }
+
+    #[test]
+    fn test_format_entry_confirmation_running() {
+        let result = format_entry_confirmation(
+            None,
+            &Reference {
+                id: 100,
+                name: "Test Project".into(),
+            },
+            &Reference {
+                id: 200,
+                name: "Development".into(),
+            },
+            chrono::NaiveDate::from_ymd_opt(2026, 6, 8).unwrap(),
+            true,
+            42,
+        );
+        assert!(result.contains("Running..."));
+        assert!(result.contains("Running"));
+        assert!(result.contains("42"));
+    }
+
+    #[test]
+    fn test_format_entry_confirmation_with_hours() {
+        let result = format_entry_confirmation(
+            Some(2.5),
+            &Reference {
+                id: 100,
+                name: "Test Project".into(),
+            },
+            &Reference {
+                id: 200,
+                name: "Development".into(),
+            },
+            chrono::NaiveDate::from_ymd_opt(2026, 6, 8).unwrap(),
+            false,
+            42,
+        );
+        assert!(result.contains("2.50h"));
+        assert!(result.contains("Not running"));
+    }
+
+    #[test]
+    fn test_format_timer_display_json() {
+        use crate::OutputFormat;
+        use harv_core::TimeEntry;
+
+        let timer = TimeEntry {
+            id: 1,
+            spent_date: None,
+            hours: None,
+            notes: None,
+            is_running: true,
+            timer_started_at: Some(chrono::Utc::now()),
+            started_time: None,
+            ended_time: None,
+            project: Reference {
+                id: 100,
+                name: "Test Project".into(),
+            },
+            task: Reference {
+                id: 200,
+                name: "Development".into(),
+            },
+            user: Reference {
+                id: 1,
+                name: "User".into(),
+            },
+            client: Some(Reference {
+                id: 1,
+                name: "Test Client".into(),
+            }),
+            is_billed: false,
+            billable: false,
+            billable_rate: None,
+            cost_rate: None,
+            created_at: None,
+            updated_at: None,
+        };
+        let result = format_timer_display(&timer, Some(30), &OutputFormat::Json);
+        assert!(result.contains("\"project\""));
+        assert!(result.contains("Test Project"));
+        assert!(result.contains("30"));
+    }
 }

@@ -2,8 +2,11 @@ use harv_cli::commands;
 use harv_sdk::{HarvClient, HarvConfig};
 use serde_json::json;
 use std::collections::HashMap;
+use tokio::sync::Mutex;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
+
+static ENV_MUTEX: Mutex<()> = Mutex::const_new(());
 
 fn test_config() -> HarvConfig {
     HarvConfig {
@@ -229,8 +232,10 @@ async fn test_status_with_timers() {
 
 #[tokio::test]
 async fn test_config_execute_no_file() {
+    let _guard = ENV_MUTEX.lock().await;
     let tmp = tempfile::tempdir().unwrap();
-    std::env::set_var("XDG_CONFIG_HOME", tmp.path());
+    std::env::remove_var("XDG_CONFIG_HOME");
+    std::env::set_var("HOME", tmp.path());
     commands::config_cmd::execute().await.unwrap();
 }
 
@@ -349,9 +354,11 @@ async fn test_note_single_timer() {
 
 #[tokio::test]
 async fn test_alias_list_empty() {
+    let _guard = ENV_MUTEX.lock().await;
     let tmp = tempfile::tempdir().unwrap();
-    std::env::set_var("XDG_CONFIG_HOME", tmp.path());
-    let harv_dir = tmp.path().join("harv");
+    std::env::remove_var("XDG_CONFIG_HOME");
+    std::env::set_var("HOME", tmp.path());
+    let harv_dir = tmp.path().join(".config").join("harv");
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
         harv_dir.join("config.json"),
@@ -361,4 +368,76 @@ async fn test_alias_list_empty() {
     commands::alias::list_execute(&harv_cli::OutputFormat::Table)
         .await
         .unwrap();
+}
+
+#[tokio::test]
+async fn test_alias_delete_not_found() {
+    let _guard = ENV_MUTEX.lock().await;
+    let tmp = tempfile::tempdir().unwrap();
+    std::env::remove_var("XDG_CONFIG_HOME");
+    std::env::set_var("HOME", tmp.path());
+    let harv_dir = tmp.path().join(".config").join("harv");
+    std::fs::create_dir_all(&harv_dir).unwrap();
+    std::fs::write(
+        harv_dir.join("config.json"),
+        r#"{"access_token":"t","account_id":"1"}"#,
+    )
+    .unwrap();
+    commands::alias::delete_execute("nonexistent")
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn test_alias_list_with_data() {
+    let _guard = ENV_MUTEX.lock().await;
+    let tmp = tempfile::tempdir().unwrap();
+    std::env::remove_var("XDG_CONFIG_HOME");
+    std::env::set_var("HOME", tmp.path());
+    let harv_dir = tmp.path().join(".config").join("harv");
+    std::fs::create_dir_all(&harv_dir).unwrap();
+    std::fs::write(
+        harv_dir.join("config.json"),
+        r#"{"access_token":"t","account_id":"1","aliases":{"dev":{"project_id":10,"task_id":20}}}"#,
+    )
+    .unwrap();
+    commands::alias::list_execute(&harv_cli::OutputFormat::Table)
+        .await
+        .unwrap();
+}
+
+// --- Start command delegation test ---
+
+#[tokio::test]
+async fn test_start_delegation() {
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+
+    Mock::given(method("GET"))
+        .and(path("/users/me/project_assignments"))
+        .respond_with(json_response(project_assignments_json()))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST")).and(path("/time_entries"))
+        .respond_with(json_response(json!({
+            "id": 99, "spent_date": "2026-06-08", "hours": null, "notes": null,
+            "is_running": true, "timer_started_at": "2026-06-08T14:00:00Z",
+            "started_time": null, "ended_time": null,
+            "project": {"id": 100, "name": "Test Project"}, "task": {"id": 200, "name": "Development"},
+            "user": {"id": 1, "name": "Test User"}, "client": null,
+            "is_billed": false, "billable": true, "billable_rate": null, "cost_rate": null,
+            "created_at": null, "updated_at": null
+        }))).mount(&server).await;
+
+    commands::start::execute(
+        &c,
+        None,
+        Some(100),
+        Some(200),
+        None,
+        false,
+        Some("2026-06-08".into()),
+    )
+    .await
+    .unwrap();
 }

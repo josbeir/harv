@@ -1,10 +1,20 @@
-# Harv
+<p align="center">
+  <img src="assets/harv-banner.svg" alt="Harv Banner" width="600" />
+</p>
+
+<p align="center">
+
+`harv` — Because remembering to punch the clock is harder than writing the code. A Rust CLI for [Harvest](https://www.getharvest.com/) that respects your terminal, your config, and your deadline.
+
+</div>
+
+<div align="center">
 
 [![CI](https://github.com/josbeir/harv/actions/workflows/ci.yml/badge.svg)](https://github.com/josbeir/harv/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/Rust-1.80%2B-orange.svg)](https://www.rust-lang.org)
 
-A Rust CLI for [Harvest](https://www.getharvest.com) time tracking. Fast, intuitive, and fully async.
+</div>
 
 ## Installation
 
