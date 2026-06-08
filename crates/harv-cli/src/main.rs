@@ -2,6 +2,19 @@ use clap::{CommandFactory, Parser};
 use harv_cli::commands;
 use harv_cli::{AliasCommand, Cli, Commands};
 
+const GOODBYES: &[&str] = &[
+    "Alright, catch you later!",
+    "Time tracking dodged. Again.",
+    "Your timesheet weeps.",
+    "See you tomorrow. Maybe.",
+    "Ctrl+C → Ctrl+V → nevermind.",
+    "Until next time, time bandit.",
+    "Coward. (I respect it.)",
+    "Escaped the timesheet. For now.",
+    "harv stop — oh wait, that was Ctrl+C.",
+    "Your hours remain a mystery.",
+];
+
 fn main() -> color_eyre::eyre::Result<()> {
     color_eyre::install()?;
     harv_cli::setup_tracing();
@@ -9,7 +22,7 @@ fn main() -> color_eyre::eyre::Result<()> {
     let cli = Cli::parse();
 
     let rt = tokio::runtime::Runtime::new()?;
-    rt.block_on(async {
+    let result: color_eyre::eyre::Result<()> = rt.block_on(async {
         match cli.command {
             Commands::Connect => commands::connect::run().await?,
             Commands::Config => commands::config_cmd::run().await?,
@@ -68,6 +81,25 @@ fn main() -> color_eyre::eyre::Result<()> {
                 clap_complete::generate(args.shell, &mut cmd, name, &mut std::io::stdout());
             }
         }
-        Ok::<_, color_eyre::eyre::Error>(())
-    })
+        Ok(())
+    });
+
+    match result {
+        Ok(()) => Ok(()),
+        Err(e)
+            if matches!(
+                e.downcast_ref::<inquire::InquireError>(),
+                Some(inquire::InquireError::OperationInterrupted)
+            ) =>
+        {
+            let seed = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .subsec_millis() as usize;
+            let msg = GOODBYES[seed % GOODBYES.len()];
+            eprintln!("\n{msg}");
+            std::process::exit(130)
+        }
+        Err(e) => Err(e),
+    }
 }
