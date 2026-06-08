@@ -1,0 +1,310 @@
+use chrono::NaiveDate;
+use harv_core::{ProjectAssignment, Reference, TaskAssignment};
+use harv_sdk::HarvConfig;
+use inquire::{validator::Validation, Confirm, CustomType, Select, Text};
+
+use crate::OutputFormat;
+
+/// Project choice for the prompt.
+pub struct ProjectChoice {
+    pub display: String,
+    pub project_id: u64,
+    pub task_assignments: Vec<TaskAssignment>,
+}
+
+/// Build project choices from assignments.
+pub fn build_project_choices(assignments: &[ProjectAssignment]) -> Vec<ProjectChoice> {
+    let mut choices: Vec<ProjectChoice> = assignments
+        .iter()
+        .filter(|a| !a.task_assignments.is_empty())
+        .map(|a| ProjectChoice {
+            display: format!(
+                "{} => {}",
+                a.client
+                    .as_ref()
+                    .map(|c| c.name.as_str())
+                    .unwrap_or("No client"),
+                a.project.name
+            ),
+            project_id: a.project.id,
+            task_assignments: a.task_assignments.clone(),
+        })
+        .collect();
+    choices.sort_by(|a, b| a.display.cmp(&b.display));
+    choices
+}
+
+/// Interactive prompt to select a project.
+pub fn pick_project(choices: &[ProjectChoice]) -> color_eyre::eyre::Result<&ProjectChoice> {
+    let choice_items: Vec<&str> = choices.iter().map(|c| c.display.as_str()).collect();
+    let selection = Select::new("Project:", choice_items.clone()).prompt()?;
+
+    let idx = choice_items
+        .iter()
+        .position(|&c| c == selection)
+        .expect("selected item should exist");
+    Ok(&choices[idx])
+}
+
+/// Interactive prompt to select a task for a given project choice.
+pub fn pick_task(choice: &ProjectChoice) -> color_eyre::eyre::Result<&TaskAssignment> {
+    let items: Vec<&str> = choice
+        .task_assignments
+        .iter()
+        .map(|t| t.task.name.as_str())
+        .collect();
+    let selection = Select::new("Task:", items.clone()).prompt()?;
+
+    let idx = items
+        .iter()
+        .position(|&c| c == selection)
+        .expect("selected item should exist");
+    Ok(&choice.task_assignments[idx])
+}
+
+/// Find a project choice by alias name. Returns None if not found.
+#[allow(dead_code)]
+pub fn resolve_alias<'a>(
+    config: &HarvConfig,
+    choices: &'a [ProjectChoice],
+    alias_name: &str,
+) -> Option<&'a ProjectChoice> {
+    let alias = config.alias(alias_name)?;
+    choices.iter().find(|c| c.project_id == alias.project_id)
+}
+
+/// Prompt for a date, defaulting to today.
+pub fn ask_date(default: NaiveDate) -> color_eyre::eyre::Result<NaiveDate> {
+    let default_str = default.format("%Y-%m-%d").to_string();
+    let validator = |input: &str| {
+        if input.is_empty() {
+            return Ok(Validation::Valid);
+        }
+        match NaiveDate::parse_from_str(input, "%Y-%m-%d") {
+            Ok(d) if d <= harv_core::datetime::today() => Ok(Validation::Valid),
+            Ok(_) => Ok(Validation::Invalid("Date cannot be in the future".into())),
+            Err(_) => Ok(Validation::Invalid(
+                "Invalid date format (YYYY-MM-DD)".into(),
+            )),
+        }
+    };
+
+    let input = Text::new("Date:")
+        .with_default(&default_str)
+        .with_validator(validator)
+        .prompt()?;
+
+    if input.is_empty() || input == default_str {
+        return Ok(default);
+    }
+    NaiveDate::parse_from_str(&input, "%Y-%m-%d")
+        .map_err(|_| color_eyre::eyre::eyre!("Invalid date: {}", input))
+}
+
+/// Prompt for hours. Empty or 0 = start a running timer.
+pub fn ask_hours() -> color_eyre::eyre::Result<Option<f64>> {
+    let input = CustomType::<String>::new("Hours (enter 0 to start timer):")
+        .with_default("".into())
+        .with_validator(|input: &String| {
+            if input.is_empty() {
+                return Ok(Validation::Valid);
+            }
+            match input.parse::<f64>() {
+                Ok(h) if h >= 0.0 => Ok(Validation::Valid),
+                Ok(_) => Ok(Validation::Invalid("Hours must be non-negative".into())),
+                Err(_) => Ok(Validation::Invalid("Enter a valid number".into())),
+            }
+        })
+        .prompt()?;
+
+    if input.is_empty() {
+        return Ok(None);
+    }
+    let hours: f64 = input
+        .parse()
+        .map_err(|_| color_eyre::eyre::eyre!("Invalid hours"))?;
+    if hours == 0.0 {
+        Ok(None)
+    } else {
+        Ok(Some(hours))
+    }
+}
+
+/// Prompt for optional notes. Returns None if empty.
+pub fn ask_notes(use_editor: bool) -> color_eyre::eyre::Result<Option<String>> {
+    if use_editor {
+        let notes = Text::new("Notes (opens $EDITOR, empty to skip):")
+            .prompt_skippable()?
+            .filter(|s| !s.trim().is_empty());
+        return Ok(notes);
+    }
+
+    let confirmed = Confirm::new("Add notes?")
+        .with_default(false)
+        .prompt()
+        .unwrap_or(false);
+
+    if !confirmed {
+        return Ok(None);
+    }
+
+    let notes = Text::new("Notes:").prompt()?;
+
+    let trimmed = notes.trim();
+    if trimmed.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(trimmed.to_string()))
+    }
+}
+
+/// Format a time entry confirmation message.
+pub fn format_entry_confirmation(
+    hours: Option<f64>,
+    project: &Reference,
+    task: &Reference,
+    date: NaiveDate,
+    is_running: bool,
+    id: u64,
+) -> String {
+    let hours_str = hours
+        .map(|h| format!("{:.2}h", h))
+        .unwrap_or_else(|| "Running...".into());
+    let status = if is_running { "Running" } else { "Not running" };
+    format!(
+        "{} — {} → {} → {}\n#{}\t| {}\t| {}",
+        hours_str,
+        harv_core::datetime::format_date(date),
+        project.name,
+        task.name,
+        id,
+        date.format("%b %d, %Y"),
+        status,
+    )
+}
+
+/// Get a formatted display for the current running timer.
+pub fn format_timer_display(
+    timer: &harv_core::TimeEntry,
+    elapsed_minutes: Option<i64>,
+    format: &OutputFormat,
+) -> String {
+    match format {
+        OutputFormat::Table => {
+            let elapsed = elapsed_minutes
+                .map(|m| format!("{}h {}m", m / 60, m % 60))
+                .unwrap_or_else(|| "unknown".into());
+            format!(
+                "Timer: {} → {} → {}\nStarted: {}\nElapsed: {}",
+                timer
+                    .client
+                    .as_ref()
+                    .map(|c| c.name.as_str())
+                    .unwrap_or("No client"),
+                timer.project.name,
+                timer.task.name,
+                timer
+                    .timer_started_at
+                    .map(|t| harv_core::datetime::format_local(t, true))
+                    .unwrap_or_default(),
+                elapsed
+            )
+        }
+        OutputFormat::Json => serde_json::json!({
+            "id": timer.id,
+            "project": timer.project.name,
+            "task": timer.task.name,
+            "client": timer.client.as_ref().map(|c| &c.name),
+            "started_at": timer.timer_started_at.map(|t| t.to_rfc3339()),
+            "elapsed_minutes": elapsed_minutes,
+        })
+        .to_string(),
+    }
+}
+
+#[allow(dead_code)]
+fn fuzzy_score(pattern: &str, text: &str) -> i32 {
+    let pattern = pattern.to_lowercase();
+    let text = text.to_lowercase();
+    let mut score = 0;
+    let mut text_chars = text.chars();
+    for p in pattern.chars() {
+        loop {
+            match text_chars.next() {
+                Some(t) if t == p => {
+                    score += 1;
+                    break;
+                }
+                Some(_) => {}
+                None => return -1,
+            }
+        }
+    }
+    score
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use harv_core::Reference;
+
+    #[test]
+    fn test_fuzzy_score_exact() {
+        assert!(fuzzy_score("dev", "Development") > 0);
+    }
+
+    #[test]
+    fn test_fuzzy_score_no_match() {
+        assert_eq!(fuzzy_score("xyz", "Development"), -1);
+    }
+
+    #[test]
+    fn test_fuzzy_score_substring() {
+        assert!(fuzzy_score("De", "Development") > 0);
+    }
+
+    #[test]
+    fn test_build_project_choices_sorts() {
+        let assignments = vec![
+            ProjectAssignment {
+                id: 1,
+                project: Reference {
+                    id: 100,
+                    name: "Beta".into(),
+                },
+                client: Some(Reference {
+                    id: 1,
+                    name: "Client".into(),
+                }),
+                task_assignments: vec![TaskAssignment {
+                    id: 1,
+                    task: Reference {
+                        id: 200,
+                        name: "Dev".into(),
+                    },
+                    billable: true,
+                    hourly_rate: None,
+                    is_active: true,
+                    budget: None,
+                }],
+                is_active: true,
+            },
+            ProjectAssignment {
+                id: 2,
+                project: Reference {
+                    id: 101,
+                    name: "Alpha".into(),
+                },
+                client: Some(Reference {
+                    id: 1,
+                    name: "Client".into(),
+                }),
+                task_assignments: vec![],
+                is_active: true,
+            },
+        ];
+        let choices = build_project_choices(&assignments);
+        assert_eq!(choices.len(), 1); // empty task_assignments filtered out
+        assert_eq!(choices[0].display, "Client => Beta");
+    }
+}

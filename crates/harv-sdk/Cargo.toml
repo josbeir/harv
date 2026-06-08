@@ -1,0 +1,24 @@
+[package]
+name = "harv-sdk"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Harvest API v2 client library"
+
+[dependencies]
+harv-core = { path = "../harv-core" }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+dirs = "6"
+axum = "0.8"
+thiserror = "2"
+tracing = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+open = "5"
+
+[dev-dependencies]
+wiremock = "0.6"
+tempfile = "3"
+tokio-test = "0.4"

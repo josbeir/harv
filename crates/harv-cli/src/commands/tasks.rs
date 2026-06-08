@@ -1,0 +1,23 @@
+use crate::output;
+use crate::OutputFormat;
+use harv_sdk::HarvClient;
+
+pub async fn run(project_id: u64, format: &OutputFormat) -> color_eyre::eyre::Result<()> {
+    let client = HarvClient::from_config_file().await?;
+    let assignments = client.projects().task_assignments(project_id).await?;
+
+    let headers = ["Task", "Task ID", "Billable"];
+    let rows: Vec<[String; 3]> = assignments
+        .iter()
+        .map(|t| {
+            [
+                t.task.name.clone(),
+                t.task.id.to_string(),
+                if t.billable { "Yes" } else { "No" }.into(),
+            ]
+        })
+        .collect();
+
+    println!("{}", output::render(&headers, &rows, format));
+    Ok(())
+}
