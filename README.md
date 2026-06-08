@@ -6,7 +6,7 @@
 
 `harv` — Because remembering to punch the clock is harder than writing the code. A Rust CLI for [Harvest](https://www.getharvest.com/) that respects your terminal, your config, and your deadline.
 
-</div>
+</p>
 
 <div align="center">
 
@@ -99,6 +99,39 @@ harv log 1.5 dev
 ```
 
 ## Commands
+
+
+```bash
+▗▖ ▗▖ ▗▄▖ ▗▄▄▖ ▗▖  ▗▖
+▐▌ ▐▌▐▌ ▐▌▐▌ ▐▌▐▌  ▐▌
+▐▛▀▜▌▐▛▀▜▌▐▛▀▚▖▐▌  ▐▌
+▐▌ ▐▌▐▌ ▐▌▐▌ ▐▌ ▝▚▞▘ 
+   HARV CLI v0.1.0
+
+CLI for Harvest time tracking
+
+Usage: harv [OPTIONS] <COMMAND>
+
+Commands:
+  connect     Authenticate with Harvest via OAuth2
+  config      Show or modify configuration
+  track       Interactive time entry wizard
+  start       Start a running timer
+  stop        Stop the current running timer
+  log         Log time with specified hours
+  note        Edit notes on the running timer
+  status      Show current timer status and today\'s entries
+  projects    List your project assignments
+  tasks       List tasks for a project
+  alias       Manage project/task aliases
+  completion  Generate shell completion script
+  help        Print this message or the help of the given subcommand(s)
+
+Options:
+  -o, --output <OUTPUT>  [default: table] [possible values: table, json]
+  -h, --help             Print help
+  -V, --version          Print version
+```
 
 | Command | Description |
 |---------|-------------|
