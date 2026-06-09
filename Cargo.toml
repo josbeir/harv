@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/*"]
+members = ["crates/harv-core", "crates/harv-sdk", "crates/harv-cli", "crates/harv-tui"]
 resolver = "2"
 
 [workspace.package]

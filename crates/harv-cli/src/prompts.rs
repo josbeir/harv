@@ -176,7 +176,7 @@ pub fn format_entry_confirmation(
     id: u64,
 ) -> String {
     let hours_str = hours
-        .map(|h| format!("{:.2}h", h))
+        .map(harv_core::text::format_hours)
         .unwrap_or_else(|| "Running...".into());
     let status = if is_running { "Running" } else { "Not running" };
     format!(

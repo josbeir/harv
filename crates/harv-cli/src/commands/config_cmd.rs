@@ -27,9 +27,9 @@ async fn show() -> color_eyre::eyre::Result<()> {
 
     println!();
     println!(
-        "  {:<20} {}...",
+        "  {:<20} {}",
         "access-token:",
-        &config.access_token[..12.min(config.access_token.len())]
+        harv_core::text::truncate(&config.access_token, 15)
     );
     println!("  {:<20} {}", "account-id:", config.account_id);
     println!("  {:<20} {}h", "cache-ttl:", config.cache_ttl_hours);
