@@ -58,7 +58,7 @@ async fn get(setting: &str) -> color_eyre::eyre::Result<()> {
 
     match setting {
         "cache-ttl" => println!("{}", config.cache_ttl_hours),
-        "access-token" => println!("{}", config.access_token),
+        "access-token" => println!("{}", redact_token(&config.access_token)),
         "account-id" => println!("{}", config.account_id),
         "aliases" => {
             if config.aliases.is_empty() {
