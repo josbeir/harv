@@ -35,10 +35,11 @@ impl Help {
             (
                 "Navigation",
                 vec![
-                    ("j / ↓", "Move down"),
-                    ("k / ↑", "Move up"),
-                    ("Enter", "Select / confirm"),
+                    ("j / ↓", "Move down (lists)"),
+                    ("k / ↑", "Move up (lists)"),
                     ("Tab", "Next field"),
+                    ("Shift+Tab", "Previous field"),
+                    ("Enter", "Select / confirm"),
                     ("Esc", "Cancel / back"),
                 ],
             ),

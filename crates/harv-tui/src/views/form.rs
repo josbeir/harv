@@ -214,12 +214,11 @@ impl TimeEntryForm {
             return;
         }
 
-        let (popup_w, popup_h) = if self.mode != FormMode::Start {
-            (60u16, 85u16)
+        let popup = if self.mode != FormMode::Start {
+            crate::popup::centered_rect_fixed(area.width.saturating_sub(6).min(72), 22, area)
         } else {
-            (48u16, 42u16)
+            crate::popup::centered_rect_fixed(area.width.saturating_sub(6).min(60), 14, area)
         };
-        let popup = crate::popup::centered_rect(popup_w, popup_h, area);
         f.render_widget(Clear, popup);
 
         let title = match self.mode {
@@ -295,7 +294,7 @@ impl TimeEntryForm {
             );
 
             let help = Span::styled(
-                " Tab: next field │ Enter: submit │ Esc: cancel │ j/k: navigate list ",
+                " Tab: next field │ Enter: submit │ Esc: cancel ",
                 Style::new().fg(theme.muted),
             );
             f.render_widget(Paragraph::new(help), layout[5]);
@@ -312,7 +311,7 @@ impl TimeEntryForm {
             self.render_task_section(layout[1], inner_width, content_x, f, theme);
 
             let help = Span::styled(
-                " Tab: next field │ Enter: start timer │ Esc: cancel │ j/k: navigate list ",
+                " Tab: next field │ Enter: start timer │ Esc: cancel ",
                 Style::new().fg(theme.muted),
             );
             f.render_widget(Paragraph::new(help), layout[3]);
