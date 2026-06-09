@@ -15,7 +15,8 @@ pub async fn run() -> eyre::Result<()> {
         .map_err(|e| eyre::eyre!("{}", e.user_message()))?;
 
     tui::init()?;
-    let result = app::App::new(client).await?.run().await;
+    let mut app = app::App::new(client);
+    let result = app.run().await;
     tui::restore()?;
     result
 }

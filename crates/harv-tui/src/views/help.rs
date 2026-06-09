@@ -46,8 +46,8 @@ impl Help {
                 "Actions",
                 vec![
                     ("s", "Start timer"),
-                    ("n", "New entry (with hours)"),
-                    ("Enter/e", "Log time on stopped entry"),
+                    ("n / t", "New entry (with hours)"),
+                    ("Enter / e", "Edit entry"),
                     ("d", "Delete entry"),
                     ("r", "Refresh"),
                 ],

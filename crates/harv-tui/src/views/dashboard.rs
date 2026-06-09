@@ -1,4 +1,4 @@
-use crate::action::Action;
+use crate::action::{Action, FormMode};
 use crate::theme::Theme;
 use harv_core::TimeEntry;
 use ratatui::crossterm::event::KeyCode;
@@ -54,7 +54,7 @@ impl Dashboard {
 
     pub fn render(&mut self, area: Rect, f: &mut Frame, theme: &Theme, tick: u64) {
         if !self.loaded {
-            crate::loading::render_spinner(area, f, tick, "Loading entries...", theme);
+            crate::loading::render_harv_loading(area, f, tick, "Loading entries...", theme);
             return;
         }
 
@@ -63,21 +63,10 @@ impl Dashboard {
             return;
         }
 
-        let layout = Layout::vertical([
-            Constraint::Length(3),
-            Constraint::Min(0),
-            Constraint::Length(3),
-        ])
-        .split(area);
+        let layout = Layout::vertical([Constraint::Length(3), Constraint::Min(0)]).split(area);
 
-        // Timer header
         self.render_timer_header(layout[0], f, theme);
-
-        // Entries list
         self.render_entry_list(layout[1], f, theme);
-
-        // Quick actions footer
-        self.render_actions(layout[2], f, theme);
     }
 
     fn render_timer_header(&self, area: Rect, f: &mut Frame, theme: &Theme) {
@@ -155,39 +144,6 @@ impl Dashboard {
         f.render_stateful_widget(list, area, &mut self.list_state);
     }
 
-    fn render_actions(&self, area: Rect, f: &mut Frame, theme: &Theme) {
-        let actions = [
-            ("s", "Start Timer"),
-            ("n", "New Entry"),
-            ("d", "Delete"),
-            ("j/k", "Navigate"),
-            ("r", "Refresh"),
-        ];
-
-        let spans: Vec<Span> = actions
-            .iter()
-            .flat_map(|(key, label)| {
-                vec![
-                    Span::styled(
-                        format!(" [{}] ", key),
-                        Style::new().fg(theme.primary).add_modifier(Modifier::BOLD),
-                    ),
-                    Span::styled(format!("{}  ", label), Style::new().fg(theme.muted)),
-                ]
-            })
-            .collect();
-
-        let block = Block::new()
-            .borders(Borders::TOP)
-            .border_style(Style::new().fg(theme.border));
-
-        let paragraph = Paragraph::new(Line::from(spans))
-            .block(block)
-            .alignment(Alignment::Center);
-
-        f.render_widget(paragraph, area);
-    }
-
     pub fn handle_key(&mut self, key: &ratatui::crossterm::event::KeyEvent) -> Vec<Action> {
         match key.code {
             KeyCode::Char('j') | KeyCode::Down => {
@@ -214,7 +170,11 @@ impl Dashboard {
                         last_project_id: None,
                         last_task_id: None,
                         project_name: None,
-                        log_mode: false,
+                        mode: FormMode::Start,
+                        entry_id: None,
+                        entry_date: None,
+                        entry_hours: None,
+                        entry_notes: None,
                     }]
                 }
             }
@@ -242,21 +202,37 @@ impl Dashboard {
                     vec![Action::StopTimer { entry_id: entry.id }]
                 }
                 Some(entry) => {
+                    let date = entry
+                        .spent_date
+                        .map(harv_core::datetime::format_date)
+                        .unwrap_or_else(|| {
+                            harv_core::datetime::format_date(harv_core::datetime::today())
+                        });
+                    let hours = entry.hours.map(|h| format!("{:.2}", h));
+                    let notes = entry.notes.clone();
                     vec![Action::OpenForm {
                         last_project_id: Some(entry.project.id),
                         last_task_id: Some(entry.task.id),
                         project_name: Some(entry.project.name.clone()),
-                        log_mode: true,
+                        mode: FormMode::Edit,
+                        entry_id: Some(entry.id),
+                        entry_date: Some(date),
+                        entry_hours: hours,
+                        entry_notes: notes,
                     }]
                 }
                 None => vec![],
             },
-            KeyCode::Char('n') => {
+            KeyCode::Char('n') | KeyCode::Char('t') => {
                 vec![Action::OpenForm {
                     last_project_id: None,
                     last_task_id: None,
                     project_name: None,
-                    log_mode: true,
+                    mode: FormMode::Create,
+                    entry_id: None,
+                    entry_date: None,
+                    entry_hours: None,
+                    entry_notes: None,
                 }]
             }
             KeyCode::Char('r') => vec![Action::Refresh],
@@ -312,6 +288,10 @@ fn format_timer_elapsed(entry: &TimeEntry) -> String {
 }
 
 fn render_harv_header(area: Rect, f: &mut Frame) {
+    use ratatui::widgets::Clear;
+
+    f.render_widget(Clear, area);
+
     let shades: [(u8, u8, u8); 4] = [
         (250, 210, 140),
         (250, 170, 90),
@@ -368,7 +348,7 @@ fn render_harv_header(area: Rect, f: &mut Frame) {
     let vertical = Layout::vertical([
         Constraint::Length(v_margin),
         Constraint::Length(content_height),
-        Constraint::Length(v_margin),
+        Constraint::Min(v_margin),
     ])
     .split(area);
 
@@ -377,7 +357,7 @@ fn render_harv_header(area: Rect, f: &mut Frame) {
     let horizontal = Layout::horizontal([
         Constraint::Length(h_margin),
         Constraint::Length(27),
-        Constraint::Length(h_margin),
+        Constraint::Min(h_margin),
     ])
     .split(vertical[1]);
 

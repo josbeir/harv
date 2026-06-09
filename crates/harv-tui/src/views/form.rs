@@ -1,4 +1,4 @@
-use crate::action::Action;
+use crate::action::{Action, FormMode};
 use crate::theme::Theme;
 use harv_core::{ProjectAssignment, TaskAssignment};
 use ratatui::crossterm::event::KeyCode;
@@ -18,9 +18,10 @@ enum Field {
 }
 
 pub struct TimeEntryForm {
+    entry_id: Option<u64>,
     last_project_id: Option<u64>,
     last_task_id: Option<u64>,
-    log_mode: bool,
+    mode: FormMode,
     assignments: Vec<ProjectAssignment>,
     filtered_assignments: Vec<usize>,
     tasks: Vec<TaskAssignment>,
@@ -38,13 +39,19 @@ pub struct TimeEntryForm {
 }
 
 impl TimeEntryForm {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         last_project_id: Option<u64>,
         last_task_id: Option<u64>,
         project_name: Option<String>,
-        log_mode: bool,
+        mode: FormMode,
+        entry_id: Option<u64>,
+        entry_date: Option<String>,
+        entry_hours: Option<String>,
+        entry_notes: Option<String>,
     ) -> Self {
-        let date = harv_core::datetime::format_date(harv_core::datetime::today());
+        let date = entry_date
+            .unwrap_or_else(|| harv_core::datetime::format_date(harv_core::datetime::today()));
 
         let mut project_list = ListState::default();
         if last_project_id.is_some() {
@@ -52,9 +59,10 @@ impl TimeEntryForm {
         }
 
         Self {
+            entry_id,
             last_project_id,
             last_task_id,
-            log_mode,
+            mode,
             assignments: Vec::new(),
             filtered_assignments: Vec::new(),
             tasks: Vec::new(),
@@ -63,8 +71,8 @@ impl TimeEntryForm {
             selected_project_id: last_project_id,
             project_search: project_name.unwrap_or_default(),
             date,
-            hours: String::new(),
-            notes: String::new(),
+            hours: entry_hours.unwrap_or_default(),
+            notes: entry_notes.unwrap_or_default(),
             active: Field::ProjectList,
             visible: true,
             loaded: false,
@@ -72,7 +80,7 @@ impl TimeEntryForm {
         }
     }
 
-    pub fn update_assignments(&mut self, assignments: Vec<ProjectAssignment>) {
+    pub fn update_assignments(&mut self, assignments: Vec<ProjectAssignment>) -> Option<u64> {
         self.assignments = assignments;
         self.filter_projects();
         self.loaded = true;
@@ -85,8 +93,12 @@ impl TimeEntryForm {
             {
                 self.project_list.select(Some(pos));
                 self.selected_project_id = Some(pid);
+                self.tasks_loading = true;
+                self.tasks.clear();
+                return Some(pid);
             }
         }
+        None
     }
 
     pub fn update_tasks(&mut self, tasks: Vec<TaskAssignment>) {
@@ -137,7 +149,7 @@ impl TimeEntryForm {
             _ => return vec![],
         };
 
-        let (hours, notes) = if self.log_mode {
+        let (hours, notes) = if self.mode != FormMode::Start {
             let h = if self.hours.trim().is_empty() {
                 None
             } else {
@@ -154,16 +166,34 @@ impl TimeEntryForm {
         };
 
         self.visible = false;
-        vec![
-            Action::CreateEntry {
-                project_id: pid,
-                task_id: tid,
-                spent_date: self.date.clone(),
-                hours,
-                notes,
-            },
-            Action::SwitchView(crate::action::ViewId::Dashboard),
-        ]
+        if self.mode == FormMode::Edit {
+            if let Some(eid) = self.entry_id {
+                vec![
+                    Action::EditEntry {
+                        entry_id: eid,
+                        project_id: pid,
+                        task_id: tid,
+                        spent_date: self.date.clone(),
+                        hours,
+                        notes,
+                    },
+                    Action::SwitchView(crate::action::ViewId::Dashboard),
+                ]
+            } else {
+                vec![Action::SwitchView(crate::action::ViewId::Dashboard)]
+            }
+        } else {
+            vec![
+                Action::CreateEntry {
+                    project_id: pid,
+                    task_id: tid,
+                    spent_date: self.date.clone(),
+                    hours,
+                    notes,
+                },
+                Action::SwitchView(crate::action::ViewId::Dashboard),
+            ]
+        }
     }
 
     fn select_project_inner(&mut self) -> Option<u64> {
@@ -180,11 +210,11 @@ impl TimeEntryForm {
         }
 
         if !self.loaded {
-            crate::loading::render_spinner(area, f, tick, "Loading projects...", theme);
+            crate::loading::render_harv_loading(area, f, tick, "Loading projects...", theme);
             return;
         }
 
-        let (popup_w, popup_h) = if self.log_mode {
+        let (popup_w, popup_h) = if self.mode != FormMode::Start {
             (60u16, 85u16)
         } else {
             (48u16, 42u16)
@@ -192,10 +222,10 @@ impl TimeEntryForm {
         let popup = crate::popup::centered_rect(popup_w, popup_h, area);
         f.render_widget(Clear, popup);
 
-        let title = if self.log_mode {
-            " Log Time "
-        } else {
-            " Start Timer "
+        let title = match self.mode {
+            FormMode::Start => " Start Timer ",
+            FormMode::Create => " New Entry ",
+            FormMode::Edit => " Edit Entry ",
         };
 
         let block = Block::new()
@@ -211,13 +241,13 @@ impl TimeEntryForm {
         let inner_width = inner.width.saturating_sub(2);
         let content_x = inner.x + 1;
 
-        if self.log_mode {
+        if self.mode != FormMode::Start {
             let layout = Layout::vertical([
                 Constraint::Length(5),
                 Constraint::Length(5),
                 Constraint::Length(3),
                 Constraint::Length(3),
-                Constraint::Min(3),
+                Constraint::Length(3),
                 Constraint::Length(1),
             ])
             .split(inner);
@@ -514,7 +544,7 @@ impl TimeEntryForm {
                 vec![Action::SwitchView(crate::action::ViewId::Dashboard)]
             }
             KeyCode::Tab => {
-                self.active = if self.log_mode {
+                self.active = if self.mode != FormMode::Start {
                     Field::Date
                 } else {
                     Field::ProjectList
@@ -550,7 +580,7 @@ impl TimeEntryForm {
                 vec![Action::SwitchView(crate::action::ViewId::Dashboard)]
             }
             KeyCode::Tab => {
-                self.active = if self.log_mode {
+                self.active = if self.mode != FormMode::Start {
                     match self.active {
                         Field::Date => Field::Hours,
                         Field::Hours => Field::Notes,
@@ -563,7 +593,7 @@ impl TimeEntryForm {
                 vec![]
             }
             KeyCode::BackTab => {
-                self.active = if self.log_mode {
+                self.active = if self.mode != FormMode::Start {
                     match self.active {
                         Field::Date => Field::TaskList,
                         Field::Hours => Field::Date,

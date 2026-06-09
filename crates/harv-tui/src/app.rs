@@ -32,47 +32,38 @@ pub struct App {
 }
 
 impl App {
-    pub async fn new(client: HarvClient) -> color_eyre::eyre::Result<Self> {
-        let user = client
-            .users()
-            .me()
-            .await
-            .map_err(|e| color_eyre::eyre::eyre!("{}", e.user_message()))?;
-
-        Ok(Self {
+    pub fn new(client: HarvClient) -> Self {
+        Self {
             client: Arc::new(client),
-            user_id: user.id,
+            user_id: 0,
             current_view: View::default(),
             form: None,
             theme: Theme::default(),
             help: Help::default(),
             tick: 0,
             pending_confirm: None,
-        })
+        }
     }
 
     pub async fn run(&mut self) -> color_eyre::eyre::Result<()> {
         let mut terminal = tui::terminal()?;
         let (action_tx, mut action_rx) = mpsc::unbounded_channel();
 
-        self.fetch_dashboard_data(&action_tx);
-
-        let poll_client = Arc::clone(&self.client);
-        let poll_tx = action_tx.clone();
-        let poll_user_id = self.user_id;
-        tokio::spawn(async move {
-            loop {
-                match poll_client.time_entries().running(poll_user_id).await {
-                    Ok(entries) => {
-                        let _ = poll_tx.send(Action::TimerUpdate(entries));
+        // Fetch user info asynchronously — dashboard shows loading animation
+        {
+            let client = Arc::clone(&self.client);
+            let tx = action_tx.clone();
+            tokio::spawn(async move {
+                match client.users().me().await {
+                    Ok(user) => {
+                        let _ = tx.send(Action::UserLoaded(user));
                     }
                     Err(e) => {
-                        let _ = poll_tx.send(Action::Error(e.user_message()));
+                        let _ = tx.send(Action::Error(e.user_message()));
                     }
                 }
-                tokio::time::sleep(Duration::from_secs(2)).await;
-            }
-        });
+            });
+        }
 
         let tick_tx = action_tx.clone();
         tokio::spawn(async move {
@@ -140,6 +131,29 @@ impl App {
             Action::Tick => {
                 self.tick = self.tick.wrapping_add(1);
             }
+            Action::UserLoaded(user) => {
+                self.user_id = user.id;
+
+                // Start the timer poller now that we have a user_id
+                let poll_client = Arc::clone(&self.client);
+                let poll_tx = tx.clone();
+                let poll_user_id = user.id;
+                tokio::spawn(async move {
+                    loop {
+                        match poll_client.time_entries().running(poll_user_id).await {
+                            Ok(entries) => {
+                                let _ = poll_tx.send(Action::TimerUpdate(entries));
+                            }
+                            Err(e) => {
+                                let _ = poll_tx.send(Action::Error(e.user_message()));
+                            }
+                        }
+                        tokio::time::sleep(Duration::from_secs(2)).await;
+                    }
+                });
+
+                self.fetch_dashboard_data(tx);
+            }
             Action::ToggleHelp => {
                 self.help.toggle();
             }
@@ -152,10 +166,22 @@ impl App {
                 last_project_id,
                 last_task_id,
                 project_name,
-                log_mode,
+                mode,
+                entry_id,
+                entry_date,
+                entry_hours,
+                entry_notes,
             } => {
-                let form =
-                    TimeEntryForm::new(last_project_id, last_task_id, project_name, log_mode);
+                let form = TimeEntryForm::new(
+                    last_project_id,
+                    last_task_id,
+                    project_name,
+                    mode,
+                    entry_id,
+                    entry_date,
+                    entry_hours,
+                    entry_notes,
+                );
                 self.form = Some(form);
 
                 let client = Arc::clone(&self.client);
@@ -173,7 +199,20 @@ impl App {
             }
             Action::FormAssignmentsUpdate(assignments) => {
                 if let Some(ref mut f) = self.form {
-                    f.update_assignments(assignments);
+                    if let Some(pid) = f.update_assignments(assignments) {
+                        let client = Arc::clone(&self.client);
+                        let tx = tx.clone();
+                        tokio::spawn(async move {
+                            match client.projects().task_assignments(pid).await {
+                                Ok(tasks) => {
+                                    let _ = tx.send(Action::FormTasksUpdate(tasks));
+                                }
+                                Err(e) => {
+                                    let _ = tx.send(Action::Error(e.user_message()));
+                                }
+                            }
+                        });
+                    }
                 }
             }
             Action::FormTasksUpdate(tasks) => {
@@ -228,6 +267,43 @@ impl App {
                         ended_time: None,
                     };
                     if let Err(e) = client.time_entries().create(&entry).await {
+                        let _ = tx.send(Action::Error(e.user_message()));
+                    }
+                    let _ = tx.send(Action::Refresh);
+                });
+            }
+            Action::EditEntry {
+                entry_id,
+                project_id,
+                task_id,
+                spent_date,
+                hours,
+                notes,
+            } => {
+                {
+                    let mut config = self.client.config().clone();
+                    config.set_last_used(project_id, task_id);
+                    let config = config;
+                    tokio::spawn(async move {
+                        let _ = config.save().await;
+                    });
+                }
+
+                let client = Arc::clone(&self.client);
+                let tx = tx.clone();
+                tokio::spawn(async move {
+                    let spent_date = harv_core::datetime::parse_date(&spent_date)
+                        .unwrap_or_else(|_| harv_core::datetime::today());
+
+                    let update = harv_core::UpdateTimeEntry {
+                        project_id: Some(project_id),
+                        task_id: Some(task_id),
+                        spent_date: Some(spent_date),
+                        hours,
+                        notes,
+                        ..Default::default()
+                    };
+                    if let Err(e) = client.time_entries().update(entry_id, &update).await {
                         let _ = tx.send(Action::Error(e.user_message()));
                     }
                     let _ = tx.send(Action::Refresh);
@@ -342,7 +418,7 @@ impl App {
         let layout = Layout::vertical([
             Constraint::Length(1),
             Constraint::Min(0),
-            Constraint::Length(1),
+            Constraint::Length(2),
         ])
         .split(area);
 
@@ -383,16 +459,39 @@ impl App {
     }
 
     fn render_bottom_bar(&self, area: Rect, f: &mut Frame) {
-        let help = vec![
-            Span::styled(" n: entry ", Style::new().fg(self.theme.muted)),
-            Span::styled(" s: start ", Style::new().fg(self.theme.muted)),
-            Span::styled(" d: delete ", Style::new().fg(self.theme.muted)),
-            Span::styled(" r: refresh ", Style::new().fg(self.theme.muted)),
-            Span::styled(" q: quit ", Style::new().fg(self.theme.muted)),
-            Span::styled(" ?: help ", Style::new().fg(self.theme.muted)),
+        let actions = [
+            ("n/t", "Entry"),
+            ("s", "Start"),
+            ("e", "Edit"),
+            ("d", "Delete"),
+            ("r", "Refresh"),
+            ("q", "Quit"),
+            ("?", "Help"),
         ];
 
-        let paragraph = Paragraph::new(Line::from(help));
+        let spans: Vec<Span> = actions
+            .iter()
+            .flat_map(|(key, label)| {
+                vec![
+                    Span::styled(
+                        format!(" [{}] ", key),
+                        Style::new()
+                            .fg(self.theme.primary)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                    Span::styled(format!("{}  ", label), Style::new().fg(self.theme.muted)),
+                ]
+            })
+            .collect();
+
+        let block = Block::new()
+            .borders(Borders::TOP)
+            .border_style(Style::new().fg(self.theme.border));
+
+        let paragraph = Paragraph::new(Line::from(spans))
+            .block(block)
+            .alignment(Alignment::Center);
+
         f.render_widget(paragraph, area);
     }
 }
