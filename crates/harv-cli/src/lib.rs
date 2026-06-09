@@ -21,7 +21,7 @@ pub struct Cli {
     pub output: OutputFormat,
 
     #[command(subcommand)]
-    pub command: Commands,
+    pub command: Option<Commands>,
 }
 
 #[derive(Subcommand)]

@@ -1,4 +1,4 @@
-use axum::{extract::Query, http::StatusCode, response::Html, routing::get, Router};
+use axum::{Router, extract::Query, http::StatusCode, response::Html, routing::get};
 use harv_core::HarvError;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -107,6 +107,7 @@ pub async fn authenticate() -> Result<(String, String), HarvError> {
         }
     }
 
+    #[allow(clippy::let_and_return)]
     let out = result
         .lock()
         .unwrap()

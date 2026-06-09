@@ -1,7 +1,7 @@
 use chrono::NaiveDate;
 use harv_core::{ProjectAssignment, Reference, TaskAssignment};
 use harv_sdk::HarvConfig;
-use inquire::{validator::Validation, CustomType, Select, Text};
+use inquire::{CustomType, Select, Text, validator::Validation};
 
 use crate::OutputFormat;
 
@@ -36,6 +36,7 @@ pub fn build_project_choices(
         .collect();
     choices.sort_by(|a, b| a.display.cmp(&b.display));
 
+    #[allow(clippy::collapsible_if)]
     if let Some(pid) = last_project_id {
         if let Some(idx) = choices.iter().position(|c| c.project_id == pid) {
             let mut choice = choices.remove(idx);
@@ -176,7 +177,7 @@ pub fn format_entry_confirmation(
     id: u64,
 ) -> String {
     let hours_str = hours
-        .map(|h| format!("{:.2}h", h))
+        .map(harv_core::text::format_hours)
         .unwrap_or_else(|| "Running...".into());
     let status = if is_running { "Running" } else { "Not running" };
     format!(
@@ -232,23 +233,7 @@ pub fn format_timer_display(
 
 #[allow(dead_code)]
 fn fuzzy_score(pattern: &str, text: &str) -> i32 {
-    let pattern = pattern.to_lowercase();
-    let text = text.to_lowercase();
-    let mut score = 0;
-    let mut text_chars = text.chars();
-    for p in pattern.chars() {
-        loop {
-            match text_chars.next() {
-                Some(t) if t == p => {
-                    score += 1;
-                    break;
-                }
-                Some(_) => {}
-                None => return -1,
-            }
-        }
-    }
-    score
+    harv_core::text::fuzzy_score(pattern, text)
 }
 
 #[cfg(test)]

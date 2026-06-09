@@ -1,5 +1,5 @@
-use harv_sdk::auth;
 use harv_sdk::HarvConfig;
+use harv_sdk::auth;
 
 pub async fn run() -> color_eyre::eyre::Result<()> {
     eprintln!("Opening browser for Harvest authentication...");

@@ -46,7 +46,7 @@ pub async fn execute(
                 for entry in &today_entries {
                     let hours = entry
                         .hours
-                        .map(|h| format!("{:.2}h", h))
+                        .map(harv_core::text::format_hours)
                         .unwrap_or_default();
                     println!(
                         "  #{}\t{}\t{} → {}\t{}",

@@ -57,6 +57,7 @@ pub(crate) async fn get_cached_assignments(
     force: bool,
     fetch: impl std::future::Future<Output = Result<Vec<ProjectAssignment>, HarvError>>,
 ) -> Result<Vec<ProjectAssignment>, HarvError> {
+    #[allow(clippy::collapsible_if)]
     if !force {
         if let Ok(Some(cache)) = ProjectsCache::load(account_id).await {
             if cache.is_fresh(ttl_hours) {

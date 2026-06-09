@@ -12,6 +12,7 @@ path = "src/main.rs"
 [dependencies]
 harv-core = { path = "../harv-core" }
 harv-sdk = { path = "../harv-sdk" }
+harv-tui = { path = "../harv-tui" }
 clap = { version = "4", features = ["derive", "env"] }
 clap_complete = "4"
 tokio = { version = "1", features = ["full"] }

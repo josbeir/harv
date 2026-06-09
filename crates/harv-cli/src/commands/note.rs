@@ -22,20 +22,7 @@ pub async fn execute(
     } else {
         let items: Vec<String> = running
             .iter()
-            .map(|t| {
-                format!(
-                    "[{}] {} => {} => {}",
-                    t.timer_started_at
-                        .map(|ts| harv_core::datetime::format_local(ts, true))
-                        .unwrap_or_default(),
-                    t.client
-                        .as_ref()
-                        .map(|c| c.name.as_str())
-                        .unwrap_or("No client"),
-                    t.project.name,
-                    t.task.name,
-                )
-            })
+            .map(harv_core::text::format_timer_line)
             .collect();
         let items_str: Vec<&str> = items.iter().map(|s| s.as_str()).collect();
         let selection = inquire::Select::new("Which timer?", items_str.clone()).prompt()?;
@@ -51,7 +38,7 @@ pub async fn execute(
         if overwrite || existing.is_empty() {
             Some(n)
         } else {
-            Some(format!("{}\n\n{}", existing, n))
+            Some(harv_core::text::append_notes(&existing, &n))
         }
     } else if editor {
         let input = inquire::Text::new("Notes (empty to keep current):")
@@ -61,7 +48,7 @@ pub async fn execute(
             if overwrite || existing.is_empty() {
                 n
             } else {
-                format!("{}\n\n{}", existing, n)
+                harv_core::text::append_notes(&existing, &n)
             }
         })
     } else {

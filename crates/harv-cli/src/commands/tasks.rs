@@ -1,5 +1,5 @@
-use crate::output;
 use crate::OutputFormat;
+use crate::output;
 use harv_sdk::HarvClient;
 
 pub async fn execute(

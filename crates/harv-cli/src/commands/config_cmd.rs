@@ -27,9 +27,9 @@ async fn show() -> color_eyre::eyre::Result<()> {
 
     println!();
     println!(
-        "  {:<20} {}...",
+        "  {:<20} {}",
         "access-token:",
-        &config.access_token[..12.min(config.access_token.len())]
+        redact_token(&config.access_token)
     );
     println!("  {:<20} {}", "account-id:", config.account_id);
     println!("  {:<20} {}h", "cache-ttl:", config.cache_ttl_hours);
@@ -58,7 +58,7 @@ async fn get(setting: &str) -> color_eyre::eyre::Result<()> {
 
     match setting {
         "cache-ttl" => println!("{}", config.cache_ttl_hours),
-        "access-token" => println!("{}", config.access_token),
+        "access-token" => println!("{}", redact_token(&config.access_token)),
         "account-id" => println!("{}", config.account_id),
         "aliases" => {
             if config.aliases.is_empty() {
@@ -76,7 +76,7 @@ async fn get(setting: &str) -> color_eyre::eyre::Result<()> {
             return Err(color_eyre::eyre::eyre!(
                 "Unknown setting: {}. Valid settings: access-token, account-id, aliases, cache-ttl",
                 other
-            ))
+            ));
         }
     }
     Ok(())
@@ -98,7 +98,7 @@ async fn set(setting: &str, value: &str) -> color_eyre::eyre::Result<()> {
             return Err(color_eyre::eyre::eyre!(
                 "Unknown setting: {}. Valid settings: cache-ttl",
                 other
-            ))
+            ));
         }
     }
 
@@ -108,4 +108,21 @@ async fn set(setting: &str, value: &str) -> color_eyre::eyre::Result<()> {
         .map_err(|e| color_eyre::eyre::eyre!("Failed to save config: {}", e.user_message()))?;
     println!("{} set to {}", setting, value);
     Ok(())
+}
+
+fn redact_token(token: &str) -> String {
+    let chars: Vec<char> = token.chars().collect();
+    if chars.len() <= 8 {
+        return "<redacted>".into();
+    }
+    let prefix: String = chars.iter().take(4).collect();
+    let suffix: String = chars
+        .iter()
+        .rev()
+        .take(4)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect();
+    format!("{}...{}", prefix, suffix)
 }
