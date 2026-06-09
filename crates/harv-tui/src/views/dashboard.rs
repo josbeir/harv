@@ -59,7 +59,7 @@ impl Dashboard {
         }
 
         if self.entries.is_empty() {
-            render_harv_header(area, f);
+            render_harv_header(area, f, theme);
             return;
         }
 
@@ -287,7 +287,7 @@ fn format_timer_elapsed(entry: &TimeEntry) -> String {
     }
 }
 
-fn render_harv_header(area: Rect, f: &mut Frame) {
+fn render_harv_header(area: Rect, f: &mut Frame, theme: &Theme) {
     use ratatui::widgets::Clear;
 
     f.render_widget(Clear, area);
@@ -310,6 +310,11 @@ fn render_harv_header(area: Rect, f: &mut Frame) {
     let version_text = format!("HARV CLI v{}", version);
     let pad = (21usize.saturating_sub(version_text.len())) / 2;
 
+    let version_color = match theme.mode {
+        crate::theme::ThemeMode::Dark => Color::Rgb(160, 160, 160),
+        crate::theme::ThemeMode::Light => Color::Rgb(90, 90, 90),
+    };
+
     let mut lines: Vec<Line> = Vec::new();
 
     for (i, header_line) in header_lines.iter().enumerate() {
@@ -329,16 +334,13 @@ fn render_harv_header(area: Rect, f: &mut Frame) {
                 .fg(Color::Rgb(250, 93, 0))
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled(
-            format!(" v{}", version),
-            Style::new().fg(Color::Rgb(160, 160, 160)),
-        ),
+        Span::styled(format!(" v{}", version), Style::new().fg(version_color)),
     ]));
     lines.push(Line::from(""));
 
     lines.push(Line::from(Span::styled(
         "No entries today. Press n to start tracking!",
-        Style::new().fg(Color::Rgb(160, 160, 160)),
+        Style::new().fg(version_color),
     )));
 
     let content_height = lines.len() as u16;
@@ -374,6 +376,11 @@ impl Dashboard {
     #[doc(hidden)]
     pub fn has_running(&self) -> bool {
         self.running_entry.is_some()
+    }
+
+    #[doc(hidden)]
+    pub fn set_loaded(&mut self, v: bool) {
+        self.loaded = v;
     }
 }
 #[cfg(test)]
@@ -608,4 +615,3 @@ mod tests {
         assert!(actions.is_empty());
     }
 }
-

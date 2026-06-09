@@ -1,5 +1,7 @@
 use harv_core::{ProjectAssignment, TaskAssignment, TimeEntry, User};
 
+use crate::theme::ThemeMode;
+
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub enum Action {
@@ -57,6 +59,7 @@ pub enum Action {
     },
     Error(String),
     ToggleHelp,
+    ThemeChanged(ThemeMode),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

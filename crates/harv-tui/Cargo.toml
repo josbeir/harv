@@ -19,6 +19,10 @@ color-eyre = "0.6"
 chrono = "0.4"
 tracing = "0.1"
 futures-util = "0.3"
+dark-light = "2.0"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+ashpd = { version = "0.13", features = ["tokio", "settings"] }
 
 [lib]
 name = "harv_tui"

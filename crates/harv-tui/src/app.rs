@@ -14,7 +14,7 @@ use ratatui::Frame;
 use tokio::sync::mpsc::{self, UnboundedSender};
 
 use crate::action::Action;
-use crate::theme::Theme;
+use crate::theme::{Theme, ThemeMode};
 use crate::tui;
 use crate::views::form::TimeEntryForm;
 use crate::views::help::Help;
@@ -32,13 +32,13 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(client: HarvClient) -> Self {
+    pub fn new(client: HarvClient, theme: Theme) -> Self {
         Self {
             client: Arc::new(client),
             user_id: 0,
             current_view: View::default(),
             form: None,
-            theme: Theme::default(),
+            theme,
             help: Help::default(),
             tick: 0,
             pending_confirm: None,
@@ -48,7 +48,7 @@ impl App {
     // Test helpers
     #[doc(hidden)]
     pub fn new_for_testing(client: HarvClient) -> Self {
-        Self::new(client)
+        Self::new(client, Theme::default())
     }
 
     #[doc(hidden)]
@@ -101,6 +101,12 @@ impl App {
                 tokio::time::sleep(Duration::from_millis(80)).await;
                 let _ = tick_tx.send(Action::Tick);
             }
+        });
+
+        // Spawn OS theme change watcher
+        let theme_tx = action_tx.clone();
+        tokio::spawn(async move {
+            watch_theme_changes(theme_tx).await;
         });
 
         let mut reader = tui::event_stream();
@@ -186,6 +192,12 @@ impl App {
             }
             Action::ToggleHelp => {
                 self.help.toggle();
+            }
+            Action::ThemeChanged(mode) => {
+                self.theme = match mode {
+                    ThemeMode::Dark => Theme::dark(),
+                    ThemeMode::Light => Theme::light(),
+                };
             }
             Action::SwitchView(_) => {
                 self.form = None;
@@ -572,4 +584,42 @@ fn render_confirm_dialog(area: Rect, f: &mut Frame, msg: &str, theme: &Theme) {
         Paragraph::new(lines).alignment(Alignment::Center),
         inner_with_margin,
     );
+}
+
+async fn watch_theme_changes(tx: tokio::sync::mpsc::UnboundedSender<Action>) {
+    #[cfg(target_os = "linux")]
+    {
+        use ashpd::desktop::settings::{ColorScheme, Settings};
+        use futures_util::StreamExt;
+
+        if let Ok(settings) = Settings::new().await {
+            if let Ok(mut stream) = settings.receive_color_scheme_changed().await {
+                while let Some(scheme) = stream.next().await {
+                    let mode = match scheme {
+                        ColorScheme::PreferDark => ThemeMode::Dark,
+                        ColorScheme::PreferLight | ColorScheme::NoPreference => ThemeMode::Light,
+                    };
+                    let _ = tx.send(Action::ThemeChanged(mode));
+                }
+            }
+        }
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        let mut current = dark_light::detect().unwrap_or(dark_light::Mode::Dark);
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            if let Ok(detected) = dark_light::detect() {
+                if detected != current {
+                    current = detected;
+                    let mode = match current {
+                        dark_light::Mode::Dark => ThemeMode::Dark,
+                        dark_light::Mode::Light | dark_light::Mode::Unspecified => ThemeMode::Light,
+                    };
+                    let _ = tx.send(Action::ThemeChanged(mode));
+                }
+            }
+        }
+    }
 }

@@ -2,7 +2,7 @@ pub mod action;
 pub mod app;
 mod loading;
 mod popup;
-mod theme;
+pub mod theme;
 mod tui;
 pub mod views;
 
@@ -14,8 +14,9 @@ pub async fn run() -> eyre::Result<()> {
         .await
         .map_err(|e| eyre::eyre!("{}", e.user_message()))?;
 
+    let theme = theme::Theme::detect();
     tui::init()?;
-    let mut app = app::App::new(client);
+    let mut app = app::App::new(client, theme);
     let result = app.run().await;
     tui::restore()?;
     result
