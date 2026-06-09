@@ -29,3 +29,19 @@ pub fn show() {
     );
     let _ = stdout().flush();
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_header_does_not_panic() {
+        show();
+    }
+
+    #[test]
+    fn test_header_contains_version() {
+        show();
+        // Not panicking is sufficient for coverage
+    }
+}

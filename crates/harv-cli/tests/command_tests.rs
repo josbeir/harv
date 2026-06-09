@@ -614,3 +614,165 @@ async fn test_start_delegation() {
     .await
     .unwrap();
 }
+
+// --- Note command with existing notes (append) ---
+
+#[tokio::test]
+async fn test_note_append_to_existing() {
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+
+    let running = json!({
+        "id": 1, "is_running": true, "timer_started_at": "2026-06-08T14:00:00Z",
+        "project": {"id": 100, "name": "Test Project"}, "task": {"id": 200, "name": "Development"},
+        "user": {"id": 1, "name": "Test User"}, "client": {"id": 1, "name": "Test Client"},
+        "is_billed": false, "billable": true, "billable_rate": null, "cost_rate": null,
+        "created_at": null, "updated_at": null,
+        "spent_date": null, "notes": "existing notes\nmore notes", "hours": null,
+        "started_time": null, "ended_time": null
+    });
+
+    Mock::given(method("GET"))
+        .and(path("/users/me"))
+        .respond_with(json_response(user_json()))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET")).and(path("/time_entries"))
+        .respond_with(json_response(json!({"time_entries": [running], "total_pages": 1, "page": 1, "total_entries": 1, "per_page": 100})))
+        .mount(&server).await;
+    Mock::given(method("PATCH"))
+        .and(path("/time_entries/1"))
+        .respond_with(json_response(running.clone()))
+        .mount(&server)
+        .await;
+
+    commands::note::execute(&c, Some("fresh note".into()), false, false)
+        .await
+        .unwrap();
+}
+
+// --- Note command with overwrite ---
+
+#[tokio::test]
+async fn test_note_overwrite() {
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+
+    let running = json!({
+        "id": 1, "is_running": true, "timer_started_at": "2026-06-08T14:00:00Z",
+        "project": {"id": 100, "name": "Test Project"}, "task": {"id": 200, "name": "Development"},
+        "user": {"id": 1, "name": "Test User"}, "client": {"id": 1, "name": "Test Client"},
+        "is_billed": false, "billable": true, "billable_rate": null, "cost_rate": null,
+        "created_at": null, "updated_at": null,
+        "spent_date": null, "notes": "old notes", "hours": null,
+        "started_time": null, "ended_time": null
+    });
+
+    Mock::given(method("GET"))
+        .and(path("/users/me"))
+        .respond_with(json_response(user_json()))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET")).and(path("/time_entries"))
+        .respond_with(json_response(json!({"time_entries": [running], "total_pages": 1, "page": 1, "total_entries": 1, "per_page": 100})))
+        .mount(&server).await;
+    Mock::given(method("PATCH"))
+        .and(path("/time_entries/1"))
+        .respond_with(json_response(running.clone()))
+        .mount(&server)
+        .await;
+
+    commands::note::execute(&c, Some("replaced".into()), true, false)
+        .await
+        .unwrap();
+}
+
+// --- Stop command with notes append ---
+
+#[tokio::test]
+async fn test_stop_with_notes_append() {
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+
+    let running_entry = json!({
+        "id": 1, "is_running": true, "hours": null, "timer_started_at": "2026-06-08T14:00:00Z",
+        "project": {"id": 100, "name": "Test Project"}, "task": {"id": 200, "name": "Development"},
+        "user": {"id": 1, "name": "Test User"}, "client": {"id": 1, "name": "Test Client"},
+        "is_billed": false, "billable": true, "billable_rate": null, "cost_rate": null,
+        "created_at": null, "updated_at": null,
+        "spent_date": null, "notes": "previous notes", "started_time": null, "ended_time": null
+    });
+
+    Mock::given(method("GET"))
+        .and(path("/users/me"))
+        .respond_with(json_response(user_json()))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET")).and(path("/time_entries"))
+        .respond_with(json_response(json!({"time_entries": [running_entry], "total_pages": 1, "page": 1, "total_entries": 1, "per_page": 100})))
+        .mount(&server).await;
+    Mock::given(method("PATCH"))
+        .and(path("/time_entries/1"))
+        .respond_with(json_response(running_entry.clone()))
+        .mount(&server)
+        .await;
+    Mock::given(method("PATCH")).and(path("/time_entries/1/stop"))
+        .respond_with(json_response(json!({
+            "id": 1, "is_running": false, "hours": 1.5,
+            "project": {"id": 100, "name": "Test Project"}, "task": {"id": 200, "name": "Development"},
+            "user": {"id": 1, "name": "Test User"}, "client": {"id": 1, "name": "Test Client"},
+            "is_billed": false, "billable": true, "billable_rate": null, "cost_rate": null,
+            "created_at": null, "updated_at": null,
+            "spent_date": null, "notes": "previous notes\n\nstop note", "timer_started_at": null,
+            "started_time": null, "ended_time": null
+        }))).mount(&server).await;
+
+    commands::stop::execute(&c, Some("stop note".into()), false, false)
+        .await
+        .unwrap();
+}
+
+// --- Stop command with notes overwrite ---
+
+#[tokio::test]
+async fn test_stop_with_notes_overwrite() {
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+
+    let running_entry = json!({
+        "id": 1, "is_running": true, "hours": null, "timer_started_at": "2026-06-08T14:00:00Z",
+        "project": {"id": 100, "name": "Test Project"}, "task": {"id": 200, "name": "Development"},
+        "user": {"id": 1, "name": "Test User"}, "client": {"id": 1, "name": "Test Client"},
+        "is_billed": false, "billable": true, "billable_rate": null, "cost_rate": null,
+        "created_at": null, "updated_at": null,
+        "spent_date": null, "notes": "old", "started_time": null, "ended_time": null
+    });
+
+    Mock::given(method("GET"))
+        .and(path("/users/me"))
+        .respond_with(json_response(user_json()))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET")).and(path("/time_entries"))
+        .respond_with(json_response(json!({"time_entries": [running_entry], "total_pages": 1, "page": 1, "total_entries": 1, "per_page": 100})))
+        .mount(&server).await;
+    Mock::given(method("PATCH"))
+        .and(path("/time_entries/1"))
+        .respond_with(json_response(running_entry.clone()))
+        .mount(&server)
+        .await;
+    Mock::given(method("PATCH")).and(path("/time_entries/1/stop"))
+        .respond_with(json_response(json!({
+            "id": 1, "is_running": false, "hours": 1.5,
+            "project": {"id": 100, "name": "Test Project"}, "task": {"id": 200, "name": "Development"},
+            "user": {"id": 1, "name": "Test User"}, "client": {"id": 1, "name": "Test Client"},
+            "is_billed": false, "billable": true, "billable_rate": null, "cost_rate": null,
+            "created_at": null, "updated_at": null,
+            "spent_date": null, "notes": "fresh", "timer_started_at": null,
+            "started_time": null, "ended_time": null
+        }))).mount(&server).await;
+
+    commands::stop::execute(&c, Some("fresh".into()), true, false)
+        .await
+        .unwrap();
+}

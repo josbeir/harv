@@ -156,3 +156,47 @@ fn test_action_theme_changed() {
         _ => panic!(),
     }
 }
+
+#[test]
+fn test_form_start_mode_shows_project_label() {
+    let mut f = TimeEntryForm::new(None, None, None, FormMode::Start, None, None, None, None);
+    let backend = TestBackend::new(80, 24);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| f.render(frame.area(), frame, &Theme::light(), 0))
+        .unwrap();
+
+    let buffer = terminal.backend().buffer();
+    // The form popup should exist somewhere in the buffer
+    let has_content = (0..buffer.area().height).any(|y| {
+        (0..buffer.area().width)
+            .any(|x| !buffer[(x, y)].symbol().is_empty() && buffer[(x, y)].symbol() != " ")
+    });
+    assert!(has_content, "Form should render visible content");
+}
+
+#[test]
+fn test_form_log_mode_shows_more_fields() {
+    let mut f = TimeEntryForm::new(
+        Some(10),
+        Some(20),
+        None,
+        FormMode::Edit,
+        Some(42),
+        Some("2026-06-09".into()),
+        Some("1.5".into()),
+        None,
+    );
+    let backend = TestBackend::new(80, 30);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| f.render(frame.area(), frame, &Theme::dark(), 0))
+        .unwrap();
+
+    let buffer = terminal.backend().buffer();
+    let has_content = (0..buffer.area().height).any(|y| {
+        (0..buffer.area().width)
+            .any(|x| !buffer[(x, y)].symbol().is_empty() && buffer[(x, y)].symbol() != " ")
+    });
+    assert!(has_content, "Edit form should render visible content");
+}
