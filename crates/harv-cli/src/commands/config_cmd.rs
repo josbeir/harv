@@ -111,8 +111,18 @@ async fn set(setting: &str, value: &str) -> color_eyre::eyre::Result<()> {
 }
 
 fn redact_token(token: &str) -> String {
-    if token.len() <= 8 {
+    let chars: Vec<char> = token.chars().collect();
+    if chars.len() <= 8 {
         return "<redacted>".into();
     }
-    format!("{}...{}", &token[..4], &token[token.len() - 4..])
+    let prefix: String = chars.iter().take(4).collect();
+    let suffix: String = chars
+        .iter()
+        .rev()
+        .take(4)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect();
+    format!("{}...{}", prefix, suffix)
 }

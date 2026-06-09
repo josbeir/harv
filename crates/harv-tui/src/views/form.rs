@@ -36,7 +36,6 @@ pub struct TimeEntryForm {
     notes: String,
     active: Field,
     visible: bool,
-    loaded: bool,
     tasks_loading: bool,
 }
 
@@ -79,7 +78,6 @@ impl TimeEntryForm {
             notes: entry_notes.unwrap_or_default(),
             active: Field::ProjectList,
             visible: true,
-            loaded: true,
             tasks_loading: false,
         }
     }
@@ -87,7 +85,6 @@ impl TimeEntryForm {
     pub fn update_assignments(&mut self, assignments: Vec<ProjectAssignment>) -> Option<u64> {
         self.assignments = assignments;
         self.filter_projects();
-        self.loaded = true;
 
         if let Some(pid) = self.last_project_id {
             if let Some(pos) = self
@@ -257,13 +254,8 @@ impl TimeEntryForm {
         pid
     }
 
-    pub fn render(&mut self, area: Rect, f: &mut Frame, theme: &Theme, tick: u64) {
+    pub fn render(&mut self, area: Rect, f: &mut Frame, theme: &Theme, _tick: u64) {
         if !self.visible {
-            return;
-        }
-
-        if !self.loaded {
-            crate::loading::render_harv_loading(area, f, tick, "Loading projects...", theme);
             return;
         }
 
@@ -750,7 +742,6 @@ mod tests {
     fn test_new_start_form() {
         let f = TimeEntryForm::new(None, None, None, FormMode::Start, None, None, None, None);
         assert!(matches!(f.mode, FormMode::Start));
-        assert!(f.loaded);
         assert!(f.selected_project_id.is_none());
         assert!(f.hours.is_empty());
         assert!(f.notes.is_empty());
@@ -801,7 +792,6 @@ mod tests {
         ];
         let pid = f.update_assignments(assignments);
         assert_eq!(pid, Some(10));
-        assert!(f.loaded);
         assert_eq!(f.selected_project_id, Some(10));
     }
 

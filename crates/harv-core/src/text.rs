@@ -58,8 +58,8 @@ pub fn format_elapsed_hms(total_secs: i64) -> String {
 /// Fuzzy-score a pattern against text. Returns -1 if no match.
 ///
 /// Characters in the pattern must appear in order in the text
-/// (not necessarily consecutively). Higher scores indicate
-/// better matches (consecutive matches score higher).
+/// (not necessarily consecutively). Each matching character
+/// increments the score by 1.
 pub fn fuzzy_score(pattern: &str, text: &str) -> i32 {
     let pattern = pattern.to_lowercase();
     let text = text.to_lowercase();
