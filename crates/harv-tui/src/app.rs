@@ -244,7 +244,8 @@ impl App {
                     }
                 });
             }
-            Action::FormAssignmentsUpdate(assignments) => {
+            Action::FormAssignmentsUpdate(assignments) =>
+            {
                 #[allow(clippy::collapsible_if)]
                 if let Some(ref mut f) = self.form {
                     if let Some(pid) = f.update_assignments(assignments) {
@@ -644,8 +645,7 @@ async fn watch_theme_changes(tx: tokio::sync::mpsc::UnboundedSender<Action>) {
     {
         use ashpd::desktop::settings::{ColorScheme, Settings};
         use futures_util::StreamExt;
- #[allow(clippy::collapsible_if)]
-
+        #[allow(clippy::collapsible_if)]
         if let Ok(settings) = Settings::new().await {
             if let Ok(mut stream) = settings.receive_color_scheme_changed().await {
                 while let Some(scheme) = stream.next().await {
