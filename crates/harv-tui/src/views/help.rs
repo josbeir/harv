@@ -1,11 +1,11 @@
 use crate::action::Action;
 use crate::theme::Theme;
+use ratatui::Frame;
 use ratatui::crossterm::event::KeyCode;
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
-use ratatui::Frame;
 
 #[derive(Default)]
 pub struct Help {
@@ -96,8 +96,8 @@ impl Help {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ratatui::backend::TestBackend;
     use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
 
     #[test]
     fn test_help_renders_when_visible() {

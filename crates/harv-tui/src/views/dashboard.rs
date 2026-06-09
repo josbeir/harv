@@ -1,12 +1,12 @@
 use crate::action::{Action, FormMode};
 use crate::theme::Theme;
 use harv_core::TimeEntry;
+use ratatui::Frame;
 use ratatui::crossterm::event::KeyCode;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, List, ListState, Paragraph};
-use ratatui::Frame;
 
 pub struct Dashboard {
     entries: Vec<TimeEntry>,

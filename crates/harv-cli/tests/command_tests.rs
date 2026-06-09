@@ -249,8 +249,8 @@ async fn test_status_with_timers() {
 async fn test_config_execute_no_file() {
     let _guard = ENV_MUTEX.lock().await;
     let tmp = tempfile::tempdir().unwrap();
-    std::env::remove_var("XDG_CONFIG_HOME");
-    std::env::set_var("HOME", tmp.path());
+    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
+    unsafe { std::env::set_var("HOME", tmp.path()) };
     commands::config_cmd::execute(&harv_cli::ConfigArgs { action: None })
         .await
         .unwrap();
@@ -260,8 +260,8 @@ async fn test_config_execute_no_file() {
 async fn test_config_show_with_file() {
     let _guard = ENV_MUTEX.lock().await;
     let tmp = tempfile::tempdir().unwrap();
-    std::env::remove_var("XDG_CONFIG_HOME");
-    std::env::set_var("HOME", tmp.path());
+    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
+    unsafe { std::env::set_var("HOME", tmp.path()) };
     let harv_dir = tmp.path().join(".config").join("harv");
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
@@ -278,8 +278,8 @@ async fn test_config_show_with_file() {
 async fn test_config_get_cache_ttl() {
     let _guard = ENV_MUTEX.lock().await;
     let tmp = tempfile::tempdir().unwrap();
-    std::env::remove_var("XDG_CONFIG_HOME");
-    std::env::set_var("HOME", tmp.path());
+    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
+    unsafe { std::env::set_var("HOME", tmp.path()) };
     let harv_dir = tmp.path().join(".config").join("harv");
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
@@ -300,8 +300,8 @@ async fn test_config_get_cache_ttl() {
 async fn test_config_get_invalid() {
     let _guard = ENV_MUTEX.lock().await;
     let tmp = tempfile::tempdir().unwrap();
-    std::env::remove_var("XDG_CONFIG_HOME");
-    std::env::set_var("HOME", tmp.path());
+    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
+    unsafe { std::env::set_var("HOME", tmp.path()) };
     let harv_dir = tmp.path().join(".config").join("harv");
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
@@ -322,8 +322,8 @@ async fn test_config_get_invalid() {
 async fn test_config_set_cache_ttl() {
     let _guard = ENV_MUTEX.lock().await;
     let tmp = tempfile::tempdir().unwrap();
-    std::env::remove_var("XDG_CONFIG_HOME");
-    std::env::set_var("HOME", tmp.path());
+    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
+    unsafe { std::env::set_var("HOME", tmp.path()) };
     let harv_dir = tmp.path().join(".config").join("harv");
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
@@ -348,8 +348,8 @@ async fn test_config_set_cache_ttl() {
 async fn test_config_set_invalid() {
     let _guard = ENV_MUTEX.lock().await;
     let tmp = tempfile::tempdir().unwrap();
-    std::env::remove_var("XDG_CONFIG_HOME");
-    std::env::set_var("HOME", tmp.path());
+    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
+    unsafe { std::env::set_var("HOME", tmp.path()) };
     let harv_dir = tmp.path().join(".config").join("harv");
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
@@ -408,8 +408,8 @@ async fn test_track_with_ids() {
 async fn test_track_with_last_used_auto_task() {
     let _guard = ENV_MUTEX.lock().await;
     let tmp = tempfile::tempdir().unwrap();
-    std::env::remove_var("XDG_CONFIG_HOME");
-    std::env::set_var("HOME", tmp.path());
+    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
+    unsafe { std::env::set_var("HOME", tmp.path()) };
     let harv_dir = tmp.path().join(".config").join("harv");
     std::fs::create_dir_all(&harv_dir).unwrap();
 
@@ -528,8 +528,8 @@ async fn test_note_single_timer() {
 async fn test_alias_list_empty() {
     let _guard = ENV_MUTEX.lock().await;
     let tmp = tempfile::tempdir().unwrap();
-    std::env::remove_var("XDG_CONFIG_HOME");
-    std::env::set_var("HOME", tmp.path());
+    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
+    unsafe { std::env::set_var("HOME", tmp.path()) };
     let harv_dir = tmp.path().join(".config").join("harv");
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
@@ -546,8 +546,8 @@ async fn test_alias_list_empty() {
 async fn test_alias_delete_not_found() {
     let _guard = ENV_MUTEX.lock().await;
     let tmp = tempfile::tempdir().unwrap();
-    std::env::remove_var("XDG_CONFIG_HOME");
-    std::env::set_var("HOME", tmp.path());
+    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
+    unsafe { std::env::set_var("HOME", tmp.path()) };
     let harv_dir = tmp.path().join(".config").join("harv");
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
@@ -564,8 +564,8 @@ async fn test_alias_delete_not_found() {
 async fn test_alias_list_with_data() {
     let _guard = ENV_MUTEX.lock().await;
     let tmp = tempfile::tempdir().unwrap();
-    std::env::remove_var("XDG_CONFIG_HOME");
-    std::env::set_var("HOME", tmp.path());
+    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
+    unsafe { std::env::set_var("HOME", tmp.path()) };
     let harv_dir = tmp.path().join(".config").join("harv");
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(

@@ -107,6 +107,7 @@ pub async fn authenticate() -> Result<(String, String), HarvError> {
         }
     }
 
+    #[allow(clippy::let_and_return)]
     let out = result
         .lock()
         .unwrap()

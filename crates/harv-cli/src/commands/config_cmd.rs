@@ -76,7 +76,7 @@ async fn get(setting: &str) -> color_eyre::eyre::Result<()> {
             return Err(color_eyre::eyre::eyre!(
                 "Unknown setting: {}. Valid settings: access-token, account-id, aliases, cache-ttl",
                 other
-            ))
+            ));
         }
     }
     Ok(())
@@ -98,7 +98,7 @@ async fn set(setting: &str, value: &str) -> color_eyre::eyre::Result<()> {
             return Err(color_eyre::eyre::eyre!(
                 "Unknown setting: {}. Valid settings: cache-ttl",
                 other
-            ))
+            ));
         }
     }
 

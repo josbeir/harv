@@ -4,8 +4,8 @@ pub mod help;
 
 use crate::action::{Action, ViewId};
 use crate::theme::Theme;
-use ratatui::layout::Rect;
 use ratatui::Frame;
+use ratatui::layout::Rect;
 
 use self::dashboard::Dashboard;
 
@@ -50,8 +50,8 @@ impl Default for View {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ratatui::backend::TestBackend;
     use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
 
     #[test]
     fn test_view_default_is_dashboard() {

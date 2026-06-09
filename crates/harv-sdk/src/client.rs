@@ -1,8 +1,8 @@
 use crate::config::HarvConfig;
 use harv_core::HarvError;
-use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
-use serde::de::DeserializeOwned;
+use reqwest::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue, USER_AGENT};
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 
 use crate::resources::clients::ClientsApi;
 use crate::resources::company::CompanyApi;

@@ -4,21 +4,21 @@ use std::time::Duration;
 use futures_util::StreamExt;
 use harv_core::CreateTimeEntry;
 use harv_sdk::HarvClient;
+use ratatui::Frame;
 use ratatui::crossterm::event::{Event, KeyCode, KeyEventKind};
 use ratatui::layout::Alignment;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
-use ratatui::Frame;
 use tokio::sync::mpsc::{self, UnboundedSender};
 
 use crate::action::Action;
 use crate::theme::{Theme, ThemeMode};
 use crate::tui;
+use crate::views::View;
 use crate::views::form::TimeEntryForm;
 use crate::views::help::Help;
-use crate::views::View;
 
 pub struct App {
     client: Arc<HarvClient>,
@@ -245,6 +245,7 @@ impl App {
                 });
             }
             Action::FormAssignmentsUpdate(assignments) => {
+                #[allow(clippy::collapsible_if)]
                 if let Some(ref mut f) = self.form {
                     if let Some(pid) = f.update_assignments(assignments) {
                         let client = Arc::clone(&self.client);
@@ -357,15 +358,15 @@ impl App {
                 });
             }
             Action::TimerUpdate(entries) => {
-                let View::Dashboard(ref mut d) = &mut self.current_view;
+                let View::Dashboard(d) = &mut self.current_view;
                 d.update_running(entries);
             }
             Action::TodayEntriesUpdate(entries, _total) => {
-                let View::Dashboard(ref mut d) = &mut self.current_view;
+                let View::Dashboard(d) = &mut self.current_view;
                 d.update_entries(entries);
             }
             Action::Refresh => {
-                let View::Dashboard(ref mut d) = &mut self.current_view;
+                let View::Dashboard(d) = &mut self.current_view;
                 d.set_loading();
                 self.fetch_dashboard_data(tx);
             }
@@ -643,6 +644,7 @@ async fn watch_theme_changes(tx: tokio::sync::mpsc::UnboundedSender<Action>) {
     {
         use ashpd::desktop::settings::{ColorScheme, Settings};
         use futures_util::StreamExt;
+ #[allow(clippy::collapsible_if)]
 
         if let Ok(settings) = Settings::new().await {
             if let Ok(mut stream) = settings.receive_color_scheme_changed().await {

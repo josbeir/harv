@@ -1,12 +1,12 @@
 use crate::action::{Action, FormMode};
 use crate::theme::Theme;
 use harv_core::{ProjectAssignment, TaskAssignment};
+use ratatui::Frame;
 use ratatui::crossterm::event::KeyCode;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListState, Paragraph};
-use ratatui::Frame;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Field {
@@ -86,6 +86,7 @@ impl TimeEntryForm {
         self.assignments = assignments;
         self.filter_projects();
 
+        #[allow(clippy::collapsible_if)]
         if let Some(pid) = self.last_project_id {
             if let Some(pos) = self
                 .filtered_assignments
@@ -141,11 +142,7 @@ impl TimeEntryForm {
                 .enumerate()
                 .filter_map(|(i, a)| {
                     let score = harv_core::text::fuzzy_score(&q, &a.project.name);
-                    if score >= 0 {
-                        Some((i, score))
-                    } else {
-                        None
-                    }
+                    if score >= 0 { Some((i, score)) } else { None }
                 })
                 .collect();
             scored.sort_by_key(|(_, s)| -s);
@@ -164,11 +161,7 @@ impl TimeEntryForm {
                 .enumerate()
                 .filter_map(|(i, t)| {
                     let score = harv_core::text::fuzzy_score(&q, &t.task.name);
-                    if score >= 0 {
-                        Some((i, score))
-                    } else {
-                        None
-                    }
+                    if score >= 0 { Some((i, score)) } else { None }
                 })
                 .collect();
             scored.sort_by_key(|(_, s)| -s);

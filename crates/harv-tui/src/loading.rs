@@ -1,9 +1,9 @@
 use crate::theme::Theme;
+use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Clear, Paragraph};
-use ratatui::Frame;
 
 const ASCII: &[&str] = &[
     "▗▖ ▗▖ ▗▄▖ ▗▄▄▖ ▗▖  ▗▖",
@@ -81,8 +81,8 @@ pub fn render_harv_loading(area: Rect, f: &mut Frame, tick: u64, msg: &str, them
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ratatui::backend::TestBackend;
     use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
 
     #[test]
     fn test_render_harv_loading_does_not_panic() {

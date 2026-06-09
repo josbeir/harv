@@ -1,6 +1,6 @@
+use crate::OutputFormat;
 use crate::output;
 use crate::spinner;
-use crate::OutputFormat;
 use harv_sdk::HarvClient;
 
 pub async fn execute(

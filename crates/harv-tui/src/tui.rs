@@ -3,8 +3,8 @@ use ratatui::crossterm::event::EventStream;
 use std::io;
 use std::panic;
 
-use ratatui::crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use ratatui::crossterm::ExecutableCommand;
+use ratatui::crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use ratatui::prelude::*;
 
 pub fn init() -> eyre::Result<()> {

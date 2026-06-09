@@ -6,8 +6,8 @@ use harv_tui::theme::ThemeMode;
 use harv_tui::views::dashboard::Dashboard;
 use harv_tui::views::form::TimeEntryForm;
 use harv_tui::views::help::Help;
-use ratatui::backend::TestBackend;
 use ratatui::Terminal;
+use ratatui::backend::TestBackend;
 
 fn ref_(id: u64, name: &str) -> Reference {
     Reference {

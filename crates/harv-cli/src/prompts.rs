@@ -1,7 +1,7 @@
 use chrono::NaiveDate;
 use harv_core::{ProjectAssignment, Reference, TaskAssignment};
 use harv_sdk::HarvConfig;
-use inquire::{validator::Validation, CustomType, Select, Text};
+use inquire::{CustomType, Select, Text, validator::Validation};
 
 use crate::OutputFormat;
 
@@ -36,6 +36,7 @@ pub fn build_project_choices(
         .collect();
     choices.sort_by(|a, b| a.display.cmp(&b.display));
 
+    #[allow(clippy::collapsible_if)]
     if let Some(pid) = last_project_id {
         if let Some(idx) = choices.iter().position(|c| c.project_id == pid) {
             let mut choice = choices.remove(idx);
