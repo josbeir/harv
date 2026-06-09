@@ -13,7 +13,7 @@
 [![CI](https://github.com/josbeir/harv/actions/workflows/ci.yml/badge.svg)](https://github.com/josbeir/harv/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/josbeir/harv/branch/main/graph/badge.svg)](https://codecov.io/gh/josbeir/harv)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Rust](https://img.shields.io/badge/Rust-1.80%2B-orange.svg)](https://www.rust-lang.org)
+[![Rust](https://img.shields.io/badge/Rust-1.85%2B-orange.svg)](https://www.rust-lang.org)
 
 </div>
 
@@ -58,10 +58,13 @@ Opens your browser to authenticate with Harvest via OAuth2. Credentials are stor
 ### 2. Track time
 
 ```bash
-harv track
+harv         # Full-screen terminal UI (default when no subcommand)
+harv track   # CLI wizard
 ```
 
-An interactive wizard that prompts for:
+The terminal UI opens a dashboard showing today's entries with keyboard shortcuts. `s` starts a timer, `n` creates a new entry, `e` edits an existing one. See [Terminal UI](#terminal-ui) below.
+
+The CLI wizard (`harv track`) prompts for:
 
 - **Project** — fuzzy search, pick with arrow keys
 - **Task** — filtered to the selected project
@@ -97,6 +100,47 @@ Use aliases to skip prompts:
 harv start dev
 harv log 1.5 dev
 ```
+
+## Terminal UI
+
+Running `harv` with no subcommand launches the full-screen terminal interface.
+
+### Dashboard
+
+Shows today's time entries with a live clock for running timers, daily hours total, and quick actions. Top bar shows `HARV v0.1.0  ● Running` or `HARV v0.1.0  ○ Idle` depending on timer state.
+
+| Key | Action |
+|-----|--------|
+| `s` | Start a timer (confirms if one is already running) |
+| `n` / `t` | New time entry with hours/notes |
+| `e` / `Enter` | Edit selected entry |
+| `d` | Delete entry (with confirmation) |
+| `x` | Stop running timer |
+| `j` / `k` or `↓` / `↑` | Navigate entries |
+| `r` | Refresh data |
+| `q` / `Ctrl+C` | Quit |
+
+### Time Entry Dialogs
+
+Pressing `s`, `n`, `t`, or `e` opens a form dialog with:
+
+- **Project** — fuzzy-search list, type to filter
+- **Task** — filtered by selected project, type to filter
+- **Date** — defaults to today (create/edit mode only)
+- **Hours** — decimal (`1.5`) or HH:MM (`1:30`), empty = start running timer
+- **Notes** — optional
+
+`Tab` / `Shift+Tab` moves between fields. `j` / `k` navigates within list fields. `Enter` submits. `Esc` cancels.
+
+Last-used project and task IDs are persisted so the form pre-selects them on subsequent opens.
+
+### Theme
+
+Auto-detects dark/light mode from your OS. Real-time switching via D-Bus on Linux, polling on macOS/Windows.
+
+| Key | Action |
+|-----|--------|
+| `?` | Keyboard shortcuts overlay |
 
 ## Commands
 
@@ -181,7 +225,7 @@ When registering your app, set the redirect URI to `http://localhost:5006`.
 
 ### Prerequisites
 
-- Rust 1.80+
+- Rust 1.85+
 
 ### Build
 
@@ -214,8 +258,9 @@ cargo tarpaulin --workspace
 harv-core (domain types, errors)
   ↓
 harv-sdk  (Harvest API v2 client)
-  ↓
-harv-cli  (CLI binary)
+  ↓  ↙
+harv-cli  (CLI binary + TUI launcher)
+harv-tui  (terminal UI library)
 ```
 
 ## Disclaimer
