@@ -8,7 +8,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListState, Paragraph};
 use ratatui::Frame;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Field {
     ProjectList,
     TaskList,
@@ -625,5 +625,306 @@ impl TimeEntryForm {
             Field::Notes => &mut self.notes,
             _ => unreachable!(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use harv_core::{ProjectAssignment, Reference, TaskAssignment};
+
+    fn project_assignment(id: u64, name: &str) -> ProjectAssignment {
+        ProjectAssignment {
+            id,
+            project: Reference {
+                id,
+                name: name.into(),
+            },
+            client: None,
+            task_assignments: vec![],
+            is_active: true,
+        }
+    }
+
+    fn task_assignment(id: u64, name: &str) -> TaskAssignment {
+        TaskAssignment {
+            id,
+            task: Reference {
+                id,
+                name: name.into(),
+            },
+            billable: true,
+            hourly_rate: Some(75.0),
+            is_active: true,
+            budget: None,
+        }
+    }
+
+    fn key_press(code: KeyCode) -> ratatui::crossterm::event::KeyEvent {
+        ratatui::crossterm::event::KeyEvent::new(
+            code,
+            ratatui::crossterm::event::KeyModifiers::NONE,
+        )
+    }
+
+    #[test]
+    fn test_new_start_form() {
+        let f = TimeEntryForm::new(None, None, None, FormMode::Start, None, None, None, None);
+        assert!(matches!(f.mode, FormMode::Start));
+        assert!(!f.loaded);
+        assert!(f.selected_project_id.is_none());
+        assert!(f.hours.is_empty());
+        assert!(f.notes.is_empty());
+    }
+
+    #[test]
+    fn test_new_create_form() {
+        let f = TimeEntryForm::new(None, None, None, FormMode::Create, None, None, None, None);
+        assert!(matches!(f.mode, FormMode::Create));
+    }
+
+    #[test]
+    fn test_new_edit_form() {
+        let f = TimeEntryForm::new(
+            Some(10),
+            Some(20),
+            None,
+            FormMode::Edit,
+            Some(42),
+            Some("2026-06-09".into()),
+            Some("1.5".into()),
+            Some("my notes".into()),
+        );
+        assert!(matches!(f.mode, FormMode::Edit));
+        assert_eq!(f.entry_id, Some(42));
+        assert_eq!(f.date, "2026-06-09");
+        assert_eq!(f.hours, "1.5");
+        assert_eq!(f.notes, "my notes");
+        assert_eq!(f.last_project_id, Some(10));
+        assert_eq!(f.last_task_id, Some(20));
+    }
+
+    #[test]
+    fn test_update_assignments_pre_selects_project() {
+        let mut f = TimeEntryForm::new(
+            Some(10),
+            None,
+            None,
+            FormMode::Start,
+            None,
+            None,
+            None,
+            None,
+        );
+        let assignments = vec![
+            project_assignment(5, "Alpha"),
+            project_assignment(10, "Beta"),
+        ];
+        let pid = f.update_assignments(assignments);
+        assert_eq!(pid, Some(10));
+        assert!(f.loaded);
+        assert_eq!(f.selected_project_id, Some(10));
+    }
+
+    #[test]
+    fn test_update_assignments_no_match() {
+        let mut f = TimeEntryForm::new(
+            Some(99),
+            None,
+            None,
+            FormMode::Start,
+            None,
+            None,
+            None,
+            None,
+        );
+        let assignments = vec![project_assignment(5, "Alpha")];
+        let pid = f.update_assignments(assignments);
+        assert_eq!(pid, None);
+    }
+
+    #[test]
+    fn test_update_tasks_pre_selects_task() {
+        let mut f = TimeEntryForm::new(
+            Some(10),
+            Some(30),
+            None,
+            FormMode::Start,
+            None,
+            None,
+            None,
+            None,
+        );
+        f.selected_project_id = Some(10);
+        let tasks = vec![
+            task_assignment(20, "Design"),
+            task_assignment(30, "Development"),
+        ];
+        f.update_tasks(tasks);
+        assert!(!f.tasks_loading);
+        assert_eq!(f.task_list.selected(), Some(1)); // task 30 at index 1
+    }
+
+    #[test]
+    fn test_update_tasks_no_match_selects_first() {
+        let mut f = TimeEntryForm::new(None, None, None, FormMode::Start, None, None, None, None);
+        f.selected_project_id = Some(10);
+        let tasks = vec![task_assignment(20, "Design")];
+        f.update_tasks(tasks);
+        assert_eq!(f.task_list.selected(), Some(0));
+    }
+
+    #[test]
+    fn test_project_search_filters() {
+        let mut f = TimeEntryForm::new(None, None, None, FormMode::Start, None, None, None, None);
+        f.assignments = vec![
+            project_assignment(1, "Alpha"),
+            project_assignment(2, "Beta"),
+            project_assignment(3, "Alphabet"),
+        ];
+        f.filter_projects();
+        assert_eq!(f.filtered_assignments.len(), 3);
+
+        f.project_search = "bet".into();
+        f.filter_projects();
+        assert_eq!(f.filtered_assignments.len(), 2); // Beta and Alphabet
+    }
+
+    #[test]
+    fn test_tab_cycles_fields_in_start_mode() {
+        let mut f = TimeEntryForm::new(None, None, None, FormMode::Start, None, None, None, None);
+        assert_eq!(f.active, Field::ProjectList);
+
+        // ProjectList Tab -> TaskList
+        let _ = f.handle_key(&key_press(KeyCode::Tab));
+        assert_eq!(f.active, Field::TaskList);
+
+        // TaskList Tab -> ProjectList (start mode, no Date field)
+        let _ = f.handle_key(&key_press(KeyCode::Tab));
+        assert_eq!(f.active, Field::ProjectList);
+    }
+
+    #[test]
+    fn test_tab_cycles_fields_in_create_mode() {
+        let mut f = TimeEntryForm::new(None, None, None, FormMode::Create, None, None, None, None);
+        assert_eq!(f.active, Field::ProjectList);
+
+        f.handle_key(&key_press(KeyCode::Tab));
+        assert_eq!(f.active, Field::TaskList);
+
+        f.handle_key(&key_press(KeyCode::Tab));
+        assert_eq!(f.active, Field::Date);
+
+        f.handle_key(&key_press(KeyCode::Tab));
+        assert_eq!(f.active, Field::Hours);
+
+        f.handle_key(&key_press(KeyCode::Tab));
+        assert_eq!(f.active, Field::Notes);
+
+        f.handle_key(&key_press(KeyCode::Tab));
+        assert_eq!(f.active, Field::ProjectList);
+    }
+
+    #[test]
+    fn test_esc_cancels_form() {
+        let mut f = TimeEntryForm::new(None, None, None, FormMode::Start, None, None, None, None);
+        assert!(f.visible);
+        let actions = f.handle_key(&key_press(KeyCode::Esc));
+        assert!(!f.visible);
+        assert_eq!(actions.len(), 1);
+    }
+
+    #[test]
+    fn test_submit_requires_project_and_task() {
+        let mut f = TimeEntryForm::new(None, None, None, FormMode::Start, None, None, None, None);
+        let actions = f.submit_entry();
+        assert!(actions.is_empty()); // no project/task selected
+    }
+
+    #[test]
+    fn test_submit_with_project_and_task() {
+        let mut f = TimeEntryForm::new(
+            Some(10),
+            Some(20),
+            None,
+            FormMode::Start,
+            None,
+            None,
+            None,
+            None,
+        );
+        f.assignments = vec![project_assignment(10, "Beta")];
+        f.filtered_assignments = vec![0];
+        f.project_list.select(Some(0));
+        f.selected_project_id = Some(10);
+
+        f.tasks = vec![task_assignment(20, "Development")];
+        f.task_list.select(Some(0));
+
+        let actions = f.submit_entry();
+        assert_eq!(actions.len(), 2);
+        assert!(matches!(
+            actions[0],
+            Action::CreateEntry {
+                project_id: 10,
+                task_id: 20,
+                hours: None,
+                notes: None,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn test_submit_edit_mode_dispatches_edit() {
+        let mut f = TimeEntryForm::new(
+            Some(10),
+            Some(20),
+            None,
+            FormMode::Edit,
+            Some(42),
+            Some("2026-06-09".into()),
+            Some("1.5".into()),
+            None,
+        );
+        f.assignments = vec![project_assignment(10, "Beta")];
+        f.filtered_assignments = vec![0];
+        f.project_list.select(Some(0));
+        f.selected_project_id = Some(10);
+        f.tasks = vec![task_assignment(20, "Development")];
+        f.task_list.select(Some(0));
+
+        let actions = f.submit_entry();
+        assert!(matches!(actions[0], Action::EditEntry { entry_id: 42, .. }));
+    }
+
+    #[test]
+    fn test_submit_start_mode_no_hours() {
+        let mut f = TimeEntryForm::new(
+            Some(10),
+            Some(20),
+            None,
+            FormMode::Start,
+            None,
+            None,
+            None,
+            None,
+        );
+        f.assignments = vec![project_assignment(10, "Beta")];
+        f.filtered_assignments = vec![0];
+        f.project_list.select(Some(0));
+        f.selected_project_id = Some(10);
+        f.tasks = vec![task_assignment(20, "Development")];
+        f.task_list.select(Some(0));
+
+        let actions = f.submit_entry();
+        assert!(matches!(
+            actions[0],
+            Action::CreateEntry {
+                hours: None,
+                notes: None,
+                ..
+            }
+        ));
     }
 }

@@ -91,3 +91,78 @@ impl Help {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+
+    #[test]
+    fn test_help_renders_when_visible() {
+        let mut help = Help::default();
+        help.toggle();
+        assert!(help.is_visible());
+
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let theme = Theme::default();
+
+        terminal
+            .draw(|f| {
+                help.render(f.area(), f, &theme);
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn test_help_not_renders_when_hidden() {
+        let mut help = Help::default();
+        assert!(!help.is_visible());
+
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let theme = Theme::default();
+
+        terminal
+            .draw(|f| {
+                help.render(f.area(), f, &theme);
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn test_help_toggle() {
+        let mut help = Help::default();
+        help.toggle();
+        assert!(help.is_visible());
+        help.toggle();
+        assert!(!help.is_visible());
+    }
+
+    #[test]
+    fn test_help_handle_key_toggle() {
+        let mut help = Help::default();
+        let actions = help.handle_key(&key_press(KeyCode::Char('?')));
+        assert!(help.is_visible());
+        assert!(actions.is_empty());
+
+        let actions = help.handle_key(&key_press(KeyCode::Esc));
+        assert!(!help.is_visible());
+        assert!(actions.is_empty());
+    }
+
+    #[test]
+    fn test_help_handle_key_other_returns_empty() {
+        let mut help = Help::default();
+        let actions = help.handle_key(&key_press(KeyCode::Char('x')));
+        assert!(actions.is_empty());
+    }
+
+    fn key_press(code: KeyCode) -> ratatui::crossterm::event::KeyEvent {
+        ratatui::crossterm::event::KeyEvent::new(
+            code,
+            ratatui::crossterm::event::KeyModifiers::NONE,
+        )
+    }
+}

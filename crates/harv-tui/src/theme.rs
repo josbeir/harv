@@ -31,3 +31,17 @@ impl Default for Theme {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default_theme_colors() {
+        let t = Theme::default();
+        assert_eq!(t.bg, Color::from_u32(0x0012131a));
+        assert_eq!(t.primary, Color::from_u32(0x00f36c3d));
+        assert_eq!(t.success, Color::from_u32(0x009ece6a));
+        assert_eq!(t.highlight, Color::from_u32(0x00ffffff));
+    }
+}

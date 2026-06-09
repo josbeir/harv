@@ -1102,8 +1102,11 @@ dependencies = [
  "harv-core",
  "harv-sdk",
  "ratatui",
+ "serde_json",
+ "tempfile",
  "tokio",
  "tracing",
+ "wiremock",
 ]
 
 [[package]]

@@ -1,10 +1,10 @@
-mod action;
-mod app;
+pub mod action;
+pub mod app;
 mod loading;
 mod popup;
 mod theme;
 mod tui;
-mod views;
+pub mod views;
 
 use color_eyre::eyre;
 use harv_sdk::HarvClient;

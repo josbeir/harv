@@ -75,3 +75,52 @@ pub fn render_harv_loading(area: Rect, f: &mut Frame, tick: u64, msg: &str, them
     let paragraph = Paragraph::new(lines).alignment(Alignment::Center);
     f.render_widget(paragraph, horizontal[1]);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+
+    #[test]
+    fn test_render_harv_loading_does_not_panic() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let theme = Theme::default();
+
+        terminal
+            .draw(|f| {
+                render_harv_loading(f.area(), f, 0, "Loading...", &theme);
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn test_render_harv_loading_with_tick() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let theme = Theme::default();
+
+        // Should not panic with different tick values
+        for tick in 0..10 {
+            terminal
+                .draw(|f| {
+                    render_harv_loading(f.area(), f, tick, "Loading...", &theme);
+                })
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn test_render_harv_loading_small_terminal() {
+        let backend = TestBackend::new(30, 10);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let theme = Theme::default();
+
+        terminal
+            .draw(|f| {
+                render_harv_loading(f.area(), f, 0, "Loading...", &theme);
+            })
+            .unwrap();
+    }
+}

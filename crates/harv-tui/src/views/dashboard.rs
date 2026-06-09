@@ -364,3 +364,248 @@ fn render_harv_header(area: Rect, f: &mut Frame) {
     let paragraph = Paragraph::new(lines).alignment(Alignment::Center);
     f.render_widget(paragraph, horizontal[1]);
 }
+
+impl Dashboard {
+    #[doc(hidden)]
+    pub fn entry_count(&self) -> usize {
+        self.entries.len()
+    }
+
+    #[doc(hidden)]
+    pub fn has_running(&self) -> bool {
+        self.running_entry.is_some()
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+    use harv_core::Reference;
+
+    fn ref_(id: u64, name: &str) -> Reference {
+        Reference {
+            id,
+            name: name.into(),
+        }
+    }
+
+    fn entry(
+        id: u64,
+        project_id: u64,
+        task_id: u64,
+        hours: Option<f64>,
+        is_running: bool,
+    ) -> TimeEntry {
+        TimeEntry {
+            id,
+            spent_date: None,
+            hours,
+            notes: None,
+            is_running,
+            timer_started_at: if is_running { Some(Utc::now()) } else { None },
+            started_time: None,
+            ended_time: None,
+            project: ref_(project_id, "Project"),
+            task: ref_(task_id, "Task"),
+            user: ref_(1, "User"),
+            client: None,
+            is_billed: false,
+            billable: true,
+            billable_rate: None,
+            cost_rate: None,
+            created_at: None,
+            updated_at: None,
+        }
+    }
+
+    fn key_press(code: KeyCode) -> ratatui::crossterm::event::KeyEvent {
+        ratatui::crossterm::event::KeyEvent::new(
+            code,
+            ratatui::crossterm::event::KeyModifiers::NONE,
+        )
+    }
+
+    #[test]
+    fn test_default_state() {
+        let d = Dashboard::default();
+        assert!(!d.loaded);
+        assert!(d.entries.is_empty());
+        assert!(d.running_entry.is_none());
+        assert_eq!(d.daily_total, 0.0);
+    }
+
+    #[test]
+    fn test_update_entries_sets_data() {
+        let mut d = Dashboard::default();
+        let entries = vec![
+            entry(1, 10, 20, Some(2.5), false),
+            entry(2, 11, 21, None, true),
+        ];
+        d.update_entries(entries);
+        assert!(d.loaded);
+        assert_eq!(d.entries.len(), 2);
+        assert!(d.running_entry.is_some());
+        assert_eq!(d.running_entry.unwrap().id, 2);
+    }
+
+    #[test]
+    fn test_daily_total_excludes_running() {
+        let mut d = Dashboard::default();
+        d.update_entries(vec![
+            entry(1, 10, 20, Some(2.5), false),
+            entry(2, 11, 21, Some(1.5), false),
+            entry(3, 12, 22, None, true),
+        ]);
+        assert!((d.daily_total - 4.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_update_running_preserves_entries() {
+        let mut d = Dashboard::default();
+        d.update_entries(vec![entry(1, 10, 20, Some(2.5), false)]);
+        d.update_running(vec![entry(99, 10, 20, None, true)]);
+        assert_eq!(d.entries.len(), 1);
+        assert!(d.running_entry.is_some());
+        assert_eq!(d.running_entry.unwrap().id, 99);
+    }
+
+    #[test]
+    fn test_selected_entry() {
+        let mut d = Dashboard::default();
+        d.update_entries(vec![
+            entry(1, 10, 20, Some(1.0), false),
+            entry(2, 11, 21, Some(2.0), false),
+        ]);
+        d.list_state.select(Some(0));
+        assert_eq!(d.selected_entry().unwrap().id, 1);
+        d.list_state.select(Some(1));
+        assert_eq!(d.selected_entry().unwrap().id, 2);
+        d.list_state.select(None);
+        assert!(d.selected_entry().is_none());
+    }
+
+    #[test]
+    fn test_set_loading() {
+        let mut d = Dashboard::default();
+        d.update_entries(vec![entry(1, 10, 20, Some(1.0), false)]);
+        assert!(d.loaded);
+        d.set_loading();
+        assert!(!d.loaded);
+    }
+
+    #[test]
+    fn test_navigate_down() {
+        let mut d = Dashboard::default();
+        d.update_entries(vec![
+            entry(1, 10, 20, Some(1.0), false),
+            entry(2, 11, 21, Some(2.0), false),
+            entry(3, 12, 22, Some(3.0), false),
+        ]);
+        d.handle_key(&key_press(KeyCode::Char('j')));
+        assert_eq!(d.list_state.selected(), Some(1));
+        d.handle_key(&key_press(KeyCode::Char('j')));
+        assert_eq!(d.list_state.selected(), Some(2));
+        d.handle_key(&key_press(KeyCode::Char('j')));
+        assert_eq!(d.list_state.selected(), Some(2));
+    }
+
+    #[test]
+    fn test_navigate_up() {
+        let mut d = Dashboard::default();
+        d.update_entries(vec![
+            entry(1, 10, 20, Some(1.0), false),
+            entry(2, 11, 21, Some(2.0), false),
+        ]);
+        d.list_state.select(Some(1));
+        d.handle_key(&key_press(KeyCode::Char('k')));
+        assert_eq!(d.list_state.selected(), Some(0));
+        d.handle_key(&key_press(KeyCode::Char('k')));
+        assert_eq!(d.list_state.selected(), Some(0));
+    }
+
+    #[test]
+    fn test_s_stops_running() {
+        let mut d = Dashboard::default();
+        d.update_entries(vec![entry(1, 10, 20, None, true)]);
+        let actions = d.handle_key(&key_press(KeyCode::Char('s')));
+        assert!(matches!(actions[0], Action::StopTimer { entry_id: 1 }));
+    }
+
+    #[test]
+    fn test_s_no_timer_opens_start_form() {
+        let mut d = Dashboard::default();
+        d.update_entries(vec![entry(1, 10, 20, Some(1.0), false)]);
+        let actions = d.handle_key(&key_press(KeyCode::Char('s')));
+        assert!(matches!(
+            actions[0],
+            Action::OpenForm {
+                mode: FormMode::Start,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn test_n_opens_create_form() {
+        let mut d = Dashboard::default();
+        let actions = d.handle_key(&key_press(KeyCode::Char('n')));
+        assert!(matches!(
+            actions[0],
+            Action::OpenForm {
+                mode: FormMode::Create,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn test_e_opens_edit_form() {
+        let mut d = Dashboard::default();
+        d.update_entries(vec![entry(42, 10, 20, Some(2.0), false)]);
+        d.list_state.select(Some(0));
+        let actions = d.handle_key(&key_press(KeyCode::Char('e')));
+        assert!(matches!(
+            actions[0],
+            Action::OpenForm {
+                mode: FormMode::Edit,
+                entry_id: Some(42),
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn test_d_triggers_confirm_delete() {
+        let mut d = Dashboard::default();
+        d.update_entries(vec![entry(42, 10, 20, Some(2.0), false)]);
+        d.list_state.select(Some(0));
+        let actions = d.handle_key(&key_press(KeyCode::Char('d')));
+        assert!(matches!(
+            actions[0],
+            Action::ConfirmDelete { entry_id: 42, .. }
+        ));
+    }
+
+    #[test]
+    fn test_r_returns_refresh() {
+        let mut d = Dashboard::default();
+        let actions = d.handle_key(&key_press(KeyCode::Char('r')));
+        assert!(matches!(actions[0], Action::Refresh));
+    }
+
+    #[test]
+    fn test_enter_on_running_stops() {
+        let mut d = Dashboard::default();
+        d.update_entries(vec![entry(1, 10, 20, None, true)]);
+        let actions = d.handle_key(&key_press(KeyCode::Enter));
+        assert!(matches!(actions[0], Action::StopTimer { entry_id: 1 }));
+    }
+
+    #[test]
+    fn test_enter_no_selection_returns_empty() {
+        let mut d = Dashboard::default();
+        let actions = d.handle_key(&key_press(KeyCode::Enter));
+        assert!(actions.is_empty());
+    }
+}
+

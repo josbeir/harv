@@ -45,6 +45,36 @@ impl App {
         }
     }
 
+    // Test helpers
+    #[doc(hidden)]
+    pub fn new_for_testing(client: HarvClient) -> Self {
+        Self::new(client)
+    }
+
+    #[doc(hidden)]
+    #[doc(hidden)]
+    pub fn user_id(&self) -> u64 {
+        self.user_id
+    }
+
+    #[doc(hidden)]
+    pub fn set_user_id(&mut self, id: u64) {
+        self.user_id = id;
+    }
+
+    #[doc(hidden)]
+    pub fn has_form(&self) -> bool {
+        self.form.is_some()
+    }
+
+    #[doc(hidden)]
+    pub fn dashboard(&self) -> &crate::views::dashboard::Dashboard {
+        match &self.current_view {
+            View::Dashboard(d) => d,
+            _ => panic!("not dashboard"),
+        }
+    }
+
     pub async fn run(&mut self) -> color_eyre::eyre::Result<()> {
         let mut terminal = tui::terminal()?;
         let (action_tx, mut action_rx) = mpsc::unbounded_channel();
@@ -126,7 +156,7 @@ impl App {
         }
     }
 
-    fn dispatch(&mut self, action: Action, tx: &UnboundedSender<Action>) {
+    pub fn dispatch(&mut self, action: Action, tx: &UnboundedSender<Action>) {
         match action {
             Action::Tick => {
                 self.tick = self.tick.wrapping_add(1);

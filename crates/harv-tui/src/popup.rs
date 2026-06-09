@@ -28,3 +28,55 @@ pub fn centered_rect_fixed(width: u16, height: u16, r: Rect) -> Rect {
         height,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ratatui::layout::Rect;
+
+    #[test]
+    fn test_centered_rect_fixed_even() {
+        let area = Rect::new(0, 0, 100, 40);
+        let result = centered_rect_fixed(20, 10, area);
+        assert_eq!(result.x, 40);
+        assert_eq!(result.y, 15);
+        assert_eq!(result.width, 20);
+        assert_eq!(result.height, 10);
+    }
+
+    #[test]
+    fn test_centered_rect_fixed_odd() {
+        let area = Rect::new(0, 0, 99, 39);
+        let result = centered_rect_fixed(20, 10, area);
+        assert_eq!(result.x, 39);
+        assert_eq!(result.y, 14);
+        assert_eq!(result.width, 20);
+        assert_eq!(result.height, 10);
+    }
+
+    #[test]
+    fn test_centered_rect_fixed_too_small() {
+        let area = Rect::new(0, 0, 5, 5);
+        let result = centered_rect_fixed(20, 10, area);
+        assert_eq!(result.x, 0);
+        assert_eq!(result.y, 0);
+    }
+
+    #[test]
+    fn test_centered_rect_percentage() {
+        let area = Rect::new(0, 0, 100, 100);
+        let result = centered_rect(50, 50, area);
+        assert_eq!(result.x, 25);
+        assert_eq!(result.y, 25);
+        assert_eq!(result.width, 50);
+        assert_eq!(result.height, 50);
+    }
+
+    #[test]
+    fn test_centered_rect_full() {
+        let area = Rect::new(0, 0, 100, 100);
+        let result = centered_rect(100, 100, area);
+        assert_eq!(result.x, 0);
+        assert_eq!(result.y, 0);
+    }
+}

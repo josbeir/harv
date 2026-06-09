@@ -70,3 +70,73 @@ pub enum FormMode {
 pub enum ViewId {
     Dashboard,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_form_mode_equality() {
+        assert_eq!(FormMode::Start, FormMode::Start);
+        assert_ne!(FormMode::Start, FormMode::Create);
+        assert_ne!(FormMode::Create, FormMode::Edit);
+    }
+
+    #[test]
+    fn test_view_id_equality() {
+        assert_eq!(ViewId::Dashboard, ViewId::Dashboard);
+    }
+
+    #[test]
+    fn test_open_form_action_construction() {
+        let action = Action::OpenForm {
+            last_project_id: Some(1),
+            last_task_id: Some(2),
+            project_name: Some("Test".into()),
+            mode: FormMode::Create,
+            entry_id: None,
+            entry_date: None,
+            entry_hours: None,
+            entry_notes: None,
+        };
+        assert!(matches!(
+            action,
+            Action::OpenForm {
+                mode: FormMode::Create,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn test_create_entry_construction() {
+        let action = Action::CreateEntry {
+            project_id: 1,
+            task_id: 2,
+            spent_date: "2026-06-09".into(),
+            hours: Some(1.5),
+            notes: Some("test".into()),
+        };
+        assert!(matches!(
+            action,
+            Action::CreateEntry {
+                project_id: 1,
+                task_id: 2,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn test_edit_entry_construction() {
+        let action = Action::EditEntry {
+            entry_id: 42,
+            project_id: 1,
+            task_id: 2,
+            spent_date: "2026-06-09".into(),
+            hours: Some(2.0),
+            notes: None,
+        };
+        assert!(matches!(action, Action::EditEntry { entry_id: 42, .. }));
+    }
+}
