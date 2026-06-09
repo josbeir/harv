@@ -71,7 +71,6 @@ impl App {
     pub fn dashboard(&self) -> &crate::views::dashboard::Dashboard {
         match &self.current_view {
             View::Dashboard(d) => d,
-            _ => panic!("not dashboard"),
         }
     }
 
@@ -358,19 +357,16 @@ impl App {
                 });
             }
             Action::TimerUpdate(entries) => {
-                if let View::Dashboard(ref mut d) = self.current_view {
-                    d.update_running(entries);
-                }
+                let View::Dashboard(ref mut d) = &mut self.current_view;
+                d.update_running(entries);
             }
             Action::TodayEntriesUpdate(entries, _total) => {
-                if let View::Dashboard(ref mut d) = self.current_view {
-                    d.update_entries(entries);
-                }
+                let View::Dashboard(ref mut d) = &mut self.current_view;
+                d.update_entries(entries);
             }
             Action::Refresh => {
-                if let View::Dashboard(ref mut d) = self.current_view {
-                    d.set_loading();
-                }
+                let View::Dashboard(ref mut d) = &mut self.current_view;
+                d.set_loading();
                 self.fetch_dashboard_data(tx);
             }
             Action::StartTimer {
@@ -466,8 +462,12 @@ impl App {
     }
 
     fn fetch_dashboard_data(&self, tx: &UnboundedSender<Action>) {
-        let client = Arc::clone(&self.client);
         let user_id = self.user_id;
+        if user_id == 0 {
+            return;
+        }
+
+        let client = Arc::clone(&self.client);
         let tx = tx.clone();
 
         tokio::spawn(async move {
@@ -592,7 +592,7 @@ impl App {
 fn render_confirm_dialog(area: Rect, f: &mut Frame, msg: &str, theme: &Theme) {
     let max_width = 60u16;
     let popup_width = max_width.min(area.width.saturating_sub(4));
-    let popup_height = 10;
+    let popup_height = 10u16.min(area.height.saturating_sub(2));
 
     let centered = crate::popup::centered_rect_fixed(popup_width, popup_height, area);
     f.render_widget(Clear, centered);

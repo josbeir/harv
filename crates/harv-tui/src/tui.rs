@@ -8,8 +8,8 @@ use ratatui::crossterm::ExecutableCommand;
 use ratatui::prelude::*;
 
 pub fn init() -> eyre::Result<()> {
-    terminal::enable_raw_mode()?;
     io::stdout().execute(EnterAlternateScreen)?;
+    terminal::enable_raw_mode()?;
 
     let panic_hook = panic::take_hook();
     panic::set_hook(Box::new(move |panic| {

@@ -29,7 +29,7 @@ async fn show() -> color_eyre::eyre::Result<()> {
     println!(
         "  {:<20} {}",
         "access-token:",
-        harv_core::text::truncate(&config.access_token, 15)
+        redact_token(&config.access_token)
     );
     println!("  {:<20} {}", "account-id:", config.account_id);
     println!("  {:<20} {}h", "cache-ttl:", config.cache_ttl_hours);
@@ -108,4 +108,11 @@ async fn set(setting: &str, value: &str) -> color_eyre::eyre::Result<()> {
         .map_err(|e| color_eyre::eyre::eyre!("Failed to save config: {}", e.user_message()))?;
     println!("{} set to {}", setting, value);
     Ok(())
+}
+
+fn redact_token(token: &str) -> String {
+    if token.len() <= 8 {
+        return "<redacted>".into();
+    }
+    format!("{}...{}", &token[..4], &token[token.len() - 4..])
 }

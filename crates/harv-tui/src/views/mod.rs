@@ -8,13 +8,10 @@ use ratatui::layout::Rect;
 use ratatui::Frame;
 
 use self::dashboard::Dashboard;
-use self::help::Help;
 
 #[allow(clippy::large_enum_variant)]
 pub enum View {
     Dashboard(Dashboard),
-    #[allow(dead_code)]
-    Help(Help),
 }
 
 impl View {
@@ -22,28 +19,24 @@ impl View {
     pub fn id(&self) -> ViewId {
         match self {
             View::Dashboard(_) => ViewId::Dashboard,
-            View::Help(_) => todo!(),
         }
     }
 
     pub fn render(&mut self, area: Rect, f: &mut Frame, theme: &Theme, tick: u64) {
         match self {
             View::Dashboard(v) => v.render(area, f, theme, tick),
-            View::Help(v) => v.render(area, f, theme),
         }
     }
 
     pub fn handle_key(&mut self, key: &ratatui::crossterm::event::KeyEvent) -> Vec<Action> {
         match self {
             View::Dashboard(v) => v.handle_key(key),
-            View::Help(v) => v.handle_key(key),
         }
     }
 
     pub fn timer_running(&self) -> bool {
         match self {
             View::Dashboard(d) => d.has_running(),
-            View::Help(_) => false,
         }
     }
 }
