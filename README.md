@@ -105,6 +105,8 @@ harv log 1.5 dev
 
 Running `harv` with no subcommand launches the full-screen terminal interface.
 
+![Harv TUI](assets/tui.png)
+
 ### Dashboard
 
 Shows today's time entries with a live clock for running timers, daily hours total, and quick actions. Top bar shows `HARV v0.1.0  ● Running` or `HARV v0.1.0  ○ Idle` depending on timer state.
@@ -143,39 +145,6 @@ Auto-detects dark/light mode from your OS. Real-time switching via D-Bus on Linu
 | `?` | Keyboard shortcuts overlay |
 
 ## Commands
-
-
-```bash
-▗▖ ▗▖ ▗▄▖ ▗▄▄▖ ▗▖  ▗▖
-▐▌ ▐▌▐▌ ▐▌▐▌ ▐▌▐▌  ▐▌
-▐▛▀▜▌▐▛▀▜▌▐▛▀▚▖▐▌  ▐▌
-▐▌ ▐▌▐▌ ▐▌▐▌ ▐▌ ▝▚▞▘ 
-   HARV CLI v0.1.0
-
-CLI for Harvest time tracking
-
-Usage: harv [OPTIONS] <COMMAND>
-
-Commands:
-  connect     Authenticate with Harvest via OAuth2
-  config      Show or modify configuration
-  track       Interactive time entry wizard
-  start       Start a running timer
-  stop        Stop the current running timer
-  log         Log time with specified hours
-  note        Edit notes on the running timer
-  status      Show current timer status and today\'s entries
-  projects    List your project assignments
-  tasks       List tasks for a project
-  alias       Manage project/task aliases
-  completion  Generate shell completion script
-  help        Print this message or the help of the given subcommand(s)
-
-Options:
-  -o, --output <OUTPUT>  [default: table] [possible values: table, json]
-  -h, --help             Print help
-  -V, --version          Print version
-```
 
 | Command | Description |
 |---------|-------------|
