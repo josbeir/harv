@@ -5,10 +5,6 @@ edition.workspace = true
 license.workspace = true
 description = "Terminal UI for Harvest time tracking"
 
-[[bin]]
-name = "harv-tui"
-path = "src/main.rs"
-
 [dependencies]
 harv-core = { path = "../harv-core" }
 harv-sdk = { path = "../harv-sdk" }
