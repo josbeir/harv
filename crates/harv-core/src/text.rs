@@ -157,6 +157,51 @@ mod tests {
     }
 
     #[test]
+    fn test_format_timer_line() {
+        use crate::types::Reference;
+        use crate::types::TimeEntry;
+        use chrono::{DateTime, Utc};
+
+        let entry = TimeEntry {
+            id: 1,
+            spent_date: None,
+            hours: None,
+            notes: None,
+            is_running: true,
+            timer_started_at: Some(DateTime::<Utc>::MIN_UTC),
+            started_time: None,
+            ended_time: None,
+            project: Reference {
+                id: 10,
+                name: "Dev Project".into(),
+            },
+            task: Reference {
+                id: 20,
+                name: "Coding".into(),
+            },
+            user: Reference {
+                id: 1,
+                name: "User".into(),
+            },
+            client: Some(Reference {
+                id: 5,
+                name: "Acme".into(),
+            }),
+            is_billed: false,
+            billable: true,
+            billable_rate: None,
+            cost_rate: None,
+            created_at: None,
+            updated_at: None,
+        };
+
+        let line = format_timer_line(&entry);
+        assert!(line.contains("Acme"));
+        assert!(line.contains("Dev Project"));
+        assert!(line.contains("Coding"));
+    }
+
+    #[test]
     fn test_fuzzy_score_exact() {
         assert!(fuzzy_score("dev", "Development") > 0);
     }

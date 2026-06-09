@@ -28,7 +28,7 @@ pub struct App {
     theme: Theme,
     help: Help,
     tick: u64,
-    pending_confirm: Option<(String, Action)>,
+    pending_confirm: Option<(String, Vec<Action>)>,
 }
 
 impl App {
@@ -133,9 +133,9 @@ impl App {
     fn handle_event(&mut self, event: Event) -> Vec<Action> {
         match event {
             Event::Key(key) if key.kind == KeyEventKind::Press => {
-                if let Some((_, action)) = self.pending_confirm.take() {
+                if let Some((_, actions)) = self.pending_confirm.take() {
                     if matches!(key.code, KeyCode::Char('y') | KeyCode::Char('Y')) {
-                        return vec![action];
+                        return actions;
                     }
                     return vec![];
                 }
@@ -150,6 +150,11 @@ impl App {
 
                 match key.code {
                     KeyCode::Char('q') => {
+                        vec![Action::Quit]
+                    }
+                    KeyCode::Char('c')
+                        if key.modifiers == ratatui::crossterm::event::KeyModifiers::CONTROL =>
+                    {
                         vec![Action::Quit]
                     }
                     KeyCode::Char('?') => {
@@ -213,9 +218,11 @@ impl App {
                 entry_hours,
                 entry_notes,
             } => {
+                let pid = last_project_id.or(self.client.config().last_project_id);
+                let tid = last_task_id.or(self.client.config().last_task_id);
                 let form = TimeEntryForm::new(
-                    last_project_id,
-                    last_task_id,
+                    pid,
+                    tid,
                     project_name,
                     mode,
                     entry_id,
@@ -416,7 +423,40 @@ impl App {
                 entry_id,
                 entry_desc,
             } => {
-                self.pending_confirm = Some((entry_desc, Action::DeleteEntry { entry_id }));
+                self.pending_confirm = Some((
+                    format!("\"{}\"\nDelete this entry?", entry_desc),
+                    vec![Action::DeleteEntry { entry_id }],
+                ));
+            }
+            Action::ConfirmStopAndStart {
+                entry_id,
+                entry_desc,
+            } => {
+                self.pending_confirm = Some((
+                    format!(
+                        "A timer is currently running:\n\"{}\"\n\nStop it and start a new one?",
+                        entry_desc
+                    ),
+                    vec![Action::StopAndStartNew { entry_id }],
+                ));
+            }
+            Action::StopAndStartNew { entry_id } => {
+                let client = Arc::clone(&self.client);
+                let tx = tx.clone();
+                tokio::spawn(async move {
+                    let _ = client.time_entries().stop(entry_id).await;
+                    let _ = tx.send(Action::OpenForm {
+                        last_project_id: None,
+                        last_task_id: None,
+                        project_name: None,
+                        mode: crate::action::FormMode::Start,
+                        entry_id: None,
+                        entry_date: None,
+                        entry_hours: None,
+                        entry_notes: None,
+                    });
+                    let _ = tx.send(Action::Refresh);
+                });
             }
             Action::Error(msg) => {
                 tracing::error!("{}", msg);
@@ -480,35 +520,47 @@ impl App {
     }
 
     fn render_top_bar(&self, area: Rect, f: &mut Frame) {
-        let spans = vec![
+        let layout = Layout::horizontal([Constraint::Min(0), Constraint::Length(12)]).split(area);
+
+        let version = env!("CARGO_PKG_VERSION");
+        let left = Line::from(vec![
             Span::styled(
                 " HARV ",
                 Style::new()
                     .fg(self.theme.primary)
                     .add_modifier(Modifier::BOLD),
             ),
-            Span::styled(
-                " Dashboard ",
-                Style::new()
-                    .fg(self.theme.highlight)
-                    .add_modifier(Modifier::BOLD),
-            ),
-        ];
+            Span::styled(format!("v{} ", version), Style::new().fg(self.theme.muted)),
+        ]);
 
-        let paragraph = Paragraph::new(Line::from(spans)).style(Style::new().bg(self.theme.bg));
-        f.render_widget(paragraph, area);
+        let status = if self.current_view.timer_running() {
+            Span::styled(" ● Running ", Style::new().fg(self.theme.success))
+        } else {
+            Span::styled(" ○ Idle ", Style::new().fg(self.theme.muted))
+        };
+
+        f.render_widget(
+            Paragraph::new(left).style(Style::new().bg(self.theme.bg)),
+            layout[0],
+        );
+
+        f.render_widget(
+            Paragraph::new(Line::from(status)).style(Style::new().bg(self.theme.bg)),
+            layout[1],
+        );
     }
 
     fn render_bottom_bar(&self, area: Rect, f: &mut Frame) {
-        let actions = [
-            ("n/t", "Entry"),
-            ("s", "Start"),
-            ("e", "Edit"),
-            ("d", "Delete"),
-            ("r", "Refresh"),
-            ("q", "Quit"),
-            ("?", "Help"),
-        ];
+        let mut actions = vec![("n/t", "Entry"), ("s", "Start"), ("e", "Edit")];
+
+        if self.current_view.timer_running() {
+            actions.push(("x", "Stop"));
+        }
+
+        actions.push(("d", "Delete"));
+        actions.push(("r", "Refresh"));
+        actions.push(("q", "Quit"));
+        actions.push(("?", "Help"));
 
         let spans: Vec<Span> = actions
             .iter()
@@ -540,7 +592,7 @@ impl App {
 fn render_confirm_dialog(area: Rect, f: &mut Frame, msg: &str, theme: &Theme) {
     let max_width = 60u16;
     let popup_width = max_width.min(area.width.saturating_sub(4));
-    let popup_height = 9;
+    let popup_height = 10;
 
     let centered = crate::popup::centered_rect_fixed(popup_width, popup_height, area);
     f.render_widget(Clear, centered);
@@ -563,21 +615,22 @@ fn render_confirm_dialog(area: Rect, f: &mut Frame, msg: &str, theme: &Theme) {
     };
 
     let max_desc_width = inner_with_margin.width as usize;
-    let truncated = harv_core::text::truncate(msg, max_desc_width);
 
-    let lines = vec![
-        Line::from(Span::styled(
-            "Delete this entry?",
-            Style::new().fg(theme.fg),
-        )),
-        Line::from(""),
-        Line::from(Span::styled(truncated, Style::new().fg(theme.muted))),
-        Line::from(""),
-        Line::from(Span::styled(
-            " y = confirm   any other key = cancel ",
-            Style::new().fg(theme.muted),
-        )),
-    ];
+    let mut lines: Vec<Line> = msg
+        .split('\n')
+        .map(|part| {
+            Line::from(Span::styled(
+                harv_core::text::truncate(part, max_desc_width),
+                Style::new().fg(theme.fg),
+            ))
+        })
+        .collect();
+
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        " y = confirm   any other key = cancel ",
+        Style::new().fg(theme.muted),
+    )));
 
     f.render_widget(
         Paragraph::new(lines).alignment(Alignment::Center),

@@ -39,6 +39,13 @@ impl View {
             View::Help(v) => v.handle_key(key),
         }
     }
+
+    pub fn timer_running(&self) -> bool {
+        match self {
+            View::Dashboard(d) => d.has_running(),
+            View::Help(_) => false,
+        }
+    }
 }
 
 impl Default for View {
@@ -89,5 +96,13 @@ mod tests {
         let actions = view.handle_key(&key);
         assert_eq!(actions.len(), 1);
         assert!(matches!(actions[0], Action::Refresh));
+    }
+
+    #[test]
+    fn test_view_timer_running() {
+        let d = Dashboard::default();
+        assert!(!d.has_running());
+        let view = View::Dashboard(d);
+        assert!(!view.timer_running());
     }
 }

@@ -53,6 +53,13 @@ pub enum Action {
     DeleteEntry {
         entry_id: u64,
     },
+    StopAndStartNew {
+        entry_id: u64,
+    },
+    ConfirmStopAndStart {
+        entry_id: u64,
+        entry_desc: String,
+    },
     ConfirmDelete {
         entry_id: u64,
         entry_desc: String,

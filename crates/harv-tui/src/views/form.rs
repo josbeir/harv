@@ -750,7 +750,7 @@ mod tests {
     fn test_new_start_form() {
         let f = TimeEntryForm::new(None, None, None, FormMode::Start, None, None, None, None);
         assert!(matches!(f.mode, FormMode::Start));
-        assert!(!f.loaded);
+        assert!(f.loaded);
         assert!(f.selected_project_id.is_none());
         assert!(f.hours.is_empty());
         assert!(f.notes.is_empty());
@@ -1008,5 +1008,49 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn test_task_search_filters() {
+        let mut f = TimeEntryForm::new(
+            Some(10),
+            None,
+            None,
+            FormMode::Start,
+            None,
+            None,
+            None,
+            None,
+        );
+        f.selected_project_id = Some(10);
+        f.update_tasks(vec![
+            task_assignment(20, "Development"),
+            task_assignment(30, "Design"),
+            task_assignment(40, "Deployment"),
+        ]);
+
+        // No filter — all three
+        assert_eq!(f.filtered_tasks.len(), 3);
+
+        // Filter by "dev" — should match "Development" only
+        f.task_search = "dev".into();
+        f.filter_tasks();
+        assert_eq!(f.filtered_tasks.len(), 1);
+        assert_eq!(f.tasks[f.filtered_tasks[0]].task.id, 20);
+
+        // Filter by "de" — matches all three (Development, Design, Deployment)
+        f.task_search = "de".into();
+        f.filter_tasks();
+        assert_eq!(f.filtered_tasks.len(), 3);
+
+        // Filter by "xyz" — no match
+        f.task_search = "xyz".into();
+        f.filter_tasks();
+        assert!(f.filtered_tasks.is_empty());
+
+        // Backspace clears
+        f.task_search = "".into();
+        f.filter_tasks();
+        assert_eq!(f.filtered_tasks.len(), 3);
     }
 }

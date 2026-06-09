@@ -63,9 +63,13 @@ impl Dashboard {
             return;
         }
 
-        let layout = Layout::vertical([Constraint::Length(3), Constraint::Min(0)]).split(area);
+        let header_rows = if self.running_entry.is_some() { 2 } else { 0 };
+        let layout =
+            Layout::vertical([Constraint::Length(header_rows), Constraint::Min(0)]).split(area);
 
-        self.render_timer_header(layout[0], f, theme);
+        if self.running_entry.is_some() {
+            self.render_timer_header(layout[0], f, theme);
+        }
         self.render_entry_list(layout[1], f, theme);
     }
 
@@ -128,8 +132,17 @@ impl Dashboard {
         let block = Block::new()
             .title(title)
             .title_bottom(format!(" {:.2}h total ", self.daily_total))
-            .borders(Borders::RIGHT)
-            .border_style(Style::new().fg(theme.border));
+            .borders(Borders::ALL)
+            .border_style(Style::new().fg(theme.border))
+            .style(Style::new().bg(theme.bg));
+
+        let margin = 2u16;
+        let padded_area = Rect {
+            x: area.x + margin,
+            y: area.y + margin,
+            width: area.width.saturating_sub(margin * 2),
+            height: area.height.saturating_sub(margin * 2),
+        };
 
         let list = List::new(items)
             .block(block)
@@ -141,7 +154,7 @@ impl Dashboard {
             )
             .highlight_symbol("▶ ");
 
-        f.render_stateful_widget(list, area, &mut self.list_state);
+        f.render_stateful_widget(list, padded_area, &mut self.list_state);
     }
 
     pub fn handle_key(&mut self, key: &ratatui::crossterm::event::KeyEvent) -> Vec<Action> {
@@ -164,7 +177,11 @@ impl Dashboard {
             }
             KeyCode::Char('s') => {
                 if let Some(ref entry) = self.running_entry {
-                    vec![Action::StopTimer { entry_id: entry.id }]
+                    let desc = format!("{} · {}", entry.project.name, entry.task.name);
+                    vec![Action::ConfirmStopAndStart {
+                        entry_id: entry.id,
+                        entry_desc: desc,
+                    }]
                 } else {
                     vec![Action::OpenForm {
                         last_project_id: None,
@@ -176,6 +193,13 @@ impl Dashboard {
                         entry_hours: None,
                         entry_notes: None,
                     }]
+                }
+            }
+            KeyCode::Char('x') => {
+                if let Some(ref entry) = self.running_entry {
+                    vec![Action::StopTimer { entry_id: entry.id }]
+                } else {
+                    vec![]
                 }
             }
             KeyCode::Char('d') => {
@@ -198,9 +222,6 @@ impl Dashboard {
                 vec![]
             }
             KeyCode::Char('e') | KeyCode::Enter => match self.selected_entry() {
-                Some(entry) if entry.is_running => {
-                    vec![Action::StopTimer { entry_id: entry.id }]
-                }
                 Some(entry) => {
                     let date = entry
                         .spent_date
@@ -535,7 +556,10 @@ mod tests {
         let mut d = Dashboard::default();
         d.update_entries(vec![entry(1, 10, 20, None, true)]);
         let actions = d.handle_key(&key_press(KeyCode::Char('s')));
-        assert!(matches!(actions[0], Action::StopTimer { entry_id: 1 }));
+        assert!(matches!(
+            actions[0],
+            Action::ConfirmStopAndStart { entry_id: 1, .. }
+        ));
     }
 
     #[test]
@@ -550,6 +574,22 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn test_x_stops_running_timer() {
+        let mut d = Dashboard::default();
+        d.update_entries(vec![entry(1, 10, 20, None, true)]);
+        let actions = d.handle_key(&key_press(KeyCode::Char('x')));
+        assert!(matches!(actions[0], Action::StopTimer { entry_id: 1 }));
+    }
+
+    #[test]
+    fn test_x_idle_does_nothing() {
+        let mut d = Dashboard::default();
+        d.update_entries(vec![entry(1, 10, 20, Some(1.0), false)]);
+        let actions = d.handle_key(&key_press(KeyCode::Char('x')));
+        assert!(actions.is_empty());
     }
 
     #[test]
@@ -601,11 +641,18 @@ mod tests {
     }
 
     #[test]
-    fn test_enter_on_running_stops() {
+    fn test_enter_on_running_opens_edit() {
         let mut d = Dashboard::default();
         d.update_entries(vec![entry(1, 10, 20, None, true)]);
         let actions = d.handle_key(&key_press(KeyCode::Enter));
-        assert!(matches!(actions[0], Action::StopTimer { entry_id: 1 }));
+        assert!(matches!(
+            actions[0],
+            Action::OpenForm {
+                mode: FormMode::Edit,
+                entry_id: Some(1),
+                ..
+            }
+        ));
     }
 
     #[test]
