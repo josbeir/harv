@@ -55,6 +55,31 @@ pub fn format_elapsed_hms(total_secs: i64) -> String {
     format!("{:02}:{:02}:{:02}", hours, mins, secs)
 }
 
+/// Fuzzy-score a pattern against text. Returns -1 if no match.
+///
+/// Characters in the pattern must appear in order in the text
+/// (not necessarily consecutively). Higher scores indicate
+/// better matches (consecutive matches score higher).
+pub fn fuzzy_score(pattern: &str, text: &str) -> i32 {
+    let pattern = pattern.to_lowercase();
+    let text = text.to_lowercase();
+    let mut score = 0;
+    let mut text_chars = text.chars();
+    for p in pattern.chars() {
+        loop {
+            match text_chars.next() {
+                Some(t) if t == p => {
+                    score += 1;
+                    break;
+                }
+                Some(_) => {}
+                None => return -1,
+            }
+        }
+    }
+    score
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -129,5 +154,20 @@ mod tests {
         assert_eq!(format_elapsed_hms(0), "00:00:00");
         assert_eq!(format_elapsed_hms(3661), "01:01:01");
         assert_eq!(format_elapsed_hms(86399), "23:59:59");
+    }
+
+    #[test]
+    fn test_fuzzy_score_exact() {
+        assert!(fuzzy_score("dev", "Development") > 0);
+    }
+
+    #[test]
+    fn test_fuzzy_score_no_match() {
+        assert_eq!(fuzzy_score("xyz", "Development"), -1);
+    }
+
+    #[test]
+    fn test_fuzzy_score_substring() {
+        assert!(fuzzy_score("De", "Development") > 0);
     }
 }

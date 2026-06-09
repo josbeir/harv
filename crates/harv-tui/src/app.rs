@@ -201,7 +201,6 @@ impl App {
             }
             Action::SwitchView(_) => {
                 self.form = None;
-                self.current_view = View::Dashboard(Default::default());
                 self.fetch_dashboard_data(tx);
             }
             Action::OpenForm {

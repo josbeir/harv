@@ -232,23 +232,7 @@ pub fn format_timer_display(
 
 #[allow(dead_code)]
 fn fuzzy_score(pattern: &str, text: &str) -> i32 {
-    let pattern = pattern.to_lowercase();
-    let text = text.to_lowercase();
-    let mut score = 0;
-    let mut text_chars = text.chars();
-    for p in pattern.chars() {
-        loop {
-            match text_chars.next() {
-                Some(t) if t == p => {
-                    score += 1;
-                    break;
-                }
-                Some(_) => {}
-                None => return -1,
-            }
-        }
-    }
-    score
+    harv_core::text::fuzzy_score(pattern, text)
 }
 
 #[cfg(test)]

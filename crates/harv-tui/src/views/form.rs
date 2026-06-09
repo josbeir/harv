@@ -25,10 +25,12 @@ pub struct TimeEntryForm {
     assignments: Vec<ProjectAssignment>,
     filtered_assignments: Vec<usize>,
     tasks: Vec<TaskAssignment>,
+    filtered_tasks: Vec<usize>,
     project_list: ListState,
     task_list: ListState,
     selected_project_id: Option<u64>,
     project_search: String,
+    task_search: String,
     date: String,
     hours: String,
     notes: String,
@@ -66,16 +68,18 @@ impl TimeEntryForm {
             assignments: Vec::new(),
             filtered_assignments: Vec::new(),
             tasks: Vec::new(),
+            filtered_tasks: Vec::new(),
             project_list,
             task_list: ListState::default(),
             selected_project_id: last_project_id,
             project_search: project_name.unwrap_or_default(),
+            task_search: String::new(),
             date,
             hours: entry_hours.unwrap_or_default(),
             notes: entry_notes.unwrap_or_default(),
             active: Field::ProjectList,
             visible: true,
-            loaded: false,
+            loaded: true,
             tasks_loading: false,
         }
     }
@@ -104,14 +108,28 @@ impl TimeEntryForm {
     pub fn update_tasks(&mut self, tasks: Vec<TaskAssignment>) {
         self.tasks = tasks;
         self.tasks_loading = false;
+        self.task_search.clear();
+        self.filter_tasks();
         if let Some(tid) = self.last_task_id {
-            if let Some(pos) = self.tasks.iter().position(|t| t.task.id == tid) {
+            if let Some(pos) = self
+                .filtered_tasks
+                .iter()
+                .position(|&i| self.tasks[i].task.id == tid)
+            {
                 self.task_list.select(Some(pos));
             } else {
-                self.task_list.select(Some(0));
+                self.task_list.select(if self.filtered_tasks.is_empty() {
+                    None
+                } else {
+                    Some(0)
+                });
             }
         } else {
-            self.task_list.select(Some(0));
+            self.task_list.select(if self.filtered_tasks.is_empty() {
+                None
+            } else {
+                Some(0)
+            });
         }
     }
 
@@ -120,12 +138,44 @@ impl TimeEntryForm {
         self.filtered_assignments = if q.is_empty() {
             (0..self.assignments.len()).collect()
         } else {
-            self.assignments
+            let mut scored: Vec<(usize, i32)> = self
+                .assignments
                 .iter()
                 .enumerate()
-                .filter(|(_, a)| a.project.name.to_lowercase().contains(&q))
-                .map(|(i, _)| i)
-                .collect()
+                .filter_map(|(i, a)| {
+                    let score = harv_core::text::fuzzy_score(&q, &a.project.name);
+                    if score >= 0 {
+                        Some((i, score))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            scored.sort_by_key(|(_, s)| -s);
+            scored.into_iter().map(|(i, _)| i).collect()
+        };
+    }
+
+    fn filter_tasks(&mut self) {
+        let q = self.task_search.to_lowercase();
+        self.filtered_tasks = if q.is_empty() {
+            (0..self.tasks.len()).collect()
+        } else {
+            let mut scored: Vec<(usize, i32)> = self
+                .tasks
+                .iter()
+                .enumerate()
+                .filter_map(|(i, t)| {
+                    let score = harv_core::text::fuzzy_score(&q, &t.task.name);
+                    if score >= 0 {
+                        Some((i, score))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            scored.sort_by_key(|(_, s)| -s);
+            scored.into_iter().map(|(i, _)| i).collect()
         };
     }
 
@@ -137,7 +187,10 @@ impl TimeEntryForm {
     }
 
     fn selected_task(&self) -> Option<&TaskAssignment> {
-        self.task_list.selected().and_then(|i| self.tasks.get(i))
+        self.task_list
+            .selected()
+            .and_then(|i| self.filtered_tasks.get(i))
+            .and_then(|&i| self.tasks.get(i))
     }
 
     fn submit_entry(&mut self) -> Vec<Action> {
@@ -394,8 +447,14 @@ impl TimeEntryForm {
             Style::new().fg(theme.border)
         };
 
+        let title = if !self.task_search.is_empty() {
+            format!(" Task [{}] ", self.task_search)
+        } else {
+            " Task ".into()
+        };
+
         let block = Block::new()
-            .title(" Task ")
+            .title(title)
             .borders(Borders::ALL)
             .border_style(border_style);
 
@@ -406,9 +465,10 @@ impl TimeEntryForm {
         } else if self.selected_project_id.is_none() {
             vec!["Select a project first".into()]
         } else {
-            self.tasks
+            self.filtered_tasks
                 .iter()
-                .map(|t| {
+                .map(|&i| {
+                    let t = &self.tasks[i];
                     let rate = t
                         .hourly_rate
                         .map_or("$0.00/h".into(), |r| format!("${:.2}/h", r));
@@ -555,7 +615,7 @@ impl TimeEntryForm {
                 vec![]
             }
             KeyCode::Char('j') | KeyCode::Down => {
-                let max = self.tasks.len().saturating_sub(1);
+                let max = self.filtered_tasks.len().saturating_sub(1);
                 let i = self.task_list.selected().map_or(0, |i| (i + 1).min(max));
                 self.task_list.select(Some(i));
                 vec![]
@@ -566,6 +626,26 @@ impl TimeEntryForm {
                 vec![]
             }
             KeyCode::Enter => self.submit_entry(),
+            KeyCode::Backspace => {
+                self.task_search.pop();
+                self.filter_tasks();
+                self.task_list.select(if self.filtered_tasks.is_empty() {
+                    None
+                } else {
+                    Some(0)
+                });
+                vec![]
+            }
+            KeyCode::Char(c) => {
+                self.task_search.push(c);
+                self.filter_tasks();
+                self.task_list.select(if self.filtered_tasks.is_empty() {
+                    None
+                } else {
+                    Some(0)
+                });
+                vec![]
+            }
             _ => {
                 vec![]
             }
@@ -858,6 +938,7 @@ mod tests {
         f.selected_project_id = Some(10);
 
         f.tasks = vec![task_assignment(20, "Development")];
+        f.filter_tasks();
         f.task_list.select(Some(0));
 
         let actions = f.submit_entry();
@@ -891,6 +972,7 @@ mod tests {
         f.project_list.select(Some(0));
         f.selected_project_id = Some(10);
         f.tasks = vec![task_assignment(20, "Development")];
+        f.filter_tasks();
         f.task_list.select(Some(0));
 
         let actions = f.submit_entry();
@@ -914,6 +996,7 @@ mod tests {
         f.project_list.select(Some(0));
         f.selected_project_id = Some(10);
         f.tasks = vec![task_assignment(20, "Development")];
+        f.filter_tasks();
         f.task_list.select(Some(0));
 
         let actions = f.submit_entry();
