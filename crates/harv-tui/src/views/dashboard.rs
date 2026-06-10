@@ -81,14 +81,14 @@ impl Dashboard {
     }
 
     pub fn render(&mut self, area: Rect, f: &mut Frame, theme: &Theme, tick: u64) {
-        if !self.loaded {
-            crate::loading::render_harv_loading(area, f, tick, self.loading_msg, theme);
-            return;
-        }
-
         let layout = Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).split(area);
 
         self.render_date_nav(layout[0], f, theme);
+
+        if !self.loaded {
+            crate::loading::render_harv_loading(layout[1], f, tick, self.loading_msg, theme);
+            return;
+        }
 
         if self.entries.is_empty() {
             render_harv_header(layout[1], f, theme, self.selected_date);
