@@ -38,7 +38,7 @@ impl DatePicker {
             return;
         }
 
-        let popup_area = crate::popup::centered_rect_fixed(31, 13, area);
+        let popup_area = crate::popup::centered_rect_fixed(31, 10, area);
         f.render_widget(Clear, popup_area);
 
         let today = harv_core::datetime::today();
@@ -97,14 +97,12 @@ impl DatePicker {
             day_rows.push(Row::new(cells));
         }
 
-        let help = " ←↑↓→: navigate  Enter: select  Esc: cancel ";
         let block = Block::new()
             .title(format!(" {} ", month_title))
             .title_alignment(Alignment::Center)
-            .title_bottom(help)
             .borders(Borders::ALL)
             .border_style(Style::new().fg(theme.primary))
-            .padding(Padding::uniform(1))
+            .padding(Padding::new(1, 1, 0, 0))
             .style(Style::new().bg(theme.surface));
 
         let table = Table::new(day_rows, [Constraint::Length(3); 7])
