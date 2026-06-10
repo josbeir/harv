@@ -37,6 +37,9 @@ impl Help {
                 vec![
                     ("j / ↓", "Move down (lists)"),
                     ("k / ↑", "Move up (lists)"),
+                    ("h / ←", "Previous day"),
+                    ("l / →", "Next day"),
+                    ("T", "Go to today"),
                     ("Tab", "Next field"),
                     ("Shift+Tab", "Previous field"),
                     ("Enter", "Select / confirm"),
@@ -50,6 +53,7 @@ impl Help {
                     ("n / t", "New entry (with hours)"),
                     ("Enter / e", "Edit entry"),
                     ("d", "Delete entry"),
+                    ("g", "Open date picker"),
                     ("r", "Refresh"),
                 ],
             ),

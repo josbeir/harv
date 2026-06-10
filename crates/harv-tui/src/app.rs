@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use chrono::NaiveDate;
 use futures_util::StreamExt;
 use harv_core::CreateTimeEntry;
 use harv_sdk::HarvClient;
@@ -17,6 +18,7 @@ use crate::action::Action;
 use crate::theme::{Theme, ThemeMode};
 use crate::tui;
 use crate::views::View;
+use crate::views::date_picker::DatePicker;
 use crate::views::form::TimeEntryForm;
 use crate::views::help::Help;
 
@@ -30,6 +32,7 @@ pub struct App {
     help: Help,
     tick: u64,
     pending_confirm: Option<(String, Vec<Action>)>,
+    date_picker: Option<DatePicker>,
 }
 
 impl App {
@@ -44,6 +47,7 @@ impl App {
             help: Help::default(),
             tick: 0,
             pending_confirm: None,
+            date_picker: None,
         }
     }
 
@@ -141,6 +145,10 @@ impl App {
                     return vec![];
                 }
 
+                if let Some(ref mut picker) = self.date_picker {
+                    return picker.handle_key(&key);
+                }
+
                 if let Some(ref mut form) = self.form {
                     return form.handle_key(&key);
                 }
@@ -195,7 +203,7 @@ impl App {
                     }
                 });
 
-                self.fetch_dashboard_data(tx, false);
+                self.fetch_dashboard_data(tx, false, harv_core::datetime::today());
             }
             Action::ToggleHelp => {
                 self.help.toggle();
@@ -208,7 +216,7 @@ impl App {
             }
             Action::SwitchView(_) => {
                 self.form = None;
-                self.fetch_dashboard_data(tx, false);
+                self.fetch_dashboard_data(tx, false, harv_core::datetime::today());
             }
             Action::OpenForm {
                 last_project_id,
@@ -346,10 +354,58 @@ impl App {
             Action::Refresh => {
                 let View::Dashboard(d) = &mut self.current_view;
                 d.set_loading("Syncing with Harvest...");
-                self.fetch_dashboard_data(tx, true);
+                let date = d.selected_date();
+                self.fetch_dashboard_data(tx, true, date);
             }
             Action::RefreshEntries => {
-                self.fetch_entries(tx);
+                let View::Dashboard(d) = &self.current_view;
+                let date = d.selected_date();
+                self.fetch_entries(tx, date);
+            }
+            Action::NavigateDayPrev => {
+                let View::Dashboard(d) = &mut self.current_view;
+                d.prev_day();
+                let date = d.selected_date();
+                d.set_loading("Loading...");
+                self.fetch_entries(tx, date);
+            }
+            Action::NavigateDayNext => {
+                let View::Dashboard(d) = &mut self.current_view;
+                d.next_day();
+                let date = d.selected_date();
+                d.set_loading("Loading...");
+                self.fetch_entries(tx, date);
+            }
+            Action::NavigateDayToday => {
+                let View::Dashboard(d) = &mut self.current_view;
+                d.go_today();
+                let date = d.selected_date();
+                d.set_loading("Loading...");
+                self.fetch_entries(tx, date);
+            }
+            Action::OpenDatePicker => {
+                let initial = if let Some(ref form) = self.form {
+                    harv_core::datetime::parse_date(form.date())
+                        .unwrap_or_else(|_| harv_core::datetime::today())
+                } else {
+                    let View::Dashboard(d) = &self.current_view;
+                    d.selected_date()
+                };
+                self.date_picker = Some(DatePicker::new(initial));
+            }
+            Action::CloseDatePicker => {
+                self.date_picker = None;
+            }
+            Action::SelectDate(date) => {
+                if let Some(ref mut form) = self.form {
+                    form.set_date(harv_core::datetime::format_date(date));
+                } else {
+                    let View::Dashboard(d) = &mut self.current_view;
+                    d.set_date(date);
+                    d.set_loading("Loading...");
+                    self.fetch_entries(tx, date);
+                }
+                self.date_picker = None;
             }
             Action::StartTimer {
                 project_id,
@@ -450,7 +506,12 @@ impl App {
         }
     }
 
-    fn fetch_dashboard_data(&self, tx: &UnboundedSender<Action>, force_assignments: bool) {
+    fn fetch_dashboard_data(
+        &self,
+        tx: &UnboundedSender<Action>,
+        force_assignments: bool,
+        date: NaiveDate,
+    ) {
         let user_id = self.user_id;
         if user_id == 0 {
             return;
@@ -462,11 +523,10 @@ impl App {
         tokio::spawn(async move {
             use harv_sdk::resources::time_entries::TimeEntryListParams;
 
-            let today = harv_core::datetime::today();
             let params = TimeEntryListParams {
                 user_id: Some(user_id),
-                from: Some(today),
-                to: Some(today),
+                from: Some(date),
+                to: Some(date),
                 ..Default::default()
             };
 
@@ -490,7 +550,7 @@ impl App {
         });
     }
 
-    fn fetch_entries(&self, tx: &UnboundedSender<Action>) {
+    fn fetch_entries(&self, tx: &UnboundedSender<Action>, date: NaiveDate) {
         let user_id = self.user_id;
         if user_id == 0 {
             return;
@@ -502,11 +562,10 @@ impl App {
         tokio::spawn(async move {
             use harv_sdk::resources::time_entries::TimeEntryListParams;
 
-            let today = harv_core::datetime::today();
             let params = TimeEntryListParams {
                 user_id: Some(user_id),
-                from: Some(today),
-                to: Some(today),
+                from: Some(date),
+                to: Some(date),
                 ..Default::default()
             };
 
@@ -541,6 +600,10 @@ impl App {
 
         if let Some(ref mut form) = self.form {
             form.render(area, f, &self.theme, self.tick);
+        }
+
+        if let Some(ref mut picker) = self.date_picker {
+            picker.render(area, f, &self.theme);
         }
 
         if let Some((ref msg, _)) = self.pending_confirm {

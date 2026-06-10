@@ -1,4 +1,5 @@
 pub mod dashboard;
+pub mod date_picker;
 pub mod form;
 pub mod help;
 
