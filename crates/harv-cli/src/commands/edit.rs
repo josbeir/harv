@@ -83,7 +83,21 @@ pub async fn execute(
         ));
     }
 
-    // Step 3: load project assignments
+    // Non-interactive path: entry_id + at least one update flag, skip prompts
+    let has_flags = project_id.is_some()
+        || task_id.is_some()
+        || hours.is_some()
+        || notes.is_some()
+        || editor
+        || date.is_some();
+    if entry_id.is_some() && has_flags {
+        return execute_non_interactive(
+            client, &entry, project_id, task_id, hours, notes, editor, overwrite, date,
+        )
+        .await;
+    }
+
+    // Interactive path: load assignments and prompt
     let pb = spinner::new_spinner("Loading project assignments...");
     let assignments = client.projects().my_assignments(refresh).await?;
     pb.finish_and_clear();
@@ -141,11 +155,10 @@ pub async fn execute(
     let resolved_hours = if is_running {
         None
     } else if let Some(h) = hours {
-        Some(Some(h))
+        Some(h)
     } else {
         prompts::ask_hours_with_default(entry.hours)?
-    }
-    .flatten();
+    };
 
     // Step 8: resolve notes
     let resolved_notes = if let Some(n) = notes {
@@ -219,6 +232,90 @@ pub async fn execute(
     let mut saved_cfg = client.config().clone();
     saved_cfg.set_last_used(p_id, t_id);
     let _ = saved_cfg.save().await;
+
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn execute_non_interactive(
+    client: &HarvClient,
+    entry: &harv_core::TimeEntry,
+    project_id: Option<u64>,
+    task_id: Option<u64>,
+    hours: Option<f64>,
+    notes: Option<String>,
+    editor: bool,
+    overwrite: bool,
+    date: Option<String>,
+) -> color_eyre::eyre::Result<()> {
+    let spent_date = if let Some(ref d) = date {
+        Some(
+            harv_core::datetime::parse_date_not_future(d)
+                .map_err(|e| color_eyre::eyre::eyre!(e.user_message()))?,
+        )
+    } else {
+        None
+    };
+
+    let resolved_notes = if let Some(n) = notes {
+        if n.is_empty() {
+            None
+        } else if overwrite || entry.notes.as_deref().unwrap_or("").is_empty() {
+            Some(n)
+        } else {
+            Some(harv_core::text::append_notes(
+                entry.notes.as_deref().unwrap_or(""),
+                &n,
+            ))
+        }
+    } else if editor {
+        prompts::ask_notes(true)?
+    } else {
+        None
+    };
+
+    let pb = spinner::new_spinner("Saving changes...");
+    let update = UpdateTimeEntry {
+        project_id,
+        task_id,
+        spent_date,
+        hours,
+        notes: resolved_notes,
+        ..Default::default()
+    };
+    let updated = client
+        .time_entries()
+        .update(entry.id, &update)
+        .await
+        .map_err(|e| color_eyre::eyre::eyre!(e.user_message()))?;
+    pb.finish_and_clear();
+
+    let hours_str = updated
+        .hours
+        .or(hours)
+        .or(entry.hours)
+        .map(harv_core::text::format_hours)
+        .unwrap_or_else(|| {
+            if updated.is_running {
+                "Running".into()
+            } else {
+                "—".into()
+            }
+        });
+    let date_str = updated
+        .spent_date
+        .map(|d| d.format("%b %e, %Y").to_string())
+        .unwrap_or_else(|| "today".into());
+    println!(
+        "Updated: #{} — {} — {} → {} → {}",
+        updated.id, hours_str, date_str, updated.project.name, updated.task.name,
+    );
+
+    if let (Some(pid), Some(tid)) = (project_id, task_id) {
+        let mut saved_cfg = client.config().clone();
+        saved_cfg.set_last_used(pid, tid);
+        let _ = saved_cfg.save().await;
+    }
 
     Ok(())
 }
