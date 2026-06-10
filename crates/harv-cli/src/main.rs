@@ -8,6 +8,15 @@ fn main() -> color_eyre::eyre::Result<()> {
 
     let cli = Cli::parse();
 
+    let requires_auth = !matches!(
+        &cli.command,
+        Some(Commands::Connect | Commands::Completion(_))
+    );
+    if requires_auth && !harv_sdk::HarvConfig::path().exists() {
+        eprintln!("Not authenticated. Run `harv connect` to log in.");
+        std::process::exit(1);
+    }
+
     let result: color_eyre::eyre::Result<()> = match cli.command {
         Some(cmd) => {
             let rt = tokio::runtime::Runtime::new()?;
