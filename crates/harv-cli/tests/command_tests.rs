@@ -399,6 +399,7 @@ async fn test_track_with_ids() {
         Some("2026-06-08".into()),
         false,
         None,
+        false,
     )
     .await
     .unwrap();
@@ -441,6 +442,7 @@ async fn test_track_with_last_used_auto_task() {
         Some("2026-06-08".into()),
         false,
         None,
+        false,
     )
     .await
     .unwrap();

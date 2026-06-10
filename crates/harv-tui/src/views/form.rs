@@ -205,7 +205,12 @@ impl TimeEntryForm {
             };
             (h, n)
         } else {
-            (None, None)
+            let n = if self.notes.is_empty() {
+                None
+            } else {
+                Some(self.notes.clone())
+            };
+            (None, n)
         };
 
         self.visible = false;
@@ -255,7 +260,7 @@ impl TimeEntryForm {
         let popup = if self.mode != FormMode::Start {
             crate::popup::centered_rect_fixed(area.width.saturating_sub(6).min(72), 22, area)
         } else {
-            crate::popup::centered_rect_fixed(area.width.saturating_sub(6).min(60), 14, area)
+            crate::popup::centered_rect_fixed(area.width.saturating_sub(6).min(60), 17, area)
         };
         f.render_widget(Clear, popup);
 
@@ -340,6 +345,7 @@ impl TimeEntryForm {
             let layout = Layout::vertical([
                 Constraint::Length(5),
                 Constraint::Length(5),
+                Constraint::Length(3),
                 Constraint::Min(1),
                 Constraint::Length(1),
             ])
@@ -347,12 +353,25 @@ impl TimeEntryForm {
 
             self.render_project_section(layout[0], inner_width, content_x, f, theme);
             self.render_task_section(layout[1], inner_width, content_x, f, theme);
+            self.render_text_field(
+                "Notes (optional)",
+                &self.notes,
+                self.active == Field::Notes,
+                Rect {
+                    x: content_x,
+                    y: layout[2].y,
+                    width: inner_width,
+                    height: layout[2].height,
+                },
+                f,
+                theme,
+            );
 
             let help = Span::styled(
                 " Tab: next field │ Enter: start timer │ Esc: cancel ",
                 Style::new().fg(theme.muted),
             );
-            f.render_widget(Paragraph::new(help), layout[3]);
+            f.render_widget(Paragraph::new(help), layout[4]);
         }
     }
 
@@ -591,7 +610,7 @@ impl TimeEntryForm {
                 self.active = if self.mode != FormMode::Start {
                     Field::Date
                 } else {
-                    Field::ProjectList
+                    Field::Notes
                 };
                 vec![]
             }
@@ -644,28 +663,26 @@ impl TimeEntryForm {
                 vec![Action::SwitchView(crate::action::ViewId::Dashboard)]
             }
             KeyCode::Tab => {
-                self.active = if self.mode != FormMode::Start {
-                    match self.active {
-                        Field::Date => Field::Hours,
-                        Field::Hours => Field::Notes,
-                        Field::Notes => Field::ProjectList,
-                        _ => Field::ProjectList,
-                    }
-                } else {
-                    Field::ProjectList
+                self.active = match self.active {
+                    Field::Date => Field::Hours,
+                    Field::Hours => Field::Notes,
+                    Field::Notes => Field::ProjectList,
+                    _ => Field::ProjectList,
                 };
                 vec![]
             }
             KeyCode::BackTab => {
-                self.active = if self.mode != FormMode::Start {
-                    match self.active {
-                        Field::Date => Field::TaskList,
-                        Field::Hours => Field::Date,
-                        Field::Notes => Field::Hours,
-                        _ => Field::ProjectList,
+                self.active = match self.active {
+                    Field::Date => Field::TaskList,
+                    Field::Hours => Field::Date,
+                    Field::Notes => {
+                        if self.mode != FormMode::Start {
+                            Field::Hours
+                        } else {
+                            Field::TaskList
+                        }
                     }
-                } else {
-                    Field::TaskList
+                    _ => Field::ProjectList,
                 };
                 vec![]
             }
@@ -861,9 +878,18 @@ mod tests {
         let _ = f.handle_key(&key_press(KeyCode::Tab));
         assert_eq!(f.active, Field::TaskList);
 
-        // TaskList Tab -> ProjectList (start mode, no Date field)
+        // TaskList Tab -> Notes
+        let _ = f.handle_key(&key_press(KeyCode::Tab));
+        assert_eq!(f.active, Field::Notes);
+
+        // Notes Tab -> ProjectList
         let _ = f.handle_key(&key_press(KeyCode::Tab));
         assert_eq!(f.active, Field::ProjectList);
+
+        // Notes BackTab -> TaskList
+        f.active = Field::Notes;
+        let _ = f.handle_key(&key_press(KeyCode::BackTab));
+        assert_eq!(f.active, Field::TaskList);
     }
 
     #[test]
@@ -972,7 +998,7 @@ mod tests {
             None,
             None,
             None,
-            None,
+            Some("my notes".into()),
         );
         f.assignments = vec![project_assignment(10, "Beta")];
         f.filtered_assignments = vec![0];
@@ -987,9 +1013,9 @@ mod tests {
             actions[0],
             Action::CreateEntry {
                 hours: None,
-                notes: None,
+                notes: Some(ref n),
                 ..
-            }
+            } if n == "my notes"
         ));
     }
 

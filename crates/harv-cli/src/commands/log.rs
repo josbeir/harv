@@ -23,6 +23,7 @@ pub async fn execute(
         date,
         refresh,
         alias,
+        false,
     )
     .await
 }
