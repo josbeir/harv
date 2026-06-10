@@ -119,13 +119,9 @@ pub struct User {
     pub is_active: bool,
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
-    #[serde(default)]
     pub timezone: Option<String>,
-    #[serde(default)]
     pub weekly_capacity: Option<u64>,
-    #[serde(default)]
     pub is_admin: Option<bool>,
-    #[serde(default)]
     pub is_project_manager: Option<bool>,
 }
 

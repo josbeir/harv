@@ -3,7 +3,16 @@ use harv_sdk::{HarvClient, HarvConfig};
 
 pub async fn execute(client: &HarvClient, output: &OutputFormat) -> color_eyre::eyre::Result<()> {
     let user = client.users().me().await?;
-    let company = client.company().get().await.ok();
+    let company = match client.company().get().await {
+        Ok(c) => Some(c),
+        Err(e) => {
+            eprintln!(
+                "Warning: could not fetch company info: {}",
+                e.user_message()
+            );
+            None
+        }
+    };
 
     match output {
         OutputFormat::Table => {
