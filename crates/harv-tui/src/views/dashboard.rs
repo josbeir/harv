@@ -6,13 +6,13 @@ use ratatui::crossterm::event::KeyCode;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, List, ListState, Paragraph};
+use ratatui::widgets::{Block, Borders, Cell, Padding, Paragraph, Row, Table, TableState};
 
 pub struct Dashboard {
     entries: Vec<TimeEntry>,
     running_entry: Option<TimeEntry>,
     daily_total: f64,
-    list_state: ListState,
+    table_state: TableState,
     loaded: bool,
     loading_msg: &'static str,
 }
@@ -23,7 +23,7 @@ impl Default for Dashboard {
             entries: Vec::new(),
             running_entry: None,
             daily_total: 0.0,
-            list_state: ListState::default().with_selected(Some(0)),
+            table_state: TableState::default().with_selected(Some(0)),
             loaded: false,
             loading_msg: "Loading...",
         }
@@ -52,7 +52,9 @@ impl Dashboard {
     }
 
     pub fn selected_entry(&self) -> Option<&TimeEntry> {
-        self.list_state.selected().and_then(|i| self.entries.get(i))
+        self.table_state
+            .selected()
+            .and_then(|i| self.entries.get(i))
     }
 
     pub fn render(&mut self, area: Rect, f: &mut Frame, theme: &Theme, tick: u64) {
@@ -73,7 +75,7 @@ impl Dashboard {
         if self.running_entry.is_some() {
             self.render_timer_header(layout[0], f, theme);
         }
-        self.render_entry_list(layout[1], f, theme);
+        self.render_entry_table(layout[1], f, theme);
     }
 
     fn render_timer_header(&self, area: Rect, f: &mut Frame, theme: &Theme) {
@@ -119,26 +121,7 @@ impl Dashboard {
         f.render_widget(paragraph, area);
     }
 
-    fn render_entry_list(&mut self, area: Rect, f: &mut Frame, theme: &Theme) {
-        let items: Vec<Line> = self
-            .entries
-            .iter()
-            .map(|entry| format_entry_line(entry, theme))
-            .collect();
-
-        let title = if self.entries.is_empty() {
-            "Today — No entries yet"
-        } else {
-            "Today"
-        };
-
-        let block = Block::new()
-            .title(title)
-            .title_bottom(format!(" {:.2}h total ", self.daily_total))
-            .borders(Borders::ALL)
-            .border_style(Style::new().fg(theme.border))
-            .style(Style::new().bg(theme.bg));
-
+    fn render_entry_table(&mut self, area: Rect, f: &mut Frame, theme: &Theme) {
         let margin = 2u16;
         let padded_area = Rect {
             x: area.x + margin,
@@ -147,35 +130,110 @@ impl Dashboard {
             height: area.height.saturating_sub(margin * 2),
         };
 
-        let list = List::new(items)
+        // Usable content width after borders and padding
+        let inner_w = padded_area
+            .width
+            .saturating_sub(2) // block borders
+            .saturating_sub(2); // Padding::horizontal(1)
+
+        let hours_w = 12u16;
+        let spacing = 2u16; // column_spacing
+        let flex_w = inner_w.saturating_sub(hours_w).saturating_sub(spacing * 3);
+
+        let project_w = ((flex_w as f32) * 0.50) as u16;
+        let task_w = ((flex_w as f32) * 0.15) as u16;
+        let notes_w = flex_w.saturating_sub(project_w).saturating_sub(task_w);
+
+        let widths = [
+            Constraint::Length(project_w),
+            Constraint::Length(task_w),
+            Constraint::Length(hours_w),
+            Constraint::Length(notes_w),
+        ];
+
+        // Truncation limits (leave 1 char margin)
+        let proj_max = project_w.saturating_sub(1) as usize;
+        let task_max = task_w.saturating_sub(1) as usize;
+        let notes_max = notes_w.saturating_sub(1) as usize;
+
+        let header = Row::new(vec!["Project", "Task", "Hours", "Notes"])
+            .style(Style::new().fg(theme.muted).add_modifier(Modifier::BOLD))
+            .height(1);
+
+        let rows: Vec<Row> = self
+            .entries
+            .iter()
+            .map(|entry| {
+                let is_running = entry.is_running;
+                let prefix = if is_running { "● " } else { "" };
+                let avail = proj_max.saturating_sub(prefix.len());
+
+                let project = format!("{}{}", prefix, truncate_client_project(entry, avail));
+                let task = harv_core::text::truncate(&entry.task.name, task_max);
+                let hours = format_hours_cell(entry);
+                let notes = entry
+                    .notes
+                    .as_deref()
+                    .unwrap_or("")
+                    .chars()
+                    .take(notes_max.max(1))
+                    .collect::<String>();
+
+                let row_style = if is_running {
+                    Style::new().fg(theme.success)
+                } else {
+                    Style::new().fg(theme.fg)
+                };
+
+                Row::new(vec![
+                    Cell::from(project),
+                    Cell::from(task),
+                    Cell::from(hours),
+                    Cell::from(notes),
+                ])
+                .style(row_style)
+                .height(1)
+            })
+            .collect();
+
+        let block = Block::new()
+            .title("Today")
+            .title_bottom(format!(" {:.2}h total ", self.daily_total))
+            .borders(Borders::ALL)
+            .border_style(Style::new().fg(theme.border))
+            .style(Style::new().bg(theme.bg))
+            .padding(Padding::horizontal(1));
+
+        let table = Table::new(rows, widths)
+            .header(header)
             .block(block)
-            .highlight_style(
+            .row_highlight_style(
                 Style::new()
                     .fg(theme.highlight)
                     .bg(theme.surface)
                     .add_modifier(Modifier::BOLD),
             )
-            .highlight_symbol("▶ ");
+            .column_spacing(spacing);
 
-        f.render_stateful_widget(list, padded_area, &mut self.list_state);
+        f.render_stateful_widget(table, padded_area, &mut self.table_state);
     }
 
     pub fn handle_key(&mut self, key: &ratatui::crossterm::event::KeyEvent) -> Vec<Action> {
         match key.code {
             KeyCode::Char('j') | KeyCode::Down => {
                 let i = self
-                    .list_state
+                    .table_state
                     .selected()
                     .map_or(0, |i| (i + 1).min(self.entries.len().saturating_sub(1)));
-                self.list_state.select(Some(i));
+                self.table_state.select(Some(i));
                 vec![]
             }
             KeyCode::Char('k') | KeyCode::Up => {
                 let i = self
-                    .list_state
+                    .table_state
                     .selected()
                     .map_or(0, |i| i.saturating_sub(1));
-                self.list_state.select(Some(i));
+                self.table_state.select(Some(i));
                 vec![]
             }
             KeyCode::Char('s') => {
@@ -265,41 +323,33 @@ impl Dashboard {
     }
 }
 
-fn format_entry_line(entry: &TimeEntry, theme: &Theme) -> Line<'static> {
-    let is_running = entry.is_running;
-    let bullet = if is_running { "●" } else { "○" };
-    let bullet_color = if is_running {
-        theme.success
+fn truncate_client_project(entry: &TimeEntry, max_w: usize) -> String {
+    if max_w < 4 {
+        return harv_core::text::truncate(&entry.project.name, max_w);
+    }
+    match &entry.client {
+        Some(client) => {
+            let client_w = (max_w / 3).min(client.name.len()).max(1);
+            let proj_w = max_w.saturating_sub(client_w).saturating_sub(3); // " · "
+            format!(
+                "{} · {}",
+                harv_core::text::truncate(&client.name, client_w),
+                harv_core::text::truncate(&entry.project.name, proj_w),
+            )
+        }
+        None => harv_core::text::truncate(&entry.project.name, max_w),
+    }
+}
+
+fn format_hours_cell(entry: &TimeEntry) -> String {
+    if entry.is_running {
+        format_timer_elapsed(entry)
     } else {
-        theme.muted
-    };
-
-    let hours = match (is_running, entry.hours) {
-        (true, _) => format_timer_elapsed(entry),
-        (false, Some(h)) => harv_core::text::format_hours(h),
-        (false, None) => "0.00h".into(),
-    };
-
-    let client = entry
-        .client
-        .as_ref()
-        .map(|c| format!("{} · ", c.name))
-        .unwrap_or_default();
-
-    let text = format!(
-        "{}{} · {}    {}",
-        client, entry.project.name, entry.task.name, hours
-    );
-
-    let line = vec![
-        Span::styled(
-            format!(" {} ", bullet),
-            Style::new().fg(bullet_color).add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(text, Style::new().fg(theme.fg)),
-    ];
-
-    Line::from(line)
+        entry
+            .hours
+            .map(harv_core::text::format_hours)
+            .unwrap_or_else(|| "—".into())
+    }
 }
 
 fn format_timer_elapsed(entry: &TimeEntry) -> String {
@@ -507,11 +557,11 @@ mod tests {
             entry(1, 10, 20, Some(1.0), false),
             entry(2, 11, 21, Some(2.0), false),
         ]);
-        d.list_state.select(Some(0));
+        d.table_state.select(Some(0));
         assert_eq!(d.selected_entry().unwrap().id, 1);
-        d.list_state.select(Some(1));
+        d.table_state.select(Some(1));
         assert_eq!(d.selected_entry().unwrap().id, 2);
-        d.list_state.select(None);
+        d.table_state.select(None);
         assert!(d.selected_entry().is_none());
     }
 
@@ -534,11 +584,11 @@ mod tests {
             entry(3, 12, 22, Some(3.0), false),
         ]);
         d.handle_key(&key_press(KeyCode::Char('j')));
-        assert_eq!(d.list_state.selected(), Some(1));
+        assert_eq!(d.table_state.selected(), Some(1));
         d.handle_key(&key_press(KeyCode::Char('j')));
-        assert_eq!(d.list_state.selected(), Some(2));
+        assert_eq!(d.table_state.selected(), Some(2));
         d.handle_key(&key_press(KeyCode::Char('j')));
-        assert_eq!(d.list_state.selected(), Some(2));
+        assert_eq!(d.table_state.selected(), Some(2));
     }
 
     #[test]
@@ -548,11 +598,11 @@ mod tests {
             entry(1, 10, 20, Some(1.0), false),
             entry(2, 11, 21, Some(2.0), false),
         ]);
-        d.list_state.select(Some(1));
+        d.table_state.select(Some(1));
         d.handle_key(&key_press(KeyCode::Char('k')));
-        assert_eq!(d.list_state.selected(), Some(0));
+        assert_eq!(d.table_state.selected(), Some(0));
         d.handle_key(&key_press(KeyCode::Char('k')));
-        assert_eq!(d.list_state.selected(), Some(0));
+        assert_eq!(d.table_state.selected(), Some(0));
     }
 
     #[test]
@@ -613,7 +663,7 @@ mod tests {
     fn test_e_opens_edit_form() {
         let mut d = Dashboard::default();
         d.update_entries(vec![entry(42, 10, 20, Some(2.0), false)]);
-        d.list_state.select(Some(0));
+        d.table_state.select(Some(0));
         let actions = d.handle_key(&key_press(KeyCode::Char('e')));
         assert!(matches!(
             actions[0],
@@ -629,7 +679,7 @@ mod tests {
     fn test_d_triggers_confirm_delete() {
         let mut d = Dashboard::default();
         d.update_entries(vec![entry(42, 10, 20, Some(2.0), false)]);
-        d.list_state.select(Some(0));
+        d.table_state.select(Some(0));
         let actions = d.handle_key(&key_press(KeyCode::Char('d')));
         assert!(matches!(
             actions[0],
