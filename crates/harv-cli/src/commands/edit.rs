@@ -187,8 +187,8 @@ pub async fn execute(
     pb.finish_and_clear();
 
     // Step 10: confirmation
-    let hours_str = updated
-        .hours
+    let display_hours = updated.hours.or(resolved_hours).or(entry.hours);
+    let hours_str = display_hours
         .map(harv_core::text::format_hours)
         .unwrap_or_else(|| {
             if updated.is_running {
