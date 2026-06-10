@@ -33,7 +33,7 @@ pub enum Commands {
     /// Show or modify configuration
     Config(ConfigArgs),
     /// Interactive time entry wizard
-    #[command(alias = "log")]
+    #[command(visible_alias = "log")]
     Track(TrackArgs),
     /// Start a running timer
     Start(StartArgs),
