@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::OutputFormat;
 use crate::output;
 use crate::prompts;
@@ -36,29 +38,61 @@ pub async fn create_execute(client: &HarvClient, name: &str) -> color_eyre::eyre
     Ok(())
 }
 
-pub async fn create(name: String) -> color_eyre::eyre::Result<()> {
+pub async fn create(name: Option<String>) -> color_eyre::eyre::Result<()> {
+    let name = match name {
+        Some(n) => n,
+        None => prompts::prompt_alias_name()?,
+    };
     let client = HarvClient::from_config_file().await?;
     create_execute(&client, &name).await
 }
 
-pub async fn list_execute(format: &OutputFormat) -> color_eyre::eyre::Result<()> {
+pub async fn list_execute(
+    client: &HarvClient,
+    format: &OutputFormat,
+) -> color_eyre::eyre::Result<()> {
     let config = HarvConfig::load().await?;
     if config.aliases.is_empty() {
-        println!("No aliases defined.\nUse `harv alias create <name>` to create one.");
+        println!("No aliases defined.\nUse `harv alias create` to create one.");
         return Ok(());
     }
-    let headers = ["Alias", "Project ID", "Task ID"];
+
+    let assignments = client.projects().my_assignments(false).await?;
+
+    let mut project_names: HashMap<u64, String> = HashMap::new();
+    let mut task_names: HashMap<u64, String> = HashMap::new();
+    for pa in &assignments {
+        project_names.insert(pa.project.id, pa.project.name.clone());
+        for ta in &pa.task_assignments {
+            task_names.insert(ta.task.id, ta.task.name.clone());
+        }
+    }
+
+    let headers = ["Alias", "Project", "Task"];
     let rows: Vec<[String; 3]> = config
         .aliases
         .iter()
-        .map(|(n, a)| [n.clone(), a.project_id.to_string(), a.task_id.to_string()])
+        .map(|(n, a)| {
+            [
+                n.clone(),
+                project_names
+                    .get(&a.project_id)
+                    .cloned()
+                    .unwrap_or_else(|| "—".into()),
+                task_names
+                    .get(&a.task_id)
+                    .cloned()
+                    .unwrap_or_else(|| "—".into()),
+            ]
+        })
         .collect();
     println!("{}", output::render(&headers, &rows, format));
     Ok(())
 }
 
 pub async fn list(format: &OutputFormat) -> color_eyre::eyre::Result<()> {
-    list_execute(format).await
+    let client = HarvClient::from_config_file().await?;
+    list_execute(&client, format).await
 }
 
 pub async fn delete_execute(name: &str) -> color_eyre::eyre::Result<()> {

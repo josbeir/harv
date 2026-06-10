@@ -3,6 +3,25 @@ use harv_core::{ProjectAssignment, Reference, TaskAssignment};
 use harv_sdk::HarvConfig;
 use inquire::{CustomType, Select, Text, validator::Validation};
 
+/// Prompt for an alias name (non-empty, no whitespace).
+pub fn prompt_alias_name() -> color_eyre::eyre::Result<String> {
+    let validator = |input: &str| {
+        if input.trim().is_empty() {
+            return Ok(Validation::Invalid("Alias name cannot be empty".into()));
+        }
+        if input.contains(char::is_whitespace) {
+            return Ok(Validation::Invalid(
+                "Alias name cannot contain spaces".into(),
+            ));
+        }
+        Ok(Validation::Valid)
+    };
+    Text::new("Alias name:")
+        .with_validator(validator)
+        .prompt()
+        .map_err(Into::into)
+}
+
 use crate::OutputFormat;
 
 /// Project choice for the prompt.
