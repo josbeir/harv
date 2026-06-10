@@ -654,14 +654,20 @@ impl App {
     }
 
     fn render_bottom_bar(&self, area: Rect, f: &mut Frame) {
-        let mut actions = vec![("n/t", "Entry"), ("s", "Start"), ("e", "Edit")];
+        let mut actions = vec![
+            ("h/l", "Day"),
+            ("g", "Pick"),
+            ("n/t", "New"),
+            ("s", "Start"),
+            ("e", "Edit"),
+        ];
 
         if self.current_view.timer_running() {
             actions.push(("x", "Stop"));
         }
 
-        actions.push(("d", "Delete"));
-        actions.push(("r", "Refresh"));
+        actions.push(("d", "Del"));
+        actions.push(("r", "Refr"));
         actions.push(("q", "Quit"));
         actions.push(("?", "Help"));
 
