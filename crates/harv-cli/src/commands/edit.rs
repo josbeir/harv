@@ -35,8 +35,8 @@ pub async fn execute(
         let running = client.time_entries().running(user.id).await?;
         pb.finish_and_clear();
 
-        if !running.is_empty() {
-            pick_entry(&running, "Which timer do you want to edit?")?
+        let picked_id = if !running.is_empty() {
+            pick_entry_id(&running, "Which timer do you want to edit?")?
         } else {
             let today = harv_core::datetime::today();
             let params = harv_sdk::resources::time_entries::TimeEntryListParams {
@@ -56,8 +56,17 @@ pub async fn execute(
                     "No entries to edit. Use `harv track` to create one."
                 ));
             }
-            pick_entry(&entries, "Which entry do you want to edit?")?
-        }
+            pick_entry_id(&entries, "Which entry do you want to edit?")?
+        };
+
+        let pb = spinner::new_spinner("Loading entry details...");
+        let entry = client
+            .time_entries()
+            .get(picked_id)
+            .await
+            .map_err(|e| color_eyre::eyre::eyre!(e.user_message()))?;
+        pb.finish_and_clear();
+        entry
     };
 
     let is_running = entry.is_running;
@@ -194,7 +203,7 @@ pub async fn execute(
             if updated.is_running {
                 "Running".into()
             } else {
-                "0.00h".into()
+                "—".into()
             }
         });
     let date_str = updated
@@ -214,18 +223,15 @@ pub async fn execute(
     Ok(())
 }
 
-fn pick_entry(
-    entries: &[harv_core::TimeEntry],
-    prompt: &str,
-) -> color_eyre::eyre::Result<harv_core::TimeEntry> {
+fn pick_entry_id(entries: &[harv_core::TimeEntry], prompt: &str) -> color_eyre::eyre::Result<u64> {
     if entries.len() == 1 {
-        return Ok(entries[0].clone());
+        return Ok(entries[0].id);
     }
     let items: Vec<String> = entries.iter().map(format_entry_line).collect();
     let items_str: Vec<&str> = items.iter().map(|s| s.as_str()).collect();
     let selection = inquire::Select::new(prompt, items_str.clone()).prompt()?;
     let idx = items_str.iter().position(|&s| s == selection).unwrap();
-    Ok(entries[idx].clone())
+    Ok(entries[idx].id)
 }
 
 fn format_entry_line(entry: &harv_core::TimeEntry) -> String {
@@ -236,7 +242,7 @@ fn format_entry_line(entry: &harv_core::TimeEntry) -> String {
             if entry.is_running {
                 "Running".into()
             } else {
-                "0.00h".into()
+                "—".into()
             }
         });
     format!(
