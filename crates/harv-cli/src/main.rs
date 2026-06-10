@@ -14,6 +14,7 @@ fn main() -> color_eyre::eyre::Result<()> {
             rt.block_on(async {
                 match cmd {
                     Commands::Connect => commands::connect::run().await?,
+                    Commands::Disconnect => commands::disconnect::run().await?,
                     Commands::Config(args) => commands::config_cmd::execute(&args).await?,
                     Commands::Track(args) => {
                         commands::track::run(

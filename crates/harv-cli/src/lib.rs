@@ -28,6 +28,8 @@ pub struct Cli {
 pub enum Commands {
     /// Authenticate with Harvest via OAuth2
     Connect,
+    /// Disconnect and remove stored credentials
+    Disconnect,
     /// Show or modify configuration
     Config(ConfigArgs),
     /// Interactive time entry wizard
