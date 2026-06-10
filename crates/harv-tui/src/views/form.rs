@@ -716,7 +716,14 @@ impl TimeEntryForm {
                 };
                 vec![]
             }
-            KeyCode::Enter => self.submit_entry(),
+            KeyCode::Enter => {
+                match self.active {
+                    Field::Date => self.active = Field::Hours,
+                    Field::Hours => self.active = Field::Notes,
+                    _ => return self.submit_entry(),
+                };
+                vec![]
+            }
             KeyCode::Backspace => {
                 self.active_text_field_mut().pop();
                 vec![]
