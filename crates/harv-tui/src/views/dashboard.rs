@@ -171,13 +171,10 @@ impl Dashboard {
                 let project = format!("{}{}", prefix, truncate_client_project(entry, avail));
                 let task = harv_core::text::truncate(&entry.task.name, task_max);
                 let hours = format_hours_cell(entry);
-                let notes = entry
-                    .notes
-                    .as_deref()
-                    .unwrap_or("")
-                    .chars()
-                    .take(notes_max.max(1))
-                    .collect::<String>();
+                let notes = harv_core::text::truncate(
+                    entry.notes.as_deref().unwrap_or(""),
+                    notes_max.max(1),
+                );
 
                 let row_style = if is_running {
                     Style::new().fg(theme.success)
