@@ -61,12 +61,20 @@ jobs:
           CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
         run: cargo build --release --target ${{ matrix.target }} -p harv-cli
 
-      - name: Package binary
+      - name: Package binary (tar.gz)
+        if: matrix.os != 'windows-latest'
         run: |
           cd target/${{ matrix.target }}/release
           tar -czf harv-${{ github.ref_name }}-${{ matrix.name }}.tar.gz harv${{ matrix.ext }}
+
+      - name: Package binary (zip)
+        if: matrix.os == 'windows-latest'
+        run: |
+          cd target/${{ matrix.target }}/release
+          7z a harv-${{ github.ref_name }}-${{ matrix.name }}.zip harv${{ matrix.ext }}
 
       - uses: softprops/action-gh-release@v2
         with:
           files: |
             target/${{ matrix.target }}/release/harv-${{ github.ref_name }}-${{ matrix.name }}.tar.gz
+            target/${{ matrix.target }}/release/harv-${{ github.ref_name }}-${{ matrix.name }}.zip
