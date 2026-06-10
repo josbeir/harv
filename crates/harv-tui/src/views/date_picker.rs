@@ -38,7 +38,7 @@ impl DatePicker {
             return;
         }
 
-        let popup_area = crate::popup::centered_rect_fixed(30, 12, area);
+        let popup_area = crate::popup::centered_rect_fixed(32, 12, area);
         f.render_widget(Clear, popup_area);
 
         let today = harv_core::datetime::today();
@@ -109,7 +109,7 @@ impl DatePicker {
         let table = Table::new(day_rows, [Constraint::Length(3); 7])
             .header(header)
             .block(block)
-            .column_spacing(0);
+            .column_spacing(1);
 
         f.render_widget(table, popup_area);
     }
