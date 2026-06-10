@@ -260,7 +260,7 @@ impl App {
                 notes,
             } => {
                 let View::Dashboard(d) = &mut self.current_view;
-                d.set_loading("Submitting...");
+                d.set_loading("Creating entry...");
 
                 // Save last used project/task to config
                 {
@@ -302,7 +302,7 @@ impl App {
                 notes,
             } => {
                 let View::Dashboard(d) = &mut self.current_view;
-                d.set_loading("Submitting...");
+                d.set_loading("Saving changes...");
 
                 {
                     let mut config = self.client.config().clone();
@@ -343,7 +343,7 @@ impl App {
             }
             Action::Refresh => {
                 let View::Dashboard(d) = &mut self.current_view;
-                d.set_loading("Refreshing...");
+                d.set_loading("Refreshing entries...");
                 self.fetch_dashboard_data(tx, true);
             }
             Action::RefreshEntries => {
@@ -373,7 +373,7 @@ impl App {
             }
             Action::StopTimer { entry_id } => {
                 let View::Dashboard(d) = &mut self.current_view;
-                d.set_loading("Stopping...");
+                d.set_loading("Stopping timer...");
                 let client = Arc::clone(&self.client);
                 let tx = tx.clone();
                 tokio::spawn(async move {
@@ -385,7 +385,7 @@ impl App {
             }
             Action::DeleteEntry { entry_id } => {
                 let View::Dashboard(d) = &mut self.current_view;
-                d.set_loading("Deleting...");
+                d.set_loading("Deleting entry...");
                 let client = Arc::clone(&self.client);
                 let tx = tx.clone();
                 tokio::spawn(async move {
@@ -421,6 +421,8 @@ impl App {
                 ));
             }
             Action::StopAndStartNew { entry_id } => {
+                let View::Dashboard(d) = &mut self.current_view;
+                d.set_loading("Stopping timer...");
                 let client = Arc::clone(&self.client);
                 let tx = tx.clone();
                 tokio::spawn(async move {
