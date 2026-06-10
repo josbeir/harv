@@ -32,15 +32,8 @@ pub async fn execute(client: &HarvClient, output: &OutputFormat) -> color_eyre::
                 let hours = cap as f64 / 3600.0;
                 println!("  {:<20} {:.0}h", "Weekly capacity:", hours);
             }
-            if let Some(is_admin) = user.is_admin {
-                println!("  {:<20} {}", "Admin:", if is_admin { "yes" } else { "no" });
-            }
-            if let Some(is_pm) = user.is_project_manager {
-                println!(
-                    "  {:<20} {}",
-                    "Project manager:",
-                    if is_pm { "yes" } else { "no" }
-                );
+            if let Some(ref roles) = user.access_roles {
+                println!("  {:<20} {}", "Access roles:", roles.join(", "));
             }
             if let Some(ref company) = company {
                 println!("  {:<20} {}", "Company:", company.name);
@@ -56,8 +49,7 @@ pub async fn execute(client: &HarvClient, output: &OutputFormat) -> color_eyre::
                 "is_active": user.is_active,
                 "timezone": user.timezone,
                 "weekly_capacity": user.weekly_capacity,
-                "is_admin": user.is_admin,
-                "is_project_manager": user.is_project_manager,
+                "access_roles": user.access_roles,
                 "company": company.as_ref().map(|c| &c.name),
             });
             println!("{}", serde_json::to_string_pretty(&json)?);

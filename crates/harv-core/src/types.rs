@@ -121,8 +121,7 @@ pub struct User {
     pub updated_at: Option<DateTime<Utc>>,
     pub timezone: Option<String>,
     pub weekly_capacity: Option<u64>,
-    pub is_admin: Option<bool>,
-    pub is_project_manager: Option<bool>,
+    pub access_roles: Option<Vec<String>>,
 }
 
 /// A Harvest client.
@@ -339,14 +338,15 @@ mod tests {
             "updated_at": null,
             "timezone": "America/New_York",
             "weekly_capacity": 144000,
-            "is_admin": true,
-            "is_project_manager": false
+            "access_roles": ["administrator", "project_creator"]
         }"#;
         let user: User = serde_json::from_str(json).unwrap();
         assert_eq!(user.timezone, Some("America/New_York".into()));
         assert_eq!(user.weekly_capacity, Some(144000));
-        assert_eq!(user.is_admin, Some(true));
-        assert_eq!(user.is_project_manager, Some(false));
+        assert_eq!(
+            user.access_roles,
+            Some(vec!["administrator".into(), "project_creator".into()])
+        );
     }
 
     #[test]
@@ -363,8 +363,7 @@ mod tests {
         let user: User = serde_json::from_str(json).unwrap();
         assert_eq!(user.timezone, None);
         assert_eq!(user.weekly_capacity, None);
-        assert_eq!(user.is_admin, None);
-        assert_eq!(user.is_project_manager, None);
+        assert_eq!(user.access_roles, None);
     }
 
     #[test]

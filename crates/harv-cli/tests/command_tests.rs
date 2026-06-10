@@ -52,7 +52,7 @@ fn project_assignments_json() -> serde_json::Value {
 }
 
 fn user_json() -> serde_json::Value {
-    json!({"id": 1, "first_name": "Test", "last_name": "User", "email": "test@test.com", "is_active": true, "created_at": null, "updated_at": null})
+    json!({"id": 1, "first_name": "Test", "last_name": "User", "email": "test@test.com", "is_active": true, "created_at": null, "updated_at": null, "access_roles": ["member"]})
 }
 
 // --- Projects command ---
