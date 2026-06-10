@@ -14,6 +14,7 @@ pub async fn execute(
     date: Option<String>,
     refresh: bool,
     alias: Option<String>,
+    is_start: bool,
 ) -> color_eyre::eyre::Result<()> {
     let config = client.config().clone();
 
@@ -79,12 +80,16 @@ pub async fn execute(
     let spent_date = if let Some(ref d) = date {
         harv_core::datetime::parse_date_not_future(d)
             .map_err(|e| color_eyre::eyre::eyre!(e.user_message()))?
-    } else {
+    } else if !is_start {
         let today = harv_core::datetime::today();
         prompts::ask_date(today)?
+    } else {
+        harv_core::datetime::today()
     };
 
-    let resolved_hours = if hours.is_some() {
+    let resolved_hours = if is_start {
+        None
+    } else if hours.is_some() {
         hours
     } else if date.is_none() && alias.is_none() && project_id.is_none() && task_id.is_none() {
         prompts::ask_hours()?
@@ -162,7 +167,7 @@ pub async fn run(
 ) -> color_eyre::eyre::Result<()> {
     let client = HarvClient::from_config_file().await?;
     execute(
-        &client, project_id, task_id, hours, notes, editor, date, refresh, alias,
+        &client, project_id, task_id, hours, notes, editor, date, refresh, alias, false,
     )
     .await
 }

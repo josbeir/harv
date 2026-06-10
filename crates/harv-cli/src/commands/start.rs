@@ -13,7 +13,7 @@ pub async fn execute(
     refresh: bool,
 ) -> color_eyre::eyre::Result<()> {
     track::execute(
-        client, project_id, task_id, None, notes, editor, date, refresh, alias,
+        client, project_id, task_id, None, notes, editor, date, refresh, alias, true,
     )
     .await
 }

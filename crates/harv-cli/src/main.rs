@@ -53,19 +53,6 @@ fn main() -> color_eyre::eyre::Result<()> {
                     Commands::Stop(args) => {
                         commands::stop::run(args.notes, args.overwrite, args.editor).await?
                     }
-                    Commands::Log(args) => {
-                        commands::log::run(
-                            args.hours,
-                            args.alias,
-                            args.project_id,
-                            args.task_id,
-                            args.notes,
-                            args.editor,
-                            args.date,
-                            args.refresh,
-                        )
-                        .await?
-                    }
                     Commands::Note(args) => {
                         commands::note::run(args.notes, args.overwrite, args.editor).await?
                     }

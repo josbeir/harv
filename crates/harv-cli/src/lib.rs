@@ -33,13 +33,12 @@ pub enum Commands {
     /// Show or modify configuration
     Config(ConfigArgs),
     /// Interactive time entry wizard
+    #[command(visible_alias = "log")]
     Track(TrackArgs),
     /// Start a running timer
     Start(StartArgs),
     /// Stop the current running timer
     Stop(StopArgs),
-    /// Log time with specified hours
-    Log(LogArgs),
     /// Edit notes on the running timer
     Note(NoteArgs),
     /// Show current timer status and today's entries
@@ -115,25 +114,6 @@ pub struct StopArgs {
     pub overwrite: bool,
     #[arg(short = 'e', long)]
     pub editor: bool,
-}
-
-#[derive(clap::Args, Clone, Debug)]
-pub struct LogArgs {
-    #[arg(value_parser = parse_hours_arg)]
-    pub hours: f64,
-    #[arg(short = 'p', long)]
-    pub project_id: Option<u64>,
-    #[arg(short = 't', long)]
-    pub task_id: Option<u64>,
-    #[arg(short = 'n', long)]
-    pub notes: Option<String>,
-    #[arg(short = 'e', long)]
-    pub editor: bool,
-    #[arg(short = 'd', long)]
-    pub date: Option<String>,
-    #[arg(short = 'R', long)]
-    pub refresh: bool,
-    pub alias: Option<String>,
 }
 
 #[derive(clap::Args, Clone, Debug)]
