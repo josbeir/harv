@@ -186,7 +186,115 @@ pub fn ask_notes(use_editor: bool) -> color_eyre::eyre::Result<Option<String>> {
     Ok(notes)
 }
 
-/// Format a time entry confirmation message.
+/// Interactive prompt to select a project, pre-selecting a default.
+/// Returns (project_id, task_assignments).
+pub fn pick_project_with_default(
+    choices: &[ProjectChoice],
+    default_project_id: u64,
+) -> color_eyre::eyre::Result<(u64, Vec<TaskAssignment>)> {
+    let choice_items: Vec<&str> = choices.iter().map(|c| c.display.as_str()).collect();
+    let starting = choices
+        .iter()
+        .position(|c| c.project_id == default_project_id)
+        .unwrap_or(0);
+    let selection = Select::new("Project:", choice_items.clone())
+        .with_starting_cursor(starting)
+        .prompt()?;
+
+    let idx = choice_items
+        .iter()
+        .position(|&c| c == selection)
+        .expect("selected item should exist");
+    Ok((
+        choices[idx].project_id,
+        choices[idx].task_assignments.clone(),
+    ))
+}
+
+/// Interactive prompt to select a task, pre-selecting a default.
+pub fn pick_task_with_default(
+    task_assignments: &[TaskAssignment],
+    default_task_id: u64,
+) -> color_eyre::eyre::Result<TaskAssignment> {
+    let items: Vec<&str> = task_assignments
+        .iter()
+        .map(|t| t.task.name.as_str())
+        .collect();
+    let starting = items
+        .iter()
+        .position(|&name| {
+            task_assignments
+                .iter()
+                .any(|t| t.task.name == name && t.task.id == default_task_id)
+        })
+        .unwrap_or(0);
+    let selection = Select::new("Task:", items.clone())
+        .with_starting_cursor(starting)
+        .prompt()?;
+
+    let idx = items
+        .iter()
+        .position(|&c| c == selection)
+        .expect("selected item should exist");
+    Ok(task_assignments[idx].clone())
+}
+
+/// Prompt for a date with a specific default, skippable (returns None to keep current).
+pub fn ask_date_with_default(default: NaiveDate) -> color_eyre::eyre::Result<Option<NaiveDate>> {
+    let default_str = default.format("%Y-%m-%d").to_string();
+    let validator = |input: &str| {
+        if input.is_empty() {
+            return Ok(Validation::Valid);
+        }
+        match NaiveDate::parse_from_str(input, "%Y-%m-%d") {
+            Ok(d) if d <= harv_core::datetime::today() => Ok(Validation::Valid),
+            Ok(_) => Ok(Validation::Invalid("Date cannot be in the future".into())),
+            Err(_) => Ok(Validation::Invalid(
+                "Invalid date format (YYYY-MM-DD)".into(),
+            )),
+        }
+    };
+
+    let input = Text::new("Date (empty to keep current):")
+        .with_default(&default_str)
+        .with_validator(validator)
+        .prompt()?;
+
+    if input.is_empty() || input == default_str {
+        return Ok(None);
+    }
+    NaiveDate::parse_from_str(&input, "%Y-%m-%d")
+        .map(Some)
+        .map_err(|_| color_eyre::eyre::eyre!("Invalid date: {}", input))
+}
+
+/// Prompt for hours with the current value as default.
+/// Returns None to keep existing hours, Some(0.0) to clear, Some(h) to change.
+pub fn ask_hours_with_default(current: Option<f64>) -> color_eyre::eyre::Result<Option<f64>> {
+    let default_str = current.map(|h| format!("{:.2}", h)).unwrap_or_default();
+    let input = CustomType::<String>::new("Hours (empty to keep, 0 to clear):")
+        .with_default(default_str.clone())
+        .with_validator(|input: &String| {
+            if input.is_empty() {
+                return Ok(Validation::Valid);
+            }
+            match harv_core::datetime::parse_hours(input) {
+                Ok(h) if h >= 0.0 => Ok(Validation::Valid),
+                Ok(_) => Ok(Validation::Invalid("Hours must be non-negative".into())),
+                Err(e) => Ok(Validation::Invalid(
+                    inquire::validator::ErrorMessage::Custom(e),
+                )),
+            }
+        })
+        .prompt()?;
+
+    if input.is_empty() || input == default_str {
+        return Ok(None);
+    }
+    let h =
+        harv_core::datetime::parse_hours(&input).map_err(|e| color_eyre::eyre::eyre!("{}", e))?;
+    Ok(Some(h))
+}
 pub fn format_entry_confirmation(
     hours: Option<f64>,
     project: &Reference,

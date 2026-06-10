@@ -949,3 +949,282 @@ async fn test_disconnect_with_config() {
     assert!(!config_path.exists());
     assert!(!cache_path.exists());
 }
+
+// --- harv edit tests ---
+
+fn stopped_entry_json(id: u64, hours: f64) -> serde_json::Value {
+    json!({
+        "id": id, "is_running": false, "hours": hours,
+        "spent_date": "2026-06-08",
+        "project": {"id": 100, "name": "Test Project"},
+        "task": {"id": 200, "name": "Development"},
+        "user": {"id": 1, "name": "Test User"},
+        "client": null,
+        "is_billed": false, "billable": true, "billable_rate": null, "cost_rate": null,
+        "created_at": null, "updated_at": null,
+        "timer_started_at": null, "started_time": null, "ended_time": null,
+        "notes": null
+    })
+}
+
+fn running_entry_json(id: u64) -> serde_json::Value {
+    json!({
+        "id": id, "is_running": true, "hours": null,
+        "spent_date": null,
+        "timer_started_at": "2026-06-08T14:00:00Z",
+        "project": {"id": 100, "name": "Test Project"},
+        "task": {"id": 200, "name": "Development"},
+        "user": {"id": 1, "name": "Test User"},
+        "client": null,
+        "is_billed": false, "billable": true, "billable_rate": null, "cost_rate": null,
+        "created_at": null, "updated_at": null,
+        "started_time": null, "ended_time": null,
+        "notes": null
+    })
+}
+
+#[tokio::test]
+async fn test_edit_non_interactive_with_entry_id() {
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+
+    Mock::given(method("GET"))
+        .and(path("/users/me"))
+        .respond_with(json_response(user_json()))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/time_entries/1"))
+        .respond_with(json_response(stopped_entry_json(1, 1.0)))
+        .mount(&server)
+        .await;
+    Mock::given(method("PATCH"))
+        .and(path("/time_entries/1"))
+        .respond_with(json_response(stopped_entry_json(1, 2.5)))
+        .mount(&server)
+        .await;
+
+    commands::edit::execute(
+        &c,
+        Some(1),
+        Some(100),
+        Some(201),
+        Some(2.5),
+        Some("revised".into()),
+        false,
+        false,
+        None,
+        false,
+    )
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn test_edit_running_entry_rejects_hours() {
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+
+    Mock::given(method("GET"))
+        .and(path("/users/me"))
+        .respond_with(json_response(user_json()))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/time_entries/1"))
+        .respond_with(json_response(running_entry_json(1)))
+        .mount(&server)
+        .await;
+
+    let result = commands::edit::execute(
+        &c,
+        Some(1),
+        None,
+        None,
+        Some(2.0),
+        None,
+        false,
+        false,
+        None,
+        false,
+    )
+    .await;
+    assert!(result.is_err());
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("Cannot change hours")
+    );
+}
+
+#[tokio::test]
+async fn test_edit_running_entry_rejects_date() {
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+
+    Mock::given(method("GET"))
+        .and(path("/users/me"))
+        .respond_with(json_response(user_json()))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/time_entries/1"))
+        .respond_with(json_response(running_entry_json(1)))
+        .mount(&server)
+        .await;
+
+    let result = commands::edit::execute(
+        &c,
+        Some(1),
+        None,
+        None,
+        None,
+        None,
+        false,
+        false,
+        Some("2026-06-09".into()),
+        false,
+    )
+    .await;
+    assert!(result.is_err());
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("Cannot change the date")
+    );
+}
+
+#[tokio::test]
+async fn test_edit_running_entry_allows_notes() {
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+
+    let updated = json!({
+        "id": 1, "is_running": true, "hours": null,
+        "timer_started_at": "2026-06-08T14:00:00Z",
+        "spent_date": null,
+        "project": {"id": 100, "name": "Test Project"},
+        "task": {"id": 200, "name": "Development"},
+        "user": {"id": 1, "name": "Test User"},
+        "client": null, "notes": "added note",
+        "is_billed": false, "billable": true, "billable_rate": null, "cost_rate": null,
+        "created_at": null, "updated_at": null,
+        "started_time": null, "ended_time": null
+    });
+
+    Mock::given(method("GET"))
+        .and(path("/users/me"))
+        .respond_with(json_response(user_json()))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/time_entries/1"))
+        .respond_with(json_response(running_entry_json(1)))
+        .mount(&server)
+        .await;
+    Mock::given(method("PATCH"))
+        .and(path("/time_entries/1"))
+        .respond_with(json_response(updated))
+        .mount(&server)
+        .await;
+
+    commands::edit::execute(
+        &c,
+        Some(1),
+        None,
+        None,
+        None,
+        Some("added note".into()),
+        false,
+        false,
+        None,
+        false,
+    )
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn test_edit_confirmation_falls_back_to_submitted_hours() {
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+
+    // PATCH response omits hours (API may do this for unchanged fields)
+    let patch_response = json!({
+        "id": 1, "is_running": false, "hours": null,
+        "spent_date": "2026-06-08",
+        "project": {"id": 100, "name": "Test Project"},
+        "task": {"id": 200, "name": "Development"},
+        "user": {"id": 1, "name": "Test User"},
+        "client": null, "notes": null,
+        "is_billed": false, "billable": true, "billable_rate": null, "cost_rate": null,
+        "created_at": null, "updated_at": null,
+        "timer_started_at": null, "started_time": null, "ended_time": null
+    });
+
+    Mock::given(method("GET"))
+        .and(path("/users/me"))
+        .respond_with(json_response(user_json()))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/time_entries/1"))
+        .respond_with(json_response(stopped_entry_json(1, 1.5)))
+        .mount(&server)
+        .await;
+    Mock::given(method("PATCH"))
+        .and(path("/time_entries/1"))
+        .respond_with(json_response(patch_response))
+        .mount(&server)
+        .await;
+
+    // Should not panic — falls back to submitted entry.hours
+    commands::edit::execute(
+        &c,
+        Some(1),
+        Some(100),
+        None,
+        None,
+        None,
+        false,
+        false,
+        None,
+        false,
+    )
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn test_edit_entry_not_found() {
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+
+    Mock::given(method("GET"))
+        .and(path("/users/me"))
+        .respond_with(json_response(user_json()))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/time_entries/999"))
+        .respond_with(ResponseTemplate::new(404).set_body_string("Not Found"))
+        .mount(&server)
+        .await;
+
+    let result = commands::edit::execute(
+        &c,
+        Some(999),
+        None,
+        None,
+        None,
+        None,
+        false,
+        false,
+        None,
+        false,
+    )
+    .await;
+    assert!(result.is_err());
+}

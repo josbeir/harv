@@ -132,3 +132,34 @@ fn test_completion_allowed_without_config() {
         .assert()
         .success();
 }
+
+#[test]
+fn test_edit_help() {
+    let mut cmd = Command::cargo_bin("harv").unwrap();
+    cmd.arg("edit")
+        .arg("--help")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Edit an existing time entry"))
+        .stdout(predicate::str::contains("[ENTRY_ID]"))
+        .stdout(predicate::str::contains("--project-id"))
+        .stdout(predicate::str::contains("--task-id"))
+        .stdout(predicate::str::contains("--hours"))
+        .stdout(predicate::str::contains("--notes"))
+        .stdout(predicate::str::contains("--date"))
+        .stdout(predicate::str::contains("--editor"))
+        .stdout(predicate::str::contains("--overwrite"))
+        .stdout(predicate::str::contains("--refresh"));
+}
+
+#[test]
+fn test_edit_requires_auth() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut cmd = Command::cargo_bin("harv").unwrap();
+    cmd.arg("edit")
+        .env("XDG_CONFIG_HOME", temp.path())
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("Not authenticated"))
+        .stderr(predicate::str::contains("harv connect"));
+}
