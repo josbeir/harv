@@ -219,6 +219,7 @@ impl App {
                 entry_date,
                 entry_hours,
                 entry_notes,
+                is_running,
             } => {
                 let pid = last_project_id.or(self.client.config().last_project_id);
                 let tid = last_task_id.or(self.client.config().last_task_id);
@@ -231,6 +232,7 @@ impl App {
                     entry_date,
                     entry_hours,
                     entry_notes,
+                    is_running,
                 );
                 self.form = Some(form);
 
@@ -259,6 +261,9 @@ impl App {
                 hours,
                 notes,
             } => {
+                let View::Dashboard(d) = &mut self.current_view;
+                d.set_loading("Creating entry...");
+
                 // Save last used project/task to config
                 {
                     let mut config = self.client.config().clone();
@@ -287,7 +292,7 @@ impl App {
                     if let Err(e) = client.time_entries().create(&entry).await {
                         let _ = tx.send(Action::Error(e.user_message()));
                     }
-                    let _ = tx.send(Action::Refresh);
+                    let _ = tx.send(Action::RefreshEntries);
                 });
             }
             Action::EditEntry {
@@ -298,6 +303,9 @@ impl App {
                 hours,
                 notes,
             } => {
+                let View::Dashboard(d) = &mut self.current_view;
+                d.set_loading("Saving changes...");
+
                 {
                     let mut config = self.client.config().clone();
                     config.set_last_used(project_id, task_id);
@@ -324,7 +332,7 @@ impl App {
                     if let Err(e) = client.time_entries().update(entry_id, &update).await {
                         let _ = tx.send(Action::Error(e.user_message()));
                     }
-                    let _ = tx.send(Action::Refresh);
+                    let _ = tx.send(Action::RefreshEntries);
                 });
             }
             Action::TimerUpdate(entries) => {
@@ -337,8 +345,11 @@ impl App {
             }
             Action::Refresh => {
                 let View::Dashboard(d) = &mut self.current_view;
-                d.set_loading("Refreshing...");
+                d.set_loading("Syncing with Harvest...");
                 self.fetch_dashboard_data(tx, true);
+            }
+            Action::RefreshEntries => {
+                self.fetch_entries(tx);
             }
             Action::StartTimer {
                 project_id,
@@ -359,26 +370,30 @@ impl App {
                     if let Err(e) = client.time_entries().create(&entry).await {
                         let _ = tx.send(Action::Error(e.user_message()));
                     }
-                    let _ = tx.send(Action::Refresh);
+                    let _ = tx.send(Action::RefreshEntries);
                 });
             }
             Action::StopTimer { entry_id } => {
+                let View::Dashboard(d) = &mut self.current_view;
+                d.set_loading("Stopping timer...");
                 let client = Arc::clone(&self.client);
                 let tx = tx.clone();
                 tokio::spawn(async move {
                     if let Err(e) = client.time_entries().stop(entry_id).await {
                         let _ = tx.send(Action::Error(e.user_message()));
                     }
-                    let _ = tx.send(Action::Refresh);
+                    let _ = tx.send(Action::RefreshEntries);
                 });
             }
             Action::DeleteEntry { entry_id } => {
+                let View::Dashboard(d) = &mut self.current_view;
+                d.set_loading("Deleting entry...");
                 let client = Arc::clone(&self.client);
                 let tx = tx.clone();
                 tokio::spawn(async move {
                     match client.time_entries().delete(entry_id).await {
                         Ok(()) => {
-                            let _ = tx.send(Action::Refresh);
+                            let _ = tx.send(Action::RefreshEntries);
                         }
                         Err(e) => {
                             let _ = tx.send(Action::Error(e.user_message()));
@@ -408,6 +423,8 @@ impl App {
                 ));
             }
             Action::StopAndStartNew { entry_id } => {
+                let View::Dashboard(d) = &mut self.current_view;
+                d.set_loading("Stopping timer...");
                 let client = Arc::clone(&self.client);
                 let tx = tx.clone();
                 tokio::spawn(async move {
@@ -421,8 +438,9 @@ impl App {
                         entry_date: None,
                         entry_hours: None,
                         entry_notes: None,
+                        is_running: false,
                     });
-                    let _ = tx.send(Action::Refresh);
+                    let _ = tx.send(Action::RefreshEntries);
                 });
             }
             Action::Error(msg) => {
@@ -461,6 +479,38 @@ impl App {
             });
 
             match entries_result {
+                Ok(entries) => {
+                    let total: f64 = entries.iter().filter_map(|e| e.hours).sum();
+                    let _ = tx.send(Action::TodayEntriesUpdate(entries, total));
+                }
+                Err(e) => {
+                    let _ = tx.send(Action::Error(e.user_message()));
+                }
+            }
+        });
+    }
+
+    fn fetch_entries(&self, tx: &UnboundedSender<Action>) {
+        let user_id = self.user_id;
+        if user_id == 0 {
+            return;
+        }
+
+        let client = Arc::clone(&self.client);
+        let tx = tx.clone();
+
+        tokio::spawn(async move {
+            use harv_sdk::resources::time_entries::TimeEntryListParams;
+
+            let today = harv_core::datetime::today();
+            let params = TimeEntryListParams {
+                user_id: Some(user_id),
+                from: Some(today),
+                to: Some(today),
+                ..Default::default()
+            };
+
+            match client.time_entries().list(&params).await {
                 Ok(entries) => {
                     let total: f64 = entries.iter().filter_map(|e| e.hours).sum();
                     let _ = tx.send(Action::TodayEntriesUpdate(entries, total));

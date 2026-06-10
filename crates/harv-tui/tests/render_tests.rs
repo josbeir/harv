@@ -76,7 +76,17 @@ fn test_dashboard_render_empty() {
 
 #[test]
 fn test_form_render_start_mode() {
-    let mut f = TimeEntryForm::new(None, None, None, FormMode::Start, None, None, None, None);
+    let mut f = TimeEntryForm::new(
+        None,
+        None,
+        None,
+        FormMode::Start,
+        None,
+        None,
+        None,
+        None,
+        false,
+    );
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal
@@ -86,7 +96,17 @@ fn test_form_render_start_mode() {
 
 #[test]
 fn test_form_render_create_mode() {
-    let mut f = TimeEntryForm::new(None, None, None, FormMode::Create, None, None, None, None);
+    let mut f = TimeEntryForm::new(
+        None,
+        None,
+        None,
+        FormMode::Create,
+        None,
+        None,
+        None,
+        None,
+        false,
+    );
     let backend = TestBackend::new(80, 30);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal
@@ -96,7 +116,17 @@ fn test_form_render_create_mode() {
 
 #[test]
 fn test_form_render_loading() {
-    let mut f = TimeEntryForm::new(None, None, None, FormMode::Start, None, None, None, None);
+    let mut f = TimeEntryForm::new(
+        None,
+        None,
+        None,
+        FormMode::Start,
+        None,
+        None,
+        None,
+        None,
+        false,
+    );
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal
@@ -159,7 +189,17 @@ fn test_action_theme_changed() {
 
 #[test]
 fn test_form_start_mode_shows_project_label() {
-    let mut f = TimeEntryForm::new(None, None, None, FormMode::Start, None, None, None, None);
+    let mut f = TimeEntryForm::new(
+        None,
+        None,
+        None,
+        FormMode::Start,
+        None,
+        None,
+        None,
+        None,
+        false,
+    );
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal
@@ -186,6 +226,7 @@ fn test_form_log_mode_shows_more_fields() {
         Some("2026-06-09".into()),
         Some("1.5".into()),
         None,
+        false,
     );
     let backend = TestBackend::new(80, 30);
     let mut terminal = Terminal::new(backend).unwrap();
@@ -199,4 +240,56 @@ fn test_form_log_mode_shows_more_fields() {
             .any(|x| !buffer[(x, y)].symbol().is_empty() && buffer[(x, y)].symbol() != " ")
     });
     assert!(has_content, "Edit form should render visible content");
+}
+
+#[test]
+fn test_form_render_edit_running_mode() {
+    let mut f = TimeEntryForm::new(
+        Some(10),
+        Some(20),
+        Some("Project".into()),
+        FormMode::Edit,
+        Some(42),
+        Some("2026-06-09".into()),
+        None,
+        None,
+        true,
+    );
+    let backend = TestBackend::new(80, 24);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| f.render(frame.area(), frame, &Theme::dark(), 0))
+        .unwrap();
+
+    let buffer = terminal.backend().buffer();
+    let has_content = (0..buffer.area().height).any(|y| {
+        (0..buffer.area().width)
+            .any(|x| !buffer[(x, y)].symbol().is_empty() && buffer[(x, y)].symbol() != " ")
+    });
+    assert!(
+        has_content,
+        "Edit running form should render visible content"
+    );
+
+    // Running edit form should NOT show Date or Hours fields
+    let buffer_str = (0..buffer.area().height)
+        .map(|y| {
+            (0..buffer.area().width)
+                .map(|x| buffer[(x, y)].symbol())
+                .collect::<String>()
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !buffer_str.contains("Date"),
+        "Running edit form should not show Date field"
+    );
+    assert!(
+        !buffer_str.contains("Hours"),
+        "Running edit form should not show Hours field"
+    );
+    assert!(
+        buffer_str.contains("Enter: save"),
+        "Running edit form should show 'Enter: save' help"
+    );
 }

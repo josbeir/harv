@@ -12,6 +12,7 @@ pub enum Action {
     NavigateDown,
     Select,
     Refresh,
+    RefreshEntries,
     TimerUpdate(Vec<TimeEntry>),
     TodayEntriesUpdate(Vec<TimeEntry>, f64),
     UserLoaded(User),
@@ -24,6 +25,7 @@ pub enum Action {
         entry_date: Option<String>,
         entry_hours: Option<String>,
         entry_notes: Option<String>,
+        is_running: bool,
     },
     FormAssignmentsUpdate(Vec<ProjectAssignment>),
     CreateEntry {
@@ -106,6 +108,7 @@ mod tests {
             entry_date: None,
             entry_hours: None,
             entry_notes: None,
+            is_running: false,
         };
         assert!(matches!(
             action,

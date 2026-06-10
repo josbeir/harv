@@ -29,14 +29,22 @@ pub fn render_harv_loading(area: Rect, f: &mut Frame, tick: u64, msg: &str, them
 
     let mut lines: Vec<Line> = Vec::new();
 
-    for i in 0..4 {
-        let (r, g, b) = SHADES[(offset + i) % 4];
-        lines.push(Line::from(Span::styled(
-            ASCII[i].to_string(),
-            Style::new()
-                .fg(Color::Rgb(r, g, b))
-                .add_modifier(Modifier::BOLD),
-        )));
+    for (i, line) in ASCII.iter().enumerate() {
+        let spans: Vec<Span> = line
+            .chars()
+            .enumerate()
+            .map(|(j, ch)| {
+                let shade_idx = (offset + i + (j / 3)) % 4;
+                let (r, g, b) = SHADES[shade_idx];
+                Span::styled(
+                    ch.to_string(),
+                    Style::new()
+                        .fg(Color::Rgb(r, g, b))
+                        .add_modifier(Modifier::BOLD),
+                )
+            })
+            .collect();
+        lines.push(Line::from(spans));
     }
 
     let version_color = match theme.mode {
