@@ -503,13 +503,18 @@ fn render_harv_header(area: Rect, f: &mut Frame, theme: &Theme, date: NaiveDate)
     }
 
     lines.push(Line::from(vec![
+        Span::styled(" ".repeat(pad), Style::default()),
         Span::styled(
-            format!("{}{}", " ".repeat(pad), "HARV CLI"),
+            "HARV CLI",
             Style::new()
                 .fg(Color::Rgb(250, 93, 0))
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(format!(" v{}", version), Style::new().fg(version_color)),
+        Span::styled(
+            " ".repeat(21usize.saturating_sub(version_text.len() + pad)),
+            Style::default(),
+        ),
     ]));
     let empty_msg = if date == harv_core::datetime::today() {
         "No entries today. Press n to start tracking!".to_string()
