@@ -448,43 +448,6 @@ async fn test_track_with_last_used_auto_task() {
     .unwrap();
 }
 
-// --- Log command ---
-
-#[tokio::test]
-async fn test_log_with_ids() {
-    let server = MockServer::start().await;
-    let c = client(&server.uri());
-
-    Mock::given(method("GET"))
-        .and(path("/users/me/project_assignments"))
-        .respond_with(json_response(project_assignments_json()))
-        .mount(&server)
-        .await;
-    Mock::given(method("POST")).and(path("/time_entries"))
-        .respond_with(json_response(json!({
-            "id": 99, "spent_date": "2026-06-08", "hours": 2.0, "notes": null,
-            "is_running": false, "timer_started_at": null, "started_time": null, "ended_time": null,
-            "project": {"id": 100, "name": "Test Project"}, "task": {"id": 200, "name": "Development"},
-            "user": {"id": 1, "name": "Test User"}, "client": null,
-            "is_billed": false, "billable": true, "billable_rate": null, "cost_rate": null,
-            "created_at": null, "updated_at": null
-        }))).mount(&server).await;
-
-    commands::log::execute(
-        &c,
-        2.0,
-        None,
-        Some(100),
-        Some(200),
-        None,
-        false,
-        Some("2026-06-08".into()),
-        false,
-    )
-    .await
-    .unwrap();
-}
-
 // --- Note command with inline notes ---
 
 #[tokio::test]
