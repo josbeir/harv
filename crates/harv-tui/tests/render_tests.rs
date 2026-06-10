@@ -76,7 +76,17 @@ fn test_dashboard_render_empty() {
 
 #[test]
 fn test_form_render_start_mode() {
-    let mut f = TimeEntryForm::new(None, None, None, FormMode::Start, None, None, None, None);
+    let mut f = TimeEntryForm::new(
+        None,
+        None,
+        None,
+        FormMode::Start,
+        None,
+        None,
+        None,
+        None,
+        false,
+    );
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal
@@ -86,7 +96,17 @@ fn test_form_render_start_mode() {
 
 #[test]
 fn test_form_render_create_mode() {
-    let mut f = TimeEntryForm::new(None, None, None, FormMode::Create, None, None, None, None);
+    let mut f = TimeEntryForm::new(
+        None,
+        None,
+        None,
+        FormMode::Create,
+        None,
+        None,
+        None,
+        None,
+        false,
+    );
     let backend = TestBackend::new(80, 30);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal
@@ -96,7 +116,17 @@ fn test_form_render_create_mode() {
 
 #[test]
 fn test_form_render_loading() {
-    let mut f = TimeEntryForm::new(None, None, None, FormMode::Start, None, None, None, None);
+    let mut f = TimeEntryForm::new(
+        None,
+        None,
+        None,
+        FormMode::Start,
+        None,
+        None,
+        None,
+        None,
+        false,
+    );
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal
@@ -159,7 +189,17 @@ fn test_action_theme_changed() {
 
 #[test]
 fn test_form_start_mode_shows_project_label() {
-    let mut f = TimeEntryForm::new(None, None, None, FormMode::Start, None, None, None, None);
+    let mut f = TimeEntryForm::new(
+        None,
+        None,
+        None,
+        FormMode::Start,
+        None,
+        None,
+        None,
+        None,
+        false,
+    );
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal
@@ -186,6 +226,7 @@ fn test_form_log_mode_shows_more_fields() {
         Some("2026-06-09".into()),
         Some("1.5".into()),
         None,
+        false,
     );
     let backend = TestBackend::new(80, 30);
     let mut terminal = Terminal::new(backend).unwrap();

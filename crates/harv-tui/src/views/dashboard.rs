@@ -293,6 +293,7 @@ impl Dashboard {
                         entry_date: None,
                         entry_hours: None,
                         entry_notes: None,
+                        is_running: false,
                     }]
                 }
             }
@@ -341,6 +342,7 @@ impl Dashboard {
                         entry_date: Some(date),
                         entry_hours: hours,
                         entry_notes: notes,
+                        is_running: entry.is_running,
                     }]
                 }
                 None => vec![],
@@ -355,6 +357,7 @@ impl Dashboard {
                     entry_date: None,
                     entry_hours: None,
                     entry_notes: None,
+                    is_running: false,
                 }]
             }
             KeyCode::Char('r') => vec![Action::Refresh],

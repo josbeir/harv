@@ -219,6 +219,7 @@ impl App {
                 entry_date,
                 entry_hours,
                 entry_notes,
+                is_running,
             } => {
                 let pid = last_project_id.or(self.client.config().last_project_id);
                 let tid = last_task_id.or(self.client.config().last_task_id);
@@ -231,6 +232,7 @@ impl App {
                     entry_date,
                     entry_hours,
                     entry_notes,
+                    is_running,
                 );
                 self.form = Some(form);
 
@@ -436,6 +438,7 @@ impl App {
                         entry_date: None,
                         entry_hours: None,
                         entry_notes: None,
+                        is_running: false,
                     });
                     let _ = tx.send(Action::RefreshEntries);
                 });

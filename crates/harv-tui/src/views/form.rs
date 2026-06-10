@@ -22,6 +22,7 @@ pub struct TimeEntryForm {
     last_project_id: Option<u64>,
     last_task_id: Option<u64>,
     mode: FormMode,
+    is_running: bool,
     assignments: Vec<ProjectAssignment>,
     filtered_assignments: Vec<usize>,
     tasks: Vec<TaskAssignment>,
@@ -51,6 +52,7 @@ impl TimeEntryForm {
         entry_date: Option<String>,
         entry_hours: Option<String>,
         entry_notes: Option<String>,
+        is_running: bool,
     ) -> Self {
         let date = entry_date
             .unwrap_or_else(|| harv_core::datetime::format_date(harv_core::datetime::today()));
@@ -65,6 +67,7 @@ impl TimeEntryForm {
             last_project_id,
             last_task_id,
             mode,
+            is_running,
             assignments: Vec::new(),
             filtered_assignments: Vec::new(),
             tasks: Vec::new(),
@@ -183,6 +186,10 @@ impl TimeEntryForm {
             .and_then(|&i| self.tasks.get(i))
     }
 
+    fn is_full_layout(&self) -> bool {
+        self.mode != FormMode::Start && !self.is_running
+    }
+
     fn submit_entry(&mut self) -> Vec<Action> {
         let project_id = self.selected_project().map(|a| a.project.id);
         let task_id = self.selected_task().map(|t| t.task.id);
@@ -192,7 +199,7 @@ impl TimeEntryForm {
             _ => return vec![],
         };
 
-        let (hours, notes) = if self.mode != FormMode::Start {
+        let (hours, notes) = if self.is_full_layout() {
             let h = if self.hours.trim().is_empty() {
                 None
             } else {
@@ -266,7 +273,7 @@ impl TimeEntryForm {
             return;
         }
 
-        let popup = if self.mode != FormMode::Start {
+        let popup = if self.is_full_layout() {
             crate::popup::centered_rect_fixed(area.width.saturating_sub(6).min(72), 22, area)
         } else {
             crate::popup::centered_rect_fixed(area.width.saturating_sub(6).min(60), 17, area)
@@ -292,7 +299,7 @@ impl TimeEntryForm {
         let inner_width = inner.width.saturating_sub(2);
         let content_x = inner.x + 1;
 
-        if self.mode != FormMode::Start {
+        if self.is_full_layout() {
             let layout = Layout::vertical([
                 Constraint::Length(5),
                 Constraint::Length(5),
@@ -630,7 +637,7 @@ impl TimeEntryForm {
                 vec![Action::SwitchView(crate::action::ViewId::Dashboard)]
             }
             KeyCode::Tab => {
-                self.active = if self.mode != FormMode::Start {
+                self.active = if self.is_full_layout() {
                     Field::Date
                 } else {
                     Field::Notes
@@ -653,7 +660,7 @@ impl TimeEntryForm {
                 vec![]
             }
             KeyCode::Enter => {
-                self.active = if self.mode != FormMode::Start {
+                self.active = if self.is_full_layout() {
                     Field::Date
                 } else {
                     Field::Notes
@@ -706,7 +713,7 @@ impl TimeEntryForm {
                     Field::Date => Field::TaskList,
                     Field::Hours => Field::Date,
                     Field::Notes => {
-                        if self.mode != FormMode::Start {
+                        if self.is_full_layout() {
                             Field::Hours
                         } else {
                             Field::TaskList
@@ -787,7 +794,17 @@ mod tests {
 
     #[test]
     fn test_new_start_form() {
-        let f = TimeEntryForm::new(None, None, None, FormMode::Start, None, None, None, None);
+        let f = TimeEntryForm::new(
+            None,
+            None,
+            None,
+            FormMode::Start,
+            None,
+            None,
+            None,
+            None,
+            false,
+        );
         assert!(matches!(f.mode, FormMode::Start));
         assert!(f.selected_project_id.is_none());
         assert!(f.hours.is_empty());
@@ -796,7 +813,17 @@ mod tests {
 
     #[test]
     fn test_new_create_form() {
-        let f = TimeEntryForm::new(None, None, None, FormMode::Create, None, None, None, None);
+        let f = TimeEntryForm::new(
+            None,
+            None,
+            None,
+            FormMode::Create,
+            None,
+            None,
+            None,
+            None,
+            false,
+        );
         assert!(matches!(f.mode, FormMode::Create));
     }
 
@@ -811,6 +838,7 @@ mod tests {
             Some("2026-06-09".into()),
             Some("1.5".into()),
             Some("my notes".into()),
+            false,
         );
         assert!(matches!(f.mode, FormMode::Edit));
         assert_eq!(f.entry_id, Some(42));
@@ -832,6 +860,7 @@ mod tests {
             None,
             None,
             None,
+            false,
         );
         let assignments = vec![
             project_assignment(5, "Alpha"),
@@ -852,6 +881,7 @@ mod tests {
             None,
             None,
             None,
+            false,
         );
         let assignments = vec![project_assignment(5, "Alpha")];
         f.update_assignments(assignments);
@@ -860,20 +890,50 @@ mod tests {
 
     #[test]
     fn test_assignments_loading_initially_true() {
-        let f = TimeEntryForm::new(None, None, None, FormMode::Create, None, None, None, None);
+        let f = TimeEntryForm::new(
+            None,
+            None,
+            None,
+            FormMode::Create,
+            None,
+            None,
+            None,
+            None,
+            false,
+        );
         assert!(f.assignments_loading);
     }
 
     #[test]
     fn test_assignments_loading_false_after_update() {
-        let mut f = TimeEntryForm::new(None, None, None, FormMode::Create, None, None, None, None);
+        let mut f = TimeEntryForm::new(
+            None,
+            None,
+            None,
+            FormMode::Create,
+            None,
+            None,
+            None,
+            None,
+            false,
+        );
         f.update_assignments(vec![project_assignment(5, "Alpha")]);
         assert!(!f.assignments_loading);
     }
 
     #[test]
     fn test_assignments_loading_false_after_empty_update() {
-        let mut f = TimeEntryForm::new(None, None, None, FormMode::Create, None, None, None, None);
+        let mut f = TimeEntryForm::new(
+            None,
+            None,
+            None,
+            FormMode::Create,
+            None,
+            None,
+            None,
+            None,
+            false,
+        );
         f.update_assignments(vec![]);
         assert!(!f.assignments_loading);
     }
@@ -889,6 +949,7 @@ mod tests {
             None,
             None,
             None,
+            false,
         );
         f.selected_project_id = Some(10);
         let tasks = vec![
@@ -902,7 +963,17 @@ mod tests {
 
     #[test]
     fn test_update_tasks_no_match_selects_first() {
-        let mut f = TimeEntryForm::new(None, None, None, FormMode::Start, None, None, None, None);
+        let mut f = TimeEntryForm::new(
+            None,
+            None,
+            None,
+            FormMode::Start,
+            None,
+            None,
+            None,
+            None,
+            false,
+        );
         f.selected_project_id = Some(10);
         let tasks = vec![task_assignment(20, "Design")];
         f.update_tasks(tasks);
@@ -911,7 +982,17 @@ mod tests {
 
     #[test]
     fn test_project_search_filters() {
-        let mut f = TimeEntryForm::new(None, None, None, FormMode::Start, None, None, None, None);
+        let mut f = TimeEntryForm::new(
+            None,
+            None,
+            None,
+            FormMode::Start,
+            None,
+            None,
+            None,
+            None,
+            false,
+        );
         f.assignments = vec![
             project_assignment(1, "Alpha"),
             project_assignment(2, "Beta"),
@@ -927,7 +1008,17 @@ mod tests {
 
     #[test]
     fn test_tab_cycles_fields_in_start_mode() {
-        let mut f = TimeEntryForm::new(None, None, None, FormMode::Start, None, None, None, None);
+        let mut f = TimeEntryForm::new(
+            None,
+            None,
+            None,
+            FormMode::Start,
+            None,
+            None,
+            None,
+            None,
+            false,
+        );
         assert_eq!(f.active, Field::ProjectList);
 
         // ProjectList Tab -> TaskList
@@ -950,7 +1041,17 @@ mod tests {
 
     #[test]
     fn test_tab_cycles_fields_in_create_mode() {
-        let mut f = TimeEntryForm::new(None, None, None, FormMode::Create, None, None, None, None);
+        let mut f = TimeEntryForm::new(
+            None,
+            None,
+            None,
+            FormMode::Create,
+            None,
+            None,
+            None,
+            None,
+            false,
+        );
         assert_eq!(f.active, Field::ProjectList);
 
         f.handle_key(&key_press(KeyCode::Tab));
@@ -971,7 +1072,17 @@ mod tests {
 
     #[test]
     fn test_esc_cancels_form() {
-        let mut f = TimeEntryForm::new(None, None, None, FormMode::Start, None, None, None, None);
+        let mut f = TimeEntryForm::new(
+            None,
+            None,
+            None,
+            FormMode::Start,
+            None,
+            None,
+            None,
+            None,
+            false,
+        );
         assert!(f.visible);
         let actions = f.handle_key(&key_press(KeyCode::Esc));
         assert!(!f.visible);
@@ -980,7 +1091,17 @@ mod tests {
 
     #[test]
     fn test_submit_requires_project_and_task() {
-        let mut f = TimeEntryForm::new(None, None, None, FormMode::Start, None, None, None, None);
+        let mut f = TimeEntryForm::new(
+            None,
+            None,
+            None,
+            FormMode::Start,
+            None,
+            None,
+            None,
+            None,
+            false,
+        );
         let actions = f.submit_entry();
         assert!(actions.is_empty()); // no project/task selected
     }
@@ -996,6 +1117,7 @@ mod tests {
             None,
             None,
             None,
+            false,
         );
         f.assignments = vec![project_assignment(10, "Beta")];
         f.filtered_assignments = vec![0];
@@ -1031,6 +1153,7 @@ mod tests {
             Some("2026-06-09".into()),
             Some("1.5".into()),
             None,
+            false,
         );
         f.assignments = vec![project_assignment(10, "Beta")];
         f.filtered_assignments = vec![0];
@@ -1055,6 +1178,7 @@ mod tests {
             None,
             None,
             Some("my notes".into()),
+            false,
         );
         f.assignments = vec![project_assignment(10, "Beta")];
         f.filtered_assignments = vec![0];
@@ -1086,6 +1210,7 @@ mod tests {
             None,
             None,
             None,
+            false,
         );
         f.selected_project_id = Some(10);
         f.update_tasks(vec![
