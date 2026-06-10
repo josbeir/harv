@@ -1,4 +1,4 @@
-use harv_core::{ProjectAssignment, TaskAssignment, TimeEntry, User};
+use harv_core::{ProjectAssignment, TimeEntry, User};
 
 use crate::theme::ThemeMode;
 
@@ -26,8 +26,6 @@ pub enum Action {
         entry_notes: Option<String>,
     },
     FormAssignmentsUpdate(Vec<ProjectAssignment>),
-    FormTasksUpdate(Vec<TaskAssignment>),
-    FormSelectProject(u64),
     CreateEntry {
         project_id: u64,
         task_id: u64,

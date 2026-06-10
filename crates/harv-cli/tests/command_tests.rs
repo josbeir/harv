@@ -448,6 +448,74 @@ async fn test_track_with_last_used_auto_task() {
     .unwrap();
 }
 
+#[tokio::test]
+async fn test_track_no_project_assignments() {
+    let _guard = ENV_MUTEX.lock().await;
+    let tmp = tempfile::tempdir().unwrap();
+    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
+    unsafe { std::env::set_var("HOME", tmp.path()) };
+    let harv_dir = tmp.path().join(".config").join("harv");
+    std::fs::create_dir_all(&harv_dir).unwrap();
+    std::fs::write(
+        harv_dir.join("config.json"),
+        r#"{"access_token":"t","account_id":"1"}"#,
+    )
+    .unwrap();
+
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+    Mock::given(method("GET"))
+        .and(path("/users/me/project_assignments"))
+        .respond_with(json_response(json!({
+            "project_assignments": [],
+            "total_pages": 1, "page": 1, "total_entries": 0, "per_page": 100
+        })))
+        .mount(&server)
+        .await;
+
+    let result =
+        commands::track::execute(&c, None, None, None, None, false, None, false, None, false).await;
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_track_alias_not_found() {
+    let _guard = ENV_MUTEX.lock().await;
+    let tmp = tempfile::tempdir().unwrap();
+    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
+    unsafe { std::env::set_var("HOME", tmp.path()) };
+    let harv_dir = tmp.path().join(".config").join("harv");
+    std::fs::create_dir_all(&harv_dir).unwrap();
+    std::fs::write(
+        harv_dir.join("config.json"),
+        r#"{"access_token":"t","account_id":"1"}"#,
+    )
+    .unwrap();
+
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+    Mock::given(method("GET"))
+        .and(path("/users/me/project_assignments"))
+        .respond_with(json_response(project_assignments_json()))
+        .mount(&server)
+        .await;
+
+    let result = commands::track::execute(
+        &c,
+        None,
+        None,
+        None,
+        None,
+        false,
+        None,
+        false,
+        Some("nonexistent".into()),
+        false,
+    )
+    .await;
+    assert!(result.is_err());
+}
+
 // --- Note command with inline notes ---
 
 #[tokio::test]
@@ -578,6 +646,32 @@ async fn test_alias_list_stale() {
     commands::alias::list_execute(&c, &harv_cli::OutputFormat::Table)
         .await
         .unwrap();
+}
+
+#[tokio::test]
+async fn test_alias_list_api_error() {
+    let _guard = ENV_MUTEX.lock().await;
+    let tmp = tempfile::tempdir().unwrap();
+    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
+    unsafe { std::env::set_var("HOME", tmp.path()) };
+    let harv_dir = tmp.path().join(".config").join("harv");
+    std::fs::create_dir_all(&harv_dir).unwrap();
+    std::fs::write(
+        harv_dir.join("config.json"),
+        r#"{"access_token":"t","account_id":"1","aliases":{"dev":{"project_id":100,"task_id":200}}}"#,
+    )
+    .unwrap();
+
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+    Mock::given(method("GET"))
+        .and(path("/users/me/project_assignments"))
+        .respond_with(ResponseTemplate::new(500))
+        .mount(&server)
+        .await;
+
+    let result = commands::alias::list_execute(&c, &harv_cli::OutputFormat::Table).await;
+    assert!(result.is_err());
 }
 
 // --- Start command delegation test ---

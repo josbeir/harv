@@ -247,44 +247,10 @@ impl App {
                     }
                 });
             }
-            Action::FormAssignmentsUpdate(assignments) =>
-            {
-                #[allow(clippy::collapsible_if)]
+            Action::FormAssignmentsUpdate(assignments) => {
                 if let Some(ref mut f) = self.form {
-                    if let Some(pid) = f.update_assignments(assignments) {
-                        let client = Arc::clone(&self.client);
-                        let tx = tx.clone();
-                        tokio::spawn(async move {
-                            match client.projects().task_assignments(pid).await {
-                                Ok(tasks) => {
-                                    let _ = tx.send(Action::FormTasksUpdate(tasks));
-                                }
-                                Err(e) => {
-                                    let _ = tx.send(Action::Error(e.user_message()));
-                                }
-                            }
-                        });
-                    }
+                    f.update_assignments(assignments);
                 }
-            }
-            Action::FormTasksUpdate(tasks) => {
-                if let Some(ref mut f) = self.form {
-                    f.update_tasks(tasks);
-                }
-            }
-            Action::FormSelectProject(project_id) => {
-                let client = Arc::clone(&self.client);
-                let tx = tx.clone();
-                tokio::spawn(async move {
-                    match client.projects().task_assignments(project_id).await {
-                        Ok(tasks) => {
-                            let _ = tx.send(Action::FormTasksUpdate(tasks));
-                        }
-                        Err(e) => {
-                            let _ = tx.send(Action::Error(e.user_message()));
-                        }
-                    }
-                });
             }
             Action::CreateEntry {
                 project_id,

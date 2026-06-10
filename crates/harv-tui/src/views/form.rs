@@ -37,6 +37,7 @@ pub struct TimeEntryForm {
     active: Field,
     visible: bool,
     tasks_loading: bool,
+    assignments_loading: bool,
 }
 
 impl TimeEntryForm {
@@ -79,10 +80,11 @@ impl TimeEntryForm {
             active: Field::ProjectList,
             visible: true,
             tasks_loading: false,
+            assignments_loading: true,
         }
     }
 
-    pub fn update_assignments(&mut self, assignments: Vec<ProjectAssignment>) -> Option<u64> {
+    pub fn update_assignments(&mut self, assignments: Vec<ProjectAssignment>) {
         self.assignments = assignments;
         self.filter_projects();
 
@@ -95,12 +97,10 @@ impl TimeEntryForm {
             {
                 self.project_list.select(Some(pos));
                 self.selected_project_id = Some(pid);
-                self.tasks_loading = true;
-                self.tasks.clear();
-                return Some(pid);
+                self.load_tasks_for_selected();
             }
         }
-        None
+        self.assignments_loading = false;
     }
 
     pub fn update_tasks(&mut self, tasks: Vec<TaskAssignment>) {
@@ -244,15 +244,24 @@ impl TimeEntryForm {
         }
     }
 
-    fn select_project_inner(&mut self) -> Option<u64> {
+    fn select_project_inner(&mut self) {
         let pid = self.selected_project().map(|a| a.project.id);
         self.selected_project_id = pid;
-        self.tasks_loading = true;
-        self.tasks.clear();
-        pid
+        self.load_tasks_for_selected();
     }
 
-    pub fn render(&mut self, area: Rect, f: &mut Frame, theme: &Theme, _tick: u64) {
+    fn load_tasks_for_selected(&mut self) {
+        self.tasks_loading = true;
+        self.tasks.clear();
+        self.task_search.clear();
+        let tasks = self
+            .selected_project()
+            .map(|pa| pa.task_assignments.clone())
+            .unwrap_or_default();
+        self.update_tasks(tasks);
+    }
+
+    pub fn render(&mut self, area: Rect, f: &mut Frame, theme: &Theme, tick: u64) {
         if !self.visible {
             return;
         }
@@ -294,8 +303,8 @@ impl TimeEntryForm {
             ])
             .split(inner);
 
-            self.render_project_section(layout[0], inner_width, content_x, f, theme);
-            self.render_task_section(layout[1], inner_width, content_x, f, theme);
+            self.render_project_section(layout[0], inner_width, content_x, f, theme, tick);
+            self.render_task_section(layout[1], inner_width, content_x, f, theme, tick);
             self.render_text_field(
                 "Date (YYYY-MM-DD)",
                 &self.date,
@@ -351,8 +360,8 @@ impl TimeEntryForm {
             ])
             .split(inner);
 
-            self.render_project_section(layout[0], inner_width, content_x, f, theme);
-            self.render_task_section(layout[1], inner_width, content_x, f, theme);
+            self.render_project_section(layout[0], inner_width, content_x, f, theme, tick);
+            self.render_task_section(layout[1], inner_width, content_x, f, theme, tick);
             self.render_text_field(
                 "Notes (optional)",
                 &self.notes,
@@ -382,6 +391,7 @@ impl TimeEntryForm {
         x: u16,
         f: &mut Frame,
         theme: &Theme,
+        tick: u64,
     ) {
         let active = self.active == Field::ProjectList;
         let border_style = if active {
@@ -401,24 +411,37 @@ impl TimeEntryForm {
             .borders(Borders::ALL)
             .border_style(border_style);
 
-        let items: Vec<Line> = self
-            .filtered_assignments
-            .iter()
-            .map(|&i| {
-                let a = &self.assignments[i];
-                let client = a
-                    .client
-                    .as_ref()
-                    .map(|c| format!("{} · ", c.name))
-                    .unwrap_or_default();
-                let text = format!("{} {}", a.project.name, client);
-                if active {
-                    Line::from(Span::styled(text, Style::new().fg(theme.fg)))
-                } else {
-                    Line::from(Span::styled(text, Style::new().fg(theme.muted)))
-                }
-            })
-            .collect();
+        let items: Vec<Line> = if self.assignments_loading {
+            let spinner = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+            let text = format!(
+                "{} Loading projects...",
+                spinner[(tick as usize) % spinner.len()]
+            );
+            vec![Line::from(Span::styled(text, Style::new().fg(theme.muted)))]
+        } else if self.assignments.is_empty() {
+            vec![Line::from(Span::styled(
+                "No project assignments",
+                Style::new().fg(theme.muted),
+            ))]
+        } else {
+            self.filtered_assignments
+                .iter()
+                .map(|&i| {
+                    let a = &self.assignments[i];
+                    let client = a
+                        .client
+                        .as_ref()
+                        .map(|c| format!("{} · ", c.name))
+                        .unwrap_or_default();
+                    let text = format!("{} {}", a.project.name, client);
+                    if active {
+                        Line::from(Span::styled(text, Style::new().fg(theme.fg)))
+                    } else {
+                        Line::from(Span::styled(text, Style::new().fg(theme.muted)))
+                    }
+                })
+                .collect()
+        };
 
         let list_area = Rect {
             x,
@@ -443,6 +466,7 @@ impl TimeEntryForm {
         x: u16,
         f: &mut Frame,
         theme: &Theme,
+        _tick: u64,
     ) {
         let active = self.active == Field::TaskList;
         let border_style = if active {
@@ -462,11 +486,11 @@ impl TimeEntryForm {
             .borders(Borders::ALL)
             .border_style(border_style);
 
-        let list_text: Vec<String> = if self.tasks_loading {
+        let list_text: Vec<String> = if self.assignments_loading {
             vec!["Loading...".into()]
-        } else if self.tasks.is_empty() && self.selected_project_id.is_some() {
+        } else if self.tasks.is_empty() && self.selected_project().is_some() {
             vec!["No tasks available".into()]
-        } else if self.selected_project_id.is_none() {
+        } else if self.selected_project().is_none() {
             vec!["Select a project first".into()]
         } else {
             self.filtered_tasks
@@ -561,9 +585,7 @@ impl TimeEntryForm {
                 let max = self.filtered_assignments.len().saturating_sub(1);
                 let i = self.project_list.selected().map_or(0, |i| (i + 1).min(max));
                 self.project_list.select(Some(i));
-                if let Some(pid) = self.select_project_inner() {
-                    return vec![Action::FormSelectProject(pid)];
-                }
+                self.select_project_inner();
                 vec![]
             }
             KeyCode::Char('k') | KeyCode::Up => {
@@ -572,16 +594,12 @@ impl TimeEntryForm {
                     .selected()
                     .map_or(0, |i| i.saturating_sub(1));
                 self.project_list.select(Some(i));
-                if let Some(pid) = self.select_project_inner() {
-                    return vec![Action::FormSelectProject(pid)];
-                }
+                self.select_project_inner();
                 vec![]
             }
             KeyCode::Enter => {
-                if let Some(pid) = self.select_project_inner() {
-                    self.active = Field::TaskList;
-                    return vec![Action::FormSelectProject(pid)];
-                }
+                self.select_project_inner();
+                self.active = Field::TaskList;
                 vec![]
             }
             KeyCode::Backspace => {
@@ -800,8 +818,7 @@ mod tests {
             project_assignment(5, "Alpha"),
             project_assignment(10, "Beta"),
         ];
-        let pid = f.update_assignments(assignments);
-        assert_eq!(pid, Some(10));
+        f.update_assignments(assignments);
         assert_eq!(f.selected_project_id, Some(10));
     }
 
@@ -818,8 +835,28 @@ mod tests {
             None,
         );
         let assignments = vec![project_assignment(5, "Alpha")];
-        let pid = f.update_assignments(assignments);
-        assert_eq!(pid, None);
+        f.update_assignments(assignments);
+        assert_eq!(f.project_list.selected(), Some(0)); // unchanged
+    }
+
+    #[test]
+    fn test_assignments_loading_initially_true() {
+        let f = TimeEntryForm::new(None, None, None, FormMode::Create, None, None, None, None);
+        assert!(f.assignments_loading);
+    }
+
+    #[test]
+    fn test_assignments_loading_false_after_update() {
+        let mut f = TimeEntryForm::new(None, None, None, FormMode::Create, None, None, None, None);
+        f.update_assignments(vec![project_assignment(5, "Alpha")]);
+        assert!(!f.assignments_loading);
+    }
+
+    #[test]
+    fn test_assignments_loading_false_after_empty_update() {
+        let mut f = TimeEntryForm::new(None, None, None, FormMode::Create, None, None, None, None);
+        f.update_assignments(vec![]);
+        assert!(!f.assignments_loading);
     }
 
     #[test]
