@@ -570,7 +570,11 @@ impl TimeEntryForm {
         f.render_widget(Paragraph::new(display.clone()), inner);
 
         if active {
-            let cursor_x = inner.x + display.width() as u16;
+            let cursor_x = if value.is_empty() {
+                inner.x
+            } else {
+                inner.x + display.width() as u16
+            };
             f.set_cursor_position((cursor_x.min(inner.right().saturating_sub(1)), inner.y));
         }
     }
@@ -660,12 +664,11 @@ impl TimeEntryForm {
                 vec![]
             }
             KeyCode::Enter => {
-                self.active = if self.is_full_layout() {
-                    Field::Date
-                } else {
-                    Field::Notes
-                };
-                vec![]
+                if self.is_full_layout() {
+                    self.active = Field::Date;
+                    return vec![];
+                }
+                self.submit_entry()
             }
             KeyCode::Backspace => {
                 self.task_search.pop();
@@ -1379,10 +1382,10 @@ mod tests {
     }
 
     #[test]
-    fn test_task_enter_advances_to_notes_when_running() {
+    fn test_task_enter_submits_in_compact_mode() {
         let mut f = TimeEntryForm::new(
-            None,
-            None,
+            Some(10),
+            Some(20),
             None,
             FormMode::Edit,
             Some(1),
@@ -1391,9 +1394,27 @@ mod tests {
             None,
             true,
         );
+        f.assignments = vec![project_assignment(10, "Beta")];
+        f.filtered_assignments = vec![0];
+        f.project_list.select(Some(0));
+        f.selected_project_id = Some(10);
+        f.tasks = vec![task_assignment(20, "Development")];
+        f.filter_tasks();
+        f.task_list.select(Some(0));
         f.active = Field::TaskList;
-        f.handle_key(&key_press(KeyCode::Enter));
-        assert_eq!(f.active, Field::Notes);
+
+        let actions = f.handle_key(&key_press(KeyCode::Enter));
+        assert!(
+            matches!(
+                actions.first(),
+                Some(Action::EditEntry {
+                    entry_id: 1,
+                    hours: None,
+                    ..
+                })
+            ),
+            "Enter on TaskList in compact mode should submit, got {actions:?}"
+        );
     }
 
     #[test]
