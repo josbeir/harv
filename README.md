@@ -21,13 +21,7 @@
 
 ### Pre-built binaries
 
-Download the latest binary for your platform from the [GitHub Releases](https://github.com/josbeir/harv/releases) page. Available for Linux (x86\_64, ARM64), macOS (x86\_64, ARM64), and Windows (x86\_64).
-
-Extract and place the `harv` binary in your `$PATH`. Then add shell completions:
-
-```bash
-source <(harv completion bash)   # add to ~/.bashrc
-```
+Download the latest binary for your platform from the [GitHub Releases](https://github.com/josbeir/harv/releases) page. Available for Linux (x86\_64, ARM64), macOS (x86\_64, ARM64), and Windows (x86\_64). Extract and place `harv` in your `$PATH`.
 
 ### From GitHub (cargo)
 
