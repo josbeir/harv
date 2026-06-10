@@ -19,7 +19,25 @@
 
 ## Installation
 
-### From GitHub
+### Pre-built binaries
+
+Download the latest binary for your platform from the [GitHub Releases](https://github.com/josbeir/harv/releases) page:
+
+| Platform | File |
+|----------|------|
+| Linux (x86\_64) | `harv-v0.1.0-linux-x86_64.tar.gz` |
+| Linux (ARM64) | `harv-v0.1.0-linux-arm64.tar.gz` |
+| macOS (x86\_64) | `harv-v0.1.0-macos-x86_64.tar.gz` |
+| macOS (ARM64) | `harv-v0.1.0-macos-arm64.tar.gz` |
+| Windows (x86\_64) | `harv-v0.1.0-windows-x86_64.zip` |
+
+Extract and place the `harv` binary in your `$PATH`. Then add shell completions:
+
+```bash
+source <(harv completion bash)   # add to ~/.bashrc
+```
+
+### From GitHub (cargo)
 
 ```bash
 cargo install --git https://github.com/josbeir/harv harv-cli
