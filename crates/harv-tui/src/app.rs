@@ -343,7 +343,7 @@ impl App {
             }
             Action::Refresh => {
                 let View::Dashboard(d) = &mut self.current_view;
-                d.set_loading("Refreshing entries...");
+                d.set_loading("Syncing with Harvest...");
                 self.fetch_dashboard_data(tx, true);
             }
             Action::RefreshEntries => {
