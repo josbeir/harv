@@ -288,4 +288,8 @@ fn test_form_render_edit_running_mode() {
         !buffer_str.contains("Hours"),
         "Running edit form should not show Hours field"
     );
+    assert!(
+        buffer_str.contains("Enter: save"),
+        "Running edit form should show 'Enter: save' help"
+    );
 }

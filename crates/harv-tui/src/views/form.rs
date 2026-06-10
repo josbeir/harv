@@ -353,7 +353,7 @@ impl TimeEntryForm {
             );
 
             let help = Span::styled(
-                " Tab: next field │ Enter: submit │ Esc: cancel ",
+                " Tab: next field │ Enter: next/send │ Esc: cancel ",
                 Style::new().fg(theme.muted),
             );
             f.render_widget(Paragraph::new(help), layout[5]);
@@ -383,10 +383,12 @@ impl TimeEntryForm {
                 theme,
             );
 
-            let help = Span::styled(
-                " Tab: next field │ Enter: start timer │ Esc: cancel ",
-                Style::new().fg(theme.muted),
-            );
+            let help_text = match self.mode {
+                FormMode::Start => " Tab: next field │ Enter: start timer │ Esc: cancel ",
+                FormMode::Edit => " Tab: next field │ Enter: save │ Esc: cancel ",
+                FormMode::Create => unreachable!(),
+            };
+            let help = Span::styled(help_text, Style::new().fg(theme.muted));
             f.render_widget(Paragraph::new(help), layout[4]);
         }
     }
@@ -664,11 +666,12 @@ impl TimeEntryForm {
                 vec![]
             }
             KeyCode::Enter => {
-                if self.is_full_layout() {
-                    self.active = Field::Date;
-                    return vec![];
-                }
-                self.submit_entry()
+                self.active = if self.is_full_layout() {
+                    Field::Date
+                } else {
+                    Field::Notes
+                };
+                vec![]
             }
             KeyCode::Backspace => {
                 self.task_search.pop();
@@ -1382,10 +1385,10 @@ mod tests {
     }
 
     #[test]
-    fn test_task_enter_submits_in_compact_mode() {
+    fn test_task_enter_advances_to_notes_when_running() {
         let mut f = TimeEntryForm::new(
-            Some(10),
-            Some(20),
+            None,
+            None,
             None,
             FormMode::Edit,
             Some(1),
@@ -1394,27 +1397,9 @@ mod tests {
             None,
             true,
         );
-        f.assignments = vec![project_assignment(10, "Beta")];
-        f.filtered_assignments = vec![0];
-        f.project_list.select(Some(0));
-        f.selected_project_id = Some(10);
-        f.tasks = vec![task_assignment(20, "Development")];
-        f.filter_tasks();
-        f.task_list.select(Some(0));
         f.active = Field::TaskList;
-
-        let actions = f.handle_key(&key_press(KeyCode::Enter));
-        assert!(
-            matches!(
-                actions.first(),
-                Some(Action::EditEntry {
-                    entry_id: 1,
-                    hours: None,
-                    ..
-                })
-            ),
-            "Enter on TaskList in compact mode should submit, got {actions:?}"
-        );
+        f.handle_key(&key_press(KeyCode::Enter));
+        assert_eq!(f.active, Field::Notes);
     }
 
     #[test]
