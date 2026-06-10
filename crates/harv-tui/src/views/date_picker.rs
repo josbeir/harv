@@ -3,7 +3,7 @@ use ratatui::Frame;
 use ratatui::crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::layout::{Alignment, Constraint, Rect};
 use ratatui::style::{Modifier, Style};
-use ratatui::widgets::{Block, Borders, Cell, Clear, Row, Table};
+use ratatui::widgets::{Block, Borders, Cell, Clear, Padding, Row, Table};
 
 use crate::action::Action;
 use crate::theme::Theme;
@@ -104,6 +104,7 @@ impl DatePicker {
             .title_bottom(help)
             .borders(Borders::ALL)
             .border_style(Style::new().fg(theme.primary))
+            .padding(Padding::horizontal(1))
             .style(Style::new().bg(theme.surface));
 
         let table = Table::new(day_rows, [Constraint::Length(3); 7])
