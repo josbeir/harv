@@ -81,6 +81,8 @@ harv start [alias]       # Start a running timer
 harv stop                # Stop the running timer
 harv track -H 1.5 [alias] # Track 1.5 hours (harv log is an alias)
 harv note                # Edit running timer notes
+harv edit                # Edit an existing time entry
+harv edit 12345678        # Edit entry by ID
 harv status              # Show current timer + today's entries
 harv whoami              # Show authenticated user info
 harv disconnect          # Remove stored credentials
@@ -134,11 +136,13 @@ Pressing `s`, `n`, `t`, or `e` opens a form dialog with:
 
 - **Project** — fuzzy-search list, type to filter
 - **Task** — filtered by selected project, type to filter
-- **Date** — defaults to today (create/edit mode only)
-- **Hours** — decimal (`1.5`) or HH:MM (`1:30`), empty = start running timer
+- **Date** — defaults to today (create/edit stopped entries only; hidden for running timers)
+- **Hours** — decimal (`1.5`) or HH:MM (`1:30`), empty = start running timer (hidden for running timers)
 - **Notes** — optional
 
 `Tab` / `Shift+Tab` moves between fields. `j` / `k` navigates within list fields. `Enter` submits. `Esc` cancels. Press `g` on the Date field to open a visual date picker.
+
+When editing a running timer, only Project, Task, and Notes are shown — Date and Hours cannot be changed while a timer is accumulating time.
 
 Last-used project and task IDs are persisted so the form pre-selects them on subsequent opens.
 
@@ -163,6 +167,7 @@ Auto-detects dark/light mode from your OS. Real-time switching via D-Bus on Linu
 | `harv start [alias]` | Start a running timer |
 | `harv stop` | Stop the current running timer |
 | `harv note` | Edit notes on the running timer |
+| `harv edit [entry-id]` | Edit an existing time entry (interactive picker if no ID) |
 | `harv status` | Show current timer + today's entries |
 | `harv whoami` | Show authenticated user info and login status |
 | `harv projects` | List project assignments |
@@ -193,6 +198,19 @@ Most time-tracking commands (`track`, `start`) share common flags:
 | `-n, --notes <text>` | Set notes inline |
 | `-e, --editor` | Open `$EDITOR` for notes |
 | `--overwrite` | Replace existing notes instead of appending |
+
+`harv edit`:
+
+| Flag | Description |
+|------|-------------|
+| `-p, --project-id <id>` | New project |
+| `-t, --task-id <id>` | New task |
+| `-H, --hours <hours>` | New hours (stopped entries only) |
+| `-d, --date <date>` | New date (stopped entries only) |
+| `-n, --notes <text>` | Add or update notes |
+| `-e, --editor` | Open `$EDITOR` for notes |
+| `--overwrite` | Replace notes instead of appending |
+| `-R, --refresh` | Force-refresh cached project data |
 
 `harv projects`:
 

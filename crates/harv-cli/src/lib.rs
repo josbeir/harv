@@ -41,6 +41,8 @@ pub enum Commands {
     Stop(StopArgs),
     /// Edit notes on the running timer
     Note(NoteArgs),
+    /// Edit an existing time entry
+    Edit(EditArgs),
     /// Show current timer status and today's entries
     Status,
     /// Show authenticated user info and login status
@@ -124,6 +126,28 @@ pub struct NoteArgs {
     pub overwrite: bool,
     #[arg(short = 'e', long)]
     pub editor: bool,
+}
+
+#[derive(clap::Args, Clone, Debug)]
+pub struct EditArgs {
+    /// ID of the time entry to edit (if omitted, pick from list)
+    pub entry_id: Option<u64>,
+    #[arg(short = 'p', long)]
+    pub project_id: Option<u64>,
+    #[arg(short = 't', long)]
+    pub task_id: Option<u64>,
+    #[arg(short = 'H', long, value_parser = parse_hours_arg)]
+    pub hours: Option<f64>,
+    #[arg(short = 'n', long)]
+    pub notes: Option<String>,
+    #[arg(short = 'e', long)]
+    pub editor: bool,
+    #[arg(long)]
+    pub overwrite: bool,
+    #[arg(short = 'd', long)]
+    pub date: Option<String>,
+    #[arg(short = 'R', long)]
+    pub refresh: bool,
 }
 
 #[derive(clap::Args, Clone, Debug)]
