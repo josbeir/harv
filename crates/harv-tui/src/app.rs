@@ -259,6 +259,9 @@ impl App {
                 hours,
                 notes,
             } => {
+                let View::Dashboard(d) = &mut self.current_view;
+                d.set_loading("Submitting...");
+
                 // Save last used project/task to config
                 {
                     let mut config = self.client.config().clone();
@@ -298,6 +301,9 @@ impl App {
                 hours,
                 notes,
             } => {
+                let View::Dashboard(d) = &mut self.current_view;
+                d.set_loading("Submitting...");
+
                 {
                     let mut config = self.client.config().clone();
                     config.set_last_used(project_id, task_id);
@@ -366,6 +372,8 @@ impl App {
                 });
             }
             Action::StopTimer { entry_id } => {
+                let View::Dashboard(d) = &mut self.current_view;
+                d.set_loading("Stopping...");
                 let client = Arc::clone(&self.client);
                 let tx = tx.clone();
                 tokio::spawn(async move {
@@ -376,6 +384,8 @@ impl App {
                 });
             }
             Action::DeleteEntry { entry_id } => {
+                let View::Dashboard(d) = &mut self.current_view;
+                d.set_loading("Deleting...");
                 let client = Arc::clone(&self.client);
                 let tx = tx.clone();
                 tokio::spawn(async move {
