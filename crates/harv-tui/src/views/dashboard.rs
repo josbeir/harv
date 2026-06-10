@@ -111,16 +111,20 @@ impl Dashboard {
     }
 
     fn render_date_nav(&self, area: Rect, f: &mut Frame, theme: &Theme) {
+        let is_today = self.selected_date == harv_core::datetime::today();
         let date_formatted = self.selected_date.format("%a, %b %e, %Y").to_string();
 
-        let spans = vec![
+        let mut spans = vec![
             Span::styled(" < ", Style::new().fg(theme.muted)),
             Span::styled(
                 date_formatted,
                 Style::new().fg(theme.fg).add_modifier(Modifier::BOLD),
             ),
-            Span::styled(" > ", Style::new().fg(theme.muted)),
         ];
+        if is_today {
+            spans.push(Span::styled(" (Today) ", Style::new().fg(theme.muted)));
+        }
+        spans.push(Span::styled(" > ", Style::new().fg(theme.muted)));
 
         let line = Line::from(spans);
         let paragraph = Paragraph::new(line).alignment(Alignment::Center);
