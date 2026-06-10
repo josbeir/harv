@@ -81,23 +81,28 @@ impl Dashboard {
     }
 
     pub fn render(&mut self, area: Rect, f: &mut Frame, theme: &Theme, tick: u64) {
-        let layout = Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).split(area);
+        let layout = Layout::vertical([
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Min(0),
+        ])
+        .split(area);
 
-        self.render_date_nav(layout[0], f, theme);
+        self.render_date_nav(layout[1], f, theme);
 
         if !self.loaded {
-            crate::loading::render_harv_loading(layout[1], f, tick, self.loading_msg, theme);
+            crate::loading::render_harv_loading(layout[2], f, tick, self.loading_msg, theme);
             return;
         }
 
         if self.entries.is_empty() {
-            render_harv_header(layout[1], f, theme, self.selected_date);
+            render_harv_header(layout[2], f, theme, self.selected_date);
             return;
         }
 
         let header_rows = if self.running_entry.is_some() { 2 } else { 0 };
         let body = Layout::vertical([Constraint::Length(header_rows), Constraint::Min(0)])
-            .split(layout[1]);
+            .split(layout[2]);
 
         if self.running_entry.is_some() {
             self.render_timer_header(body[0], f, theme);
@@ -171,12 +176,14 @@ impl Dashboard {
     }
 
     fn render_entry_table(&mut self, area: Rect, f: &mut Frame, theme: &Theme) {
-        let margin = 2u16;
+        let hmargin = 2u16;
+        let vtop = 0u16;
+        let vbottom = 2u16;
         let padded_area = Rect {
-            x: area.x + margin,
-            y: area.y + margin,
-            width: area.width.saturating_sub(margin * 2),
-            height: area.height.saturating_sub(margin * 2),
+            x: area.x + hmargin,
+            y: area.y + vtop,
+            width: area.width.saturating_sub(hmargin * 2),
+            height: area.height.saturating_sub(vtop + vbottom),
         };
 
         // Usable content width after borders and padding

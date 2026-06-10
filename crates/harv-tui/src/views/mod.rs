@@ -40,6 +40,12 @@ impl View {
             View::Dashboard(d) => d.has_running(),
         }
     }
+
+    pub fn selected_date(&self) -> chrono::NaiveDate {
+        match self {
+            View::Dashboard(d) => d.selected_date(),
+        }
+    }
 }
 
 impl Default for View {

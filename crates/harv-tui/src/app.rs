@@ -634,6 +634,13 @@ impl App {
             Style::new().fg(self.theme.muted),
         ));
 
+        let date = self.current_view.selected_date();
+        let day_name = date.format("%A").to_string();
+        spans.push(Span::styled(
+            format!("{} ", day_name),
+            Style::new().fg(self.theme.fg),
+        ));
+
         let left = Line::from(spans);
 
         let status = if self.current_view.timer_running() {
