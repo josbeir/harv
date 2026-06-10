@@ -111,7 +111,7 @@ Running `harv` with no subcommand launches the full-screen terminal interface.
 
 ### Dashboard
 
-Shows today's time entries with a live clock for running timers, daily hours total, and quick actions. Top bar shows `HARV v0.1.0  ● Running` or `HARV v0.1.0  ○ Idle` depending on timer state.
+Shows time entries for the selected date with a live clock for running timers, daily hours total, and quick actions. Top bar shows `HARV v0.1.0  ● Running` or `HARV v0.1.0  ○ Idle` depending on timer state. A date navigation bar above the table lets you browse past days.
 
 | Key | Action |
 |-----|--------|
@@ -121,6 +121,10 @@ Shows today's time entries with a live clock for running timers, daily hours tot
 | `d` | Delete entry (with confirmation) |
 | `x` | Stop running timer |
 | `j` / `k` or `↓` / `↑` | Navigate entries |
+| `h` / `←` | Previous day |
+| `l` / `→` | Next day |
+| `T` | Go to today |
+| `g` | Open date picker |
 | `r` | Refresh data |
 | `q` / `Ctrl+C` | Quit |
 
@@ -134,7 +138,7 @@ Pressing `s`, `n`, `t`, or `e` opens a form dialog with:
 - **Hours** — decimal (`1.5`) or HH:MM (`1:30`), empty = start running timer
 - **Notes** — optional
 
-`Tab` / `Shift+Tab` moves between fields. `j` / `k` navigates within list fields. `Enter` submits. `Esc` cancels.
+`Tab` / `Shift+Tab` moves between fields. `j` / `k` navigates within list fields. `Enter` submits. `Esc` cancels. Press `g` on the Date field to open a visual date picker.
 
 Last-used project and task IDs are persisted so the form pre-selects them on subsequent opens.
 
