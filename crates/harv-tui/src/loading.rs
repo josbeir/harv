@@ -24,8 +24,8 @@ pub fn render_harv_loading(area: Rect, f: &mut Frame, tick: u64, msg: &str, them
 
     let offset = (tick % 4) as usize;
     let version = env!("CARGO_PKG_VERSION");
-    let version_text = format!("HARV CLI v{}", version);
-    let pad_right = " ".repeat(21usize.saturating_sub(version_text.len()));
+    let version_visible = format!("HARV CLI v{}", version);
+    let inner_pad = (21usize.saturating_sub(version_visible.len())) / 2;
 
     let mut lines: Vec<Line> = Vec::new();
 
@@ -45,15 +45,17 @@ pub fn render_harv_loading(area: Rect, f: &mut Frame, tick: u64, msg: &str, them
     };
 
     lines.push(Line::from(vec![
+        Span::styled(" ".repeat(inner_pad), Style::default()),
         Span::styled(
             "HARV CLI",
             Style::new()
                 .fg(Color::Rgb(250, 93, 0))
                 .add_modifier(Modifier::BOLD),
         ),
+        Span::styled(format!(" v{}", version), Style::new().fg(version_color)),
         Span::styled(
-            format!(" v{}{}", version, pad_right),
-            Style::new().fg(version_color),
+            " ".repeat(21usize.saturating_sub(version_visible.len() + inner_pad)),
+            Style::default(),
         ),
     ]));
     lines.push(Line::from(""));
