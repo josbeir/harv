@@ -38,7 +38,7 @@ impl DatePicker {
             return;
         }
 
-        let popup_area = crate::popup::centered_rect_fixed(32, 12, area);
+        let popup_area = crate::popup::centered_rect_fixed(31, 8, area);
         f.render_widget(Clear, popup_area);
 
         let today = harv_core::datetime::today();
