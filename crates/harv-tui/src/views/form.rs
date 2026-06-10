@@ -560,7 +560,12 @@ impl TimeEntryForm {
 
         let inner = block.inner(area);
         f.render_widget(&block, area);
-        f.render_widget(Paragraph::new(display), inner);
+        f.render_widget(Paragraph::new(display.clone()), inner);
+
+        if active {
+            let cursor_x = inner.x + display.width() as u16;
+            f.set_cursor_position((cursor_x.min(inner.right().saturating_sub(1)), inner.y));
+        }
     }
 
     pub fn handle_key(&mut self, key: &ratatui::crossterm::event::KeyEvent) -> Vec<Action> {
@@ -647,7 +652,14 @@ impl TimeEntryForm {
                 self.task_list.select(Some(i));
                 vec![]
             }
-            KeyCode::Enter => self.submit_entry(),
+            KeyCode::Enter => {
+                self.active = if self.mode != FormMode::Start {
+                    Field::Date
+                } else {
+                    Field::Notes
+                };
+                vec![]
+            }
             KeyCode::Backspace => {
                 self.task_search.pop();
                 self.filter_tasks();
