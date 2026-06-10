@@ -368,6 +368,11 @@ fn test_table_title_shows_date_when_not_today() {
         buffer_str.contains("total"),
         "Table with total should render"
     );
+    let expected_date = past.format("%b %e, %Y").to_string();
+    assert!(
+        buffer_str.contains(&expected_date),
+        "Table title should show past date '{expected_date}', got buffer:\n{buffer_str}"
+    );
 }
 
 #[test]

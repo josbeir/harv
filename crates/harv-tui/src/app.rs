@@ -216,6 +216,8 @@ impl App {
             }
             Action::SwitchView(_) => {
                 self.form = None;
+                let View::Dashboard(d) = &mut self.current_view;
+                d.go_today();
                 self.fetch_dashboard_data(tx, false, harv_core::datetime::today());
             }
             Action::OpenForm {
