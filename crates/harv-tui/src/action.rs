@@ -1,3 +1,4 @@
+use chrono::NaiveDate;
 use harv_core::{ProjectAssignment, TimeEntry, User};
 
 use crate::theme::ThemeMode;
@@ -16,6 +17,12 @@ pub enum Action {
     TimerUpdate(Vec<TimeEntry>),
     TodayEntriesUpdate(Vec<TimeEntry>, f64),
     UserLoaded(User),
+    NavigateDayPrev,
+    NavigateDayNext,
+    NavigateDayToday,
+    OpenDatePicker,
+    CloseDatePicker,
+    SelectDate(NaiveDate),
     OpenForm {
         last_project_id: Option<u64>,
         last_task_id: Option<u64>,

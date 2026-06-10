@@ -1,4 +1,5 @@
 pub mod dashboard;
+pub mod date_picker;
 pub mod form;
 pub mod help;
 
@@ -37,6 +38,12 @@ impl View {
     pub fn timer_running(&self) -> bool {
         match self {
             View::Dashboard(d) => d.has_running(),
+        }
+    }
+
+    pub fn selected_date(&self) -> chrono::NaiveDate {
+        match self {
+            View::Dashboard(d) => d.selected_date(),
         }
     }
 }
@@ -97,5 +104,12 @@ mod tests {
         assert!(!d.has_running());
         let view = View::Dashboard(d);
         assert!(!view.timer_running());
+    }
+
+    #[test]
+    fn test_view_selected_date() {
+        let d = Dashboard::default();
+        let view = View::Dashboard(d);
+        assert_eq!(view.selected_date(), harv_core::datetime::today());
     }
 }

@@ -1,5 +1,6 @@
 use crate::action::{Action, FormMode};
 use crate::theme::Theme;
+use chrono::NaiveDate;
 use harv_core::TimeEntry;
 use ratatui::Frame;
 use ratatui::crossterm::event::KeyCode;
@@ -15,6 +16,7 @@ pub struct Dashboard {
     table_state: TableState,
     loaded: bool,
     loading_msg: &'static str,
+    selected_date: NaiveDate,
 }
 
 impl Default for Dashboard {
@@ -26,6 +28,7 @@ impl Default for Dashboard {
             table_state: TableState::default().with_selected(Some(0)),
             loaded: false,
             loading_msg: "Loading...",
+            selected_date: harv_core::datetime::today(),
         }
     }
 }
@@ -57,25 +60,75 @@ impl Dashboard {
             .and_then(|i| self.entries.get(i))
     }
 
+    pub fn selected_date(&self) -> NaiveDate {
+        self.selected_date
+    }
+
+    pub fn set_date(&mut self, date: NaiveDate) {
+        self.selected_date = date;
+    }
+
+    pub fn prev_day(&mut self) {
+        self.selected_date -= chrono::Duration::days(1);
+    }
+
+    pub fn next_day(&mut self) {
+        self.selected_date += chrono::Duration::days(1);
+    }
+
+    pub fn go_today(&mut self) {
+        self.selected_date = harv_core::datetime::today();
+    }
+
     pub fn render(&mut self, area: Rect, f: &mut Frame, theme: &Theme, tick: u64) {
+        let layout = Layout::vertical([
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Min(0),
+        ])
+        .split(area);
+
+        self.render_date_nav(layout[1], f, theme);
+
         if !self.loaded {
-            crate::loading::render_harv_loading(area, f, tick, self.loading_msg, theme);
+            crate::loading::render_harv_loading(layout[2], f, tick, self.loading_msg, theme);
             return;
         }
 
         if self.entries.is_empty() {
-            render_harv_header(area, f, theme);
+            render_harv_header(layout[2], f, theme, self.selected_date);
             return;
         }
 
         let header_rows = if self.running_entry.is_some() { 2 } else { 0 };
-        let layout =
-            Layout::vertical([Constraint::Length(header_rows), Constraint::Min(0)]).split(area);
+        let body = Layout::vertical([Constraint::Length(header_rows), Constraint::Min(0)])
+            .split(layout[2]);
 
         if self.running_entry.is_some() {
-            self.render_timer_header(layout[0], f, theme);
+            self.render_timer_header(body[0], f, theme);
         }
-        self.render_entry_table(layout[1], f, theme);
+        self.render_entry_table(body[1], f, theme);
+    }
+
+    fn render_date_nav(&self, area: Rect, f: &mut Frame, theme: &Theme) {
+        let is_today = self.selected_date == harv_core::datetime::today();
+        let date_formatted = self.selected_date.format("%a, %b %e, %Y").to_string();
+
+        let mut spans = vec![
+            Span::styled(" < ", Style::new().fg(theme.muted)),
+            Span::styled(
+                date_formatted,
+                Style::new().fg(theme.fg).add_modifier(Modifier::BOLD),
+            ),
+        ];
+        if is_today {
+            spans.push(Span::styled(" (Today) ", Style::new().fg(theme.muted)));
+        }
+        spans.push(Span::styled(" > ", Style::new().fg(theme.muted)));
+
+        let line = Line::from(spans);
+        let paragraph = Paragraph::new(line).alignment(Alignment::Center);
+        f.render_widget(paragraph, area);
     }
 
     fn render_timer_header(&self, area: Rect, f: &mut Frame, theme: &Theme) {
@@ -122,12 +175,14 @@ impl Dashboard {
     }
 
     fn render_entry_table(&mut self, area: Rect, f: &mut Frame, theme: &Theme) {
-        let margin = 2u16;
+        let hmargin = 2u16;
+        let vtop = 0u16;
+        let vbottom = 2u16;
         let padded_area = Rect {
-            x: area.x + margin,
-            y: area.y + margin,
-            width: area.width.saturating_sub(margin * 2),
-            height: area.height.saturating_sub(margin * 2),
+            x: area.x + hmargin,
+            y: area.y + vtop,
+            width: area.width.saturating_sub(hmargin * 2),
+            height: area.height.saturating_sub(vtop + vbottom),
         };
 
         // Usable content width after borders and padding
@@ -236,8 +291,13 @@ impl Dashboard {
             })
             .collect();
 
+        let block_title = if self.selected_date == harv_core::datetime::today() {
+            "Today".to_string()
+        } else {
+            self.selected_date.format("%b %e, %Y").to_string()
+        };
         let block = Block::new()
-            .title("Today")
+            .title(block_title)
             .title_bottom(format!(" {:.2}h total ", self.daily_total))
             .borders(Borders::ALL)
             .border_style(Style::new().fg(theme.border))
@@ -361,6 +421,10 @@ impl Dashboard {
                 }]
             }
             KeyCode::Char('r') => vec![Action::Refresh],
+            KeyCode::Char('h') | KeyCode::Left => vec![Action::NavigateDayPrev],
+            KeyCode::Char('l') | KeyCode::Right => vec![Action::NavigateDayNext],
+            KeyCode::Char('T') => vec![Action::NavigateDayToday],
+            KeyCode::Char('g') => vec![Action::OpenDatePicker],
             _ => vec![],
         }
     }
@@ -404,7 +468,7 @@ fn format_timer_elapsed(entry: &TimeEntry) -> String {
     }
 }
 
-fn render_harv_header(area: Rect, f: &mut Frame, theme: &Theme) {
+fn render_harv_header(area: Rect, f: &mut Frame, theme: &Theme, date: NaiveDate) {
     use ratatui::widgets::Clear;
 
     f.render_widget(Clear, area);
@@ -445,18 +509,32 @@ fn render_harv_header(area: Rect, f: &mut Frame, theme: &Theme) {
     }
 
     lines.push(Line::from(vec![
+        Span::styled(" ".repeat(pad), Style::default()),
         Span::styled(
-            format!("{}{}", " ".repeat(pad), "HARV CLI"),
+            "HARV CLI",
             Style::new()
                 .fg(Color::Rgb(250, 93, 0))
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(format!(" v{}", version), Style::new().fg(version_color)),
+        Span::styled(
+            " ".repeat(21usize.saturating_sub(version_text.len() + pad)),
+            Style::default(),
+        ),
     ]));
+    let empty_msg = if date == harv_core::datetime::today() {
+        "No entries today. Press n to start tracking!".to_string()
+    } else {
+        format!(
+            "No entries for {}. Press n to log time!",
+            date.format("%b %e, %Y")
+        )
+    };
+
     lines.push(Line::from(""));
 
     lines.push(Line::from(Span::styled(
-        "No entries today. Press n to start tracking!",
+        empty_msg,
         Style::new().fg(version_color),
     )));
 
@@ -786,5 +864,91 @@ mod tests {
         let mut d = Dashboard::default();
         let actions = d.handle_key(&key_press(KeyCode::Enter));
         assert!(actions.is_empty());
+    }
+
+    #[test]
+    fn test_h_navigates_prev_day() {
+        let mut d = Dashboard::default();
+        let actions = d.handle_key(&key_press(KeyCode::Char('h')));
+        assert_eq!(actions.len(), 1);
+        assert!(matches!(actions[0], Action::NavigateDayPrev));
+    }
+
+    #[test]
+    fn test_l_navigates_next_day() {
+        let mut d = Dashboard::default();
+        let actions = d.handle_key(&key_press(KeyCode::Char('l')));
+        assert_eq!(actions.len(), 1);
+        assert!(matches!(actions[0], Action::NavigateDayNext));
+    }
+
+    #[test]
+    fn test_left_arrow_navigates_prev_day() {
+        let mut d = Dashboard::default();
+        let actions = d.handle_key(&key_press(KeyCode::Left));
+        assert_eq!(actions.len(), 1);
+        assert!(matches!(actions[0], Action::NavigateDayPrev));
+    }
+
+    #[test]
+    fn test_right_arrow_navigates_next_day() {
+        let mut d = Dashboard::default();
+        let actions = d.handle_key(&key_press(KeyCode::Right));
+        assert_eq!(actions.len(), 1);
+        assert!(matches!(actions[0], Action::NavigateDayNext));
+    }
+
+    #[test]
+    fn test_shift_t_goes_to_today() {
+        let mut d = Dashboard::default();
+        let actions = d.handle_key(&key_press(KeyCode::Char('T')));
+        assert_eq!(actions.len(), 1);
+        assert!(matches!(actions[0], Action::NavigateDayToday));
+    }
+
+    #[test]
+    fn test_g_opens_date_picker() {
+        let mut d = Dashboard::default();
+        let actions = d.handle_key(&key_press(KeyCode::Char('g')));
+        assert_eq!(actions.len(), 1);
+        assert!(matches!(actions[0], Action::OpenDatePicker));
+    }
+
+    #[test]
+    fn test_selected_date_defaults_to_today() {
+        let d = Dashboard::default();
+        assert_eq!(d.selected_date(), harv_core::datetime::today());
+    }
+
+    #[test]
+    fn test_prev_day_decrements_date() {
+        let mut d = Dashboard::default();
+        let before = d.selected_date();
+        d.prev_day();
+        assert_eq!(d.selected_date(), before - chrono::Duration::days(1));
+    }
+
+    #[test]
+    fn test_next_day_increments_date() {
+        let mut d = Dashboard::default();
+        let before = d.selected_date();
+        d.next_day();
+        assert_eq!(d.selected_date(), before + chrono::Duration::days(1));
+    }
+
+    #[test]
+    fn test_go_today_sets_to_today() {
+        let mut d = Dashboard::default();
+        d.next_day();
+        d.go_today();
+        assert_eq!(d.selected_date(), harv_core::datetime::today());
+    }
+
+    #[test]
+    fn test_set_date_changes_selected_date() {
+        let mut d = Dashboard::default();
+        let target = chrono::NaiveDate::from_ymd_opt(2025, 1, 15).unwrap();
+        d.set_date(target);
+        assert_eq!(d.selected_date(), target);
     }
 }

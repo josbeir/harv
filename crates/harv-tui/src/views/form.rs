@@ -134,6 +134,14 @@ impl TimeEntryForm {
         }
     }
 
+    pub fn date(&self) -> &str {
+        &self.date
+    }
+
+    pub fn set_date(&mut self, d: String) {
+        self.date = d;
+    }
+
     fn filter_projects(&mut self) {
         let q = self.project_search.to_lowercase();
         self.filtered_assignments = if q.is_empty() {
@@ -728,6 +736,9 @@ impl TimeEntryForm {
                     _ => Field::ProjectList,
                 };
                 vec![]
+            }
+            KeyCode::Char('g') if self.active == Field::Date => {
+                vec![Action::OpenDatePicker]
             }
             KeyCode::Enter => {
                 match self.active {
@@ -1456,5 +1467,41 @@ mod tests {
         f.active = Field::Hours;
         f.handle_key(&key_press(KeyCode::Enter));
         assert_eq!(f.active, Field::Notes);
+    }
+
+    #[test]
+    fn test_g_in_date_field_opens_picker() {
+        let mut f = TimeEntryForm::new(
+            None,
+            None,
+            None,
+            FormMode::Create,
+            None,
+            None,
+            None,
+            None,
+            false,
+        );
+        f.active = Field::Date;
+        let actions = f.handle_key(&key_press(KeyCode::Char('g')));
+        assert_eq!(actions.len(), 1);
+        assert!(matches!(actions[0], Action::OpenDatePicker));
+    }
+
+    #[test]
+    fn test_set_date_updates_field() {
+        let mut f = TimeEntryForm::new(
+            None,
+            None,
+            None,
+            FormMode::Create,
+            None,
+            None,
+            None,
+            None,
+            false,
+        );
+        f.set_date("2025-01-15".into());
+        assert_eq!(f.date(), "2025-01-15");
     }
 }
