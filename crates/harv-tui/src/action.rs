@@ -12,6 +12,7 @@ pub enum Action {
     NavigateDown,
     Select,
     Refresh,
+    RefreshEntries,
     TimerUpdate(Vec<TimeEntry>),
     TodayEntriesUpdate(Vec<TimeEntry>, f64),
     UserLoaded(User),
