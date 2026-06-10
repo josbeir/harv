@@ -14,6 +14,7 @@ pub struct Dashboard {
     daily_total: f64,
     list_state: ListState,
     loaded: bool,
+    loading_msg: &'static str,
 }
 
 impl Default for Dashboard {
@@ -24,13 +25,15 @@ impl Default for Dashboard {
             daily_total: 0.0,
             list_state: ListState::default().with_selected(Some(0)),
             loaded: false,
+            loading_msg: "Loading...",
         }
     }
 }
 
 impl Dashboard {
-    pub fn set_loading(&mut self) {
+    pub fn set_loading(&mut self, msg: &'static str) {
         self.loaded = false;
+        self.loading_msg = msg;
     }
 
     pub fn update_entries(&mut self, entries: Vec<TimeEntry>) {
@@ -54,7 +57,7 @@ impl Dashboard {
 
     pub fn render(&mut self, area: Rect, f: &mut Frame, theme: &Theme, tick: u64) {
         if !self.loaded {
-            crate::loading::render_harv_loading(area, f, tick, "Loading entries...", theme);
+            crate::loading::render_harv_loading(area, f, tick, self.loading_msg, theme);
             return;
         }
 
@@ -517,8 +520,9 @@ mod tests {
         let mut d = Dashboard::default();
         d.update_entries(vec![entry(1, 10, 20, Some(1.0), false)]);
         assert!(d.loaded);
-        d.set_loading();
+        d.set_loading("Test");
         assert!(!d.loaded);
+        assert_eq!(d.loading_msg, "Test");
     }
 
     #[test]

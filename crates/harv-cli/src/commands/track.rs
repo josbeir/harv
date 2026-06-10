@@ -89,22 +89,18 @@ pub async fn execute(
 
     let resolved_hours = if is_start {
         None
-    } else if hours.is_some() {
-        hours
-    } else if date.is_none() && alias.is_none() && project_id.is_none() && task_id.is_none() {
-        prompts::ask_hours()?
+    } else if let Some(h) = hours {
+        Some(h)
     } else {
-        None
+        prompts::ask_hours()?
     };
 
     let resolved_notes = if let Some(n) = notes {
         Some(n)
     } else if editor {
         prompts::ask_notes(true)?
-    } else if date.is_none() && alias.is_none() && project_id.is_none() && task_id.is_none() {
-        prompts::ask_notes(false)?
     } else {
-        None
+        prompts::ask_notes(false)?
     };
 
     let (started_time, ended_time) = resolved_hours

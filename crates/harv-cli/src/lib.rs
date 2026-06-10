@@ -141,9 +141,18 @@ pub struct TasksArgs {
 
 #[derive(Subcommand, Clone, Debug)]
 pub enum AliasCommand {
-    Create { name: String },
+    /// Create a new project/task alias (interactive if name omitted)
+    Create {
+        /// Alias name (prompts interactively if omitted)
+        name: Option<String>,
+    },
+    /// List all aliases
     List,
-    Delete { name: String },
+    /// Delete an alias by name
+    Delete {
+        /// Alias name to delete
+        name: String,
+    },
 }
 
 #[derive(clap::Args, Clone, Debug)]

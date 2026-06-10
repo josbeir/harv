@@ -424,7 +424,7 @@ async fn test_track_with_last_used_auto_task() {
         .await;
     Mock::given(method("POST")).and(path("/time_entries"))
         .respond_with(json_response(json!({
-            "id": 99, "spent_date": "2026-06-08", "hours": 2.0, "notes": null,
+            "id": 99, "spent_date": "2026-06-08", "hours": 2.0, "notes": "test",
             "is_running": false, "timer_started_at": null, "started_time": null, "ended_time": null,
             "project": {"id": 100, "name": "Test Project"}, "task": {"id": 200, "name": "Development"},
             "user": {"id": 1, "name": "Test User"}, "client": null,
@@ -437,7 +437,7 @@ async fn test_track_with_last_used_auto_task() {
         Some(100),
         None,
         Some(2.0),
-        None,
+        Some("test".into()),
         false,
         Some("2026-06-08".into()),
         false,
@@ -446,6 +446,74 @@ async fn test_track_with_last_used_auto_task() {
     )
     .await
     .unwrap();
+}
+
+#[tokio::test]
+async fn test_track_no_project_assignments() {
+    let _guard = ENV_MUTEX.lock().await;
+    let tmp = tempfile::tempdir().unwrap();
+    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
+    unsafe { std::env::set_var("HOME", tmp.path()) };
+    let harv_dir = tmp.path().join(".config").join("harv");
+    std::fs::create_dir_all(&harv_dir).unwrap();
+    std::fs::write(
+        harv_dir.join("config.json"),
+        r#"{"access_token":"t","account_id":"1"}"#,
+    )
+    .unwrap();
+
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+    Mock::given(method("GET"))
+        .and(path("/users/me/project_assignments"))
+        .respond_with(json_response(json!({
+            "project_assignments": [],
+            "total_pages": 1, "page": 1, "total_entries": 0, "per_page": 100
+        })))
+        .mount(&server)
+        .await;
+
+    let result =
+        commands::track::execute(&c, None, None, None, None, false, None, false, None, false).await;
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_track_alias_not_found() {
+    let _guard = ENV_MUTEX.lock().await;
+    let tmp = tempfile::tempdir().unwrap();
+    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
+    unsafe { std::env::set_var("HOME", tmp.path()) };
+    let harv_dir = tmp.path().join(".config").join("harv");
+    std::fs::create_dir_all(&harv_dir).unwrap();
+    std::fs::write(
+        harv_dir.join("config.json"),
+        r#"{"access_token":"t","account_id":"1"}"#,
+    )
+    .unwrap();
+
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+    Mock::given(method("GET"))
+        .and(path("/users/me/project_assignments"))
+        .respond_with(json_response(project_assignments_json()))
+        .mount(&server)
+        .await;
+
+    let result = commands::track::execute(
+        &c,
+        None,
+        None,
+        None,
+        None,
+        false,
+        None,
+        false,
+        Some("nonexistent".into()),
+        false,
+    )
+    .await;
+    assert!(result.is_err());
 }
 
 // --- Note command with inline notes ---
@@ -502,7 +570,8 @@ async fn test_alias_list_empty() {
         r#"{"access_token":"t","account_id":"1"}"#,
     )
     .unwrap();
-    commands::alias::list_execute(&harv_cli::OutputFormat::Table)
+    let c = client("http://unused"); // never hit — aliases empty, early returns
+    commands::alias::list_execute(&c, &harv_cli::OutputFormat::Table)
         .await
         .unwrap();
 }
@@ -535,12 +604,74 @@ async fn test_alias_list_with_data() {
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
         harv_dir.join("config.json"),
-        r#"{"access_token":"t","account_id":"1","aliases":{"dev":{"project_id":10,"task_id":20}}}"#,
+        r#"{"access_token":"t","account_id":"1","aliases":{"dev":{"project_id":100,"task_id":200}}}"#,
     )
     .unwrap();
-    commands::alias::list_execute(&harv_cli::OutputFormat::Table)
+
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+    Mock::given(method("GET"))
+        .and(path("/users/me/project_assignments"))
+        .respond_with(json_response(project_assignments_json()))
+        .mount(&server)
+        .await;
+
+    commands::alias::list_execute(&c, &harv_cli::OutputFormat::Table)
         .await
         .unwrap();
+}
+
+#[tokio::test]
+async fn test_alias_list_stale() {
+    let _guard = ENV_MUTEX.lock().await;
+    let tmp = tempfile::tempdir().unwrap();
+    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
+    unsafe { std::env::set_var("HOME", tmp.path()) };
+    let harv_dir = tmp.path().join(".config").join("harv");
+    std::fs::create_dir_all(&harv_dir).unwrap();
+    std::fs::write(
+        harv_dir.join("config.json"),
+        r#"{"access_token":"t","account_id":"1","aliases":{"old":{"project_id":999,"task_id":888}}}"#,
+    )
+    .unwrap();
+
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+    Mock::given(method("GET"))
+        .and(path("/users/me/project_assignments"))
+        .respond_with(json_response(project_assignments_json()))
+        .mount(&server)
+        .await;
+
+    commands::alias::list_execute(&c, &harv_cli::OutputFormat::Table)
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn test_alias_list_api_error() {
+    let _guard = ENV_MUTEX.lock().await;
+    let tmp = tempfile::tempdir().unwrap();
+    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
+    unsafe { std::env::set_var("HOME", tmp.path()) };
+    let harv_dir = tmp.path().join(".config").join("harv");
+    std::fs::create_dir_all(&harv_dir).unwrap();
+    std::fs::write(
+        harv_dir.join("config.json"),
+        r#"{"access_token":"t","account_id":"1","aliases":{"dev":{"project_id":100,"task_id":200}}}"#,
+    )
+    .unwrap();
+
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+    Mock::given(method("GET"))
+        .and(path("/users/me/project_assignments"))
+        .respond_with(ResponseTemplate::new(500))
+        .mount(&server)
+        .await;
+
+    let result = commands::alias::list_execute(&c, &harv_cli::OutputFormat::Table).await;
+    assert!(result.is_err());
 }
 
 // --- Start command delegation test ---
@@ -557,7 +688,7 @@ async fn test_start_delegation() {
         .await;
     Mock::given(method("POST")).and(path("/time_entries"))
         .respond_with(json_response(json!({
-            "id": 99, "spent_date": "2026-06-08", "hours": null, "notes": null,
+            "id": 99, "spent_date": "2026-06-08", "hours": null, "notes": "test",
             "is_running": true, "timer_started_at": "2026-06-08T14:00:00Z",
             "started_time": null, "ended_time": null,
             "project": {"id": 100, "name": "Test Project"}, "task": {"id": 200, "name": "Development"},
@@ -571,7 +702,7 @@ async fn test_start_delegation() {
         None,
         Some(100),
         Some(200),
-        None,
+        Some("test".into()),
         false,
         Some("2026-06-08".into()),
         false,

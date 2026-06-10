@@ -195,7 +195,7 @@ impl App {
                     }
                 });
 
-                self.fetch_dashboard_data(tx);
+                self.fetch_dashboard_data(tx, false);
             }
             Action::ToggleHelp => {
                 self.help.toggle();
@@ -208,7 +208,7 @@ impl App {
             }
             Action::SwitchView(_) => {
                 self.form = None;
-                self.fetch_dashboard_data(tx);
+                self.fetch_dashboard_data(tx, false);
             }
             Action::OpenForm {
                 last_project_id,
@@ -247,44 +247,10 @@ impl App {
                     }
                 });
             }
-            Action::FormAssignmentsUpdate(assignments) =>
-            {
-                #[allow(clippy::collapsible_if)]
+            Action::FormAssignmentsUpdate(assignments) => {
                 if let Some(ref mut f) = self.form {
-                    if let Some(pid) = f.update_assignments(assignments) {
-                        let client = Arc::clone(&self.client);
-                        let tx = tx.clone();
-                        tokio::spawn(async move {
-                            match client.projects().task_assignments(pid).await {
-                                Ok(tasks) => {
-                                    let _ = tx.send(Action::FormTasksUpdate(tasks));
-                                }
-                                Err(e) => {
-                                    let _ = tx.send(Action::Error(e.user_message()));
-                                }
-                            }
-                        });
-                    }
+                    f.update_assignments(assignments);
                 }
-            }
-            Action::FormTasksUpdate(tasks) => {
-                if let Some(ref mut f) = self.form {
-                    f.update_tasks(tasks);
-                }
-            }
-            Action::FormSelectProject(project_id) => {
-                let client = Arc::clone(&self.client);
-                let tx = tx.clone();
-                tokio::spawn(async move {
-                    match client.projects().task_assignments(project_id).await {
-                        Ok(tasks) => {
-                            let _ = tx.send(Action::FormTasksUpdate(tasks));
-                        }
-                        Err(e) => {
-                            let _ = tx.send(Action::Error(e.user_message()));
-                        }
-                    }
-                });
             }
             Action::CreateEntry {
                 project_id,
@@ -371,8 +337,8 @@ impl App {
             }
             Action::Refresh => {
                 let View::Dashboard(d) = &mut self.current_view;
-                d.set_loading();
-                self.fetch_dashboard_data(tx);
+                d.set_loading("Refreshing...");
+                self.fetch_dashboard_data(tx, true);
             }
             Action::StartTimer {
                 project_id,
@@ -466,7 +432,7 @@ impl App {
         }
     }
 
-    fn fetch_dashboard_data(&self, tx: &UnboundedSender<Action>) {
+    fn fetch_dashboard_data(&self, tx: &UnboundedSender<Action>, force_assignments: bool) {
         let user_id = self.user_id;
         if user_id == 0 {
             return;
@@ -486,7 +452,15 @@ impl App {
                 ..Default::default()
             };
 
-            match client.time_entries().list(&params).await {
+            let time_api = client.time_entries();
+            let (entries_result, _) = tokio::join!(time_api.list(&params), async {
+                match client.projects().my_assignments(force_assignments).await {
+                    Ok(_) => tracing::debug!("project assignments refreshed"),
+                    Err(e) => tracing::warn!("failed to refresh project assignments: {}", e),
+                }
+            });
+
+            match entries_result {
                 Ok(entries) => {
                     let total: f64 = entries.iter().filter_map(|e| e.hours).sum();
                     let _ = tx.send(Action::TodayEntriesUpdate(entries, total));

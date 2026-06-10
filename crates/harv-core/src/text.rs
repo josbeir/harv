@@ -55,29 +55,67 @@ pub fn format_elapsed_hms(total_secs: i64) -> String {
     format!("{:02}:{:02}:{:02}", hours, mins, secs)
 }
 
+/// Returns true if the character at `idx` starts a new word.
+fn is_word_boundary(chars: &[char], idx: usize) -> bool {
+    idx == 0 || chars[idx - 1] == ' ' || chars[idx - 1] == '-' || chars[idx - 1] == '_'
+}
+
 /// Fuzzy-score a pattern against text. Returns -1 if no match.
 ///
-/// Characters in the pattern must appear in order in the text
-/// (not necessarily consecutively). Each matching character
-/// increments the score by 1.
+/// Pattern characters must appear in order in the text (not necessarily
+/// consecutive). Scoring rewards contiguous runs, word-boundary matches,
+/// and early first-character position; it penalizes gaps between matches.
 pub fn fuzzy_score(pattern: &str, text: &str) -> i32 {
-    let pattern = pattern.to_lowercase();
-    let text = text.to_lowercase();
-    let mut score = 0;
-    let mut text_chars = text.chars();
-    for p in pattern.chars() {
-        loop {
-            match text_chars.next() {
-                Some(t) if t == p => {
-                    score += 1;
-                    break;
-                }
-                Some(_) => {}
-                None => return -1,
-            }
-        }
+    if pattern.is_empty() {
+        return 0;
     }
-    score
+
+    let pattern_lower = pattern.to_lowercase();
+    let text_lower = text.to_lowercase();
+    let pattern_chars: Vec<char> = pattern_lower.chars().collect();
+    let text_chars: Vec<char> = text_lower.chars().collect();
+
+    let mut score = 0i32;
+    let mut pi = 0;
+    let mut last_match: Option<usize> = None;
+    let mut consecutive_streak = 0i32;
+
+    for (ti, &tc) in text_chars.iter().enumerate() {
+        if pi >= pattern_chars.len() {
+            break;
+        }
+        if tc != pattern_chars[pi] {
+            continue;
+        }
+
+        // Base point
+        score += 1;
+
+        // Consecutive bonus — growing reward for continuous runs
+        let is_consecutive = last_match.is_some_and(|lm| ti == lm + 1);
+        if is_consecutive {
+            consecutive_streak += 1;
+            score += consecutive_streak * 2;
+        } else if let Some(lm) = last_match {
+            // Gap penalty (capped)
+            let gap = (ti - lm) as i32;
+            score -= gap.min(10);
+            consecutive_streak = 0;
+        }
+
+        // Word-boundary and first-match position bonuses
+        if is_word_boundary(&text_chars, ti) {
+            score += if pi == 0 { 8 } else { 4 };
+        }
+        if pi == 0 && ti == 0 {
+            score += 4;
+        }
+
+        last_match = Some(ti);
+        pi += 1;
+    }
+
+    if pi < pattern_chars.len() { -1 } else { score }
 }
 
 #[cfg(test)]
@@ -214,5 +252,84 @@ mod tests {
     #[test]
     fn test_fuzzy_score_substring() {
         assert!(fuzzy_score("De", "Development") > 0);
+    }
+
+    #[test]
+    fn test_fuzzy_score_empty_pattern() {
+        assert_eq!(fuzzy_score("", "anything"), 0);
+    }
+
+    #[test]
+    fn test_fuzzy_score_contiguous_beats_scattered() {
+        let contiguous = fuzzy_score("demo", "Demo Project - Alpha Phase Design");
+        let scattered = fuzzy_score("demo", "Data Entry Module Operations Platform");
+        assert!(
+            contiguous > scattered,
+            "contiguous {contiguous} should beat scattered {scattered}"
+        );
+    }
+
+    #[test]
+    fn test_fuzzy_score_prefix_bonus() {
+        let at_start = fuzzy_score("dev", "development website");
+        let mid_word = fuzzy_score("dev", "web developer");
+        assert!(
+            at_start > mid_word,
+            "start {at_start} should beat mid-word {mid_word}"
+        );
+    }
+
+    #[test]
+    fn test_fuzzy_score_word_boundary_bonus() {
+        let at_boundary = fuzzy_score("imp", "important implementation");
+        // "imp" in "important" at pos 0 — word boundary, start bonus
+        // vs "imp" starting somewhere inside
+        assert!(at_boundary > 0);
+    }
+
+    #[test]
+    fn test_fuzzy_score_consecutive_bonus_grows() {
+        let short_run = fuzzy_score("de", "development");
+        let long_run = fuzzy_score("devel", "development");
+        assert!(
+            long_run > short_run,
+            "longer consecutive run should score higher"
+        );
+    }
+
+    #[test]
+    fn test_fuzzy_score_case_insensitive() {
+        assert_eq!(
+            fuzzy_score("ACME", "Acme Corporation - Launch Campaign"),
+            fuzzy_score("acme", "Acme Corporation - Launch Campaign"),
+        );
+    }
+
+    #[test]
+    fn test_fuzzy_score_no_match_on_missing_char() {
+        let matched = fuzzy_score("acme", "Acme Corp - Alpha Project");
+        let no_match = fuzzy_score("acme", "Basic Tools Workflow");
+        assert!(matched > 0);
+        assert_eq!(
+            no_match, -1,
+            "should not match when a pattern char is missing"
+        );
+    }
+
+    #[test]
+    fn test_fuzzy_score_single_char() {
+        let s = fuzzy_score("t", "test");
+        assert!(s > 0);
+        // single char at start: base=1 + word_boundary(pi=0)+8 + ti=0+4 = 13
+        assert!(
+            s >= 10,
+            "single char at start should have high score, got {s}"
+        );
+    }
+
+    #[test]
+    fn test_fuzzy_score_unicode_safe() {
+        assert!(fuzzy_score("brûlée", "crème brûlée") > 0);
+        assert_eq!(fuzzy_score("xyz", "crème brûlée"), -1);
     }
 }
