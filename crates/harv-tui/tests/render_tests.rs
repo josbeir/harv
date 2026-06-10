@@ -293,3 +293,101 @@ fn test_form_render_edit_running_mode() {
         "Running edit form should show 'Enter: save' help"
     );
 }
+
+#[test]
+fn test_date_nav_bar_renders_with_today() {
+    let mut d = Dashboard::default();
+    d.update_entries(vec![entry(1, 10, 20, Some(2.0), false)]);
+    let backend = TestBackend::new(80, 24);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let theme = Theme::dark();
+    terminal.draw(|f| d.render(f.area(), f, &theme, 0)).unwrap();
+
+    let buffer = terminal.backend().buffer();
+    let buffer_str = (0..buffer.area().height)
+        .map(|y| {
+            (0..buffer.area().width)
+                .map(|x| buffer[(x, y)].symbol())
+                .collect::<String>()
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        buffer_str.contains("(Today)"),
+        "Date nav bar should show (Today) indicator"
+    );
+}
+
+#[test]
+fn test_date_nav_bar_on_past_date_no_today() {
+    let mut d = Dashboard::default();
+    d.update_entries(vec![entry(1, 10, 20, Some(2.0), false)]);
+    let past = harv_core::datetime::today() - chrono::Duration::days(3);
+    d.set_date(past);
+    let backend = TestBackend::new(80, 24);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let theme = Theme::dark();
+    terminal.draw(|f| d.render(f.area(), f, &theme, 0)).unwrap();
+
+    let buffer = terminal.backend().buffer();
+    let buffer_str = (0..buffer.area().height)
+        .map(|y| {
+            (0..buffer.area().width)
+                .map(|x| buffer[(x, y)].symbol())
+                .collect::<String>()
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !buffer_str.contains("(Today)"),
+        "Past date nav bar should NOT show (Today)"
+    );
+}
+
+#[test]
+fn test_table_title_shows_date_when_not_today() {
+    let mut d = Dashboard::default();
+    d.update_entries(vec![entry(1, 10, 20, Some(2.0), false)]);
+    let past = harv_core::datetime::today() - chrono::Duration::days(3);
+    d.set_date(past);
+    let backend = TestBackend::new(80, 24);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let theme = Theme::dark();
+    terminal.draw(|f| d.render(f.area(), f, &theme, 0)).unwrap();
+
+    let buffer = terminal.backend().buffer();
+    let buffer_str = (0..buffer.area().height)
+        .map(|y| {
+            (0..buffer.area().width)
+                .map(|x| buffer[(x, y)].symbol())
+                .collect::<String>()
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        buffer_str.contains("total"),
+        "Table with total should render"
+    );
+}
+
+#[test]
+fn test_date_picker_renders_content() {
+    use harv_tui::views::date_picker::DatePicker;
+    let date = chrono::NaiveDate::from_ymd_opt(2026, 6, 10).unwrap();
+    let mut dp = DatePicker::new(date);
+    let backend = TestBackend::new(80, 30);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let theme = Theme::dark();
+    terminal
+        .draw(|f| {
+            dp.render(f.area(), f, &theme);
+        })
+        .unwrap();
+
+    let buffer = terminal.backend().buffer();
+    let has_content = (0..buffer.area().height).any(|y| {
+        (0..buffer.area().width)
+            .any(|x| !buffer[(x, y)].symbol().is_empty() && buffer[(x, y)].symbol() != " ")
+    });
+    assert!(has_content, "Date picker should render visible content");
+}

@@ -307,4 +307,30 @@ mod tests {
         let actions = dp.handle_key(&key);
         assert!(actions.is_empty());
     }
+
+    #[test]
+    fn test_month_nav_across_year_boundary() {
+        let date = NaiveDate::from_ymd_opt(2026, 1, 5).unwrap();
+        let mut dp = DatePicker::new(date);
+        let key = ratatui::crossterm::event::KeyEvent::new(KeyCode::Char('<'), KeyModifiers::NONE);
+        let _ = dp.handle_key(&key);
+        assert_eq!(dp.current_month.month(), 12);
+        assert_eq!(dp.current_month.year(), 2025);
+
+        let key = ratatui::crossterm::event::KeyEvent::new(KeyCode::Char('>'), KeyModifiers::NONE);
+        let _ = dp.handle_key(&key);
+        assert_eq!(dp.current_month.month(), 1);
+        assert_eq!(dp.current_month.year(), 2026);
+    }
+
+    #[test]
+    fn test_cursor_auto_advances_december() {
+        let date = NaiveDate::from_ymd_opt(2026, 12, 31).unwrap();
+        let mut dp = DatePicker::new(date);
+        let key = ratatui::crossterm::event::KeyEvent::new(KeyCode::Right, KeyModifiers::NONE);
+        let _ = dp.handle_key(&key);
+        assert_eq!(dp.cursor, NaiveDate::from_ymd_opt(2027, 1, 1).unwrap());
+        assert_eq!(dp.current_month.month(), 1);
+        assert_eq!(dp.current_month.year(), 2027);
+    }
 }

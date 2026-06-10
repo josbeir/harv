@@ -105,4 +105,11 @@ mod tests {
         let view = View::Dashboard(d);
         assert!(!view.timer_running());
     }
+
+    #[test]
+    fn test_view_selected_date() {
+        let d = Dashboard::default();
+        let view = View::Dashboard(d);
+        assert_eq!(view.selected_date(), harv_core::datetime::today());
+    }
 }
