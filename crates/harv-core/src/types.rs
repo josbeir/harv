@@ -119,6 +119,9 @@ pub struct User {
     pub is_active: bool,
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
+    pub timezone: Option<String>,
+    pub weekly_capacity: Option<u64>,
+    pub access_roles: Option<Vec<String>>,
 }
 
 /// A Harvest client.
@@ -321,6 +324,46 @@ mod tests {
         let user: User = serde_json::from_str(json).unwrap();
         assert_eq!(user.first_name, "Kim");
         assert_eq!(user.email, "kim@example.com");
+    }
+
+    #[test]
+    fn test_user_deserialize_with_new_fields() {
+        let json = r#"{
+            "id": 1,
+            "first_name": "Test",
+            "last_name": "User",
+            "email": "test@example.com",
+            "is_active": true,
+            "created_at": null,
+            "updated_at": null,
+            "timezone": "America/New_York",
+            "weekly_capacity": 144000,
+            "access_roles": ["administrator", "project_creator"]
+        }"#;
+        let user: User = serde_json::from_str(json).unwrap();
+        assert_eq!(user.timezone, Some("America/New_York".into()));
+        assert_eq!(user.weekly_capacity, Some(144000));
+        assert_eq!(
+            user.access_roles,
+            Some(vec!["administrator".into(), "project_creator".into()])
+        );
+    }
+
+    #[test]
+    fn test_user_deserialize_without_new_fields() {
+        let json = r#"{
+            "id": 1,
+            "first_name": "Test",
+            "last_name": "User",
+            "email": "test@example.com",
+            "is_active": true,
+            "created_at": null,
+            "updated_at": null
+        }"#;
+        let user: User = serde_json::from_str(json).unwrap();
+        assert_eq!(user.timezone, None);
+        assert_eq!(user.weekly_capacity, None);
+        assert_eq!(user.access_roles, None);
     }
 
     #[test]

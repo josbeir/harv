@@ -51,6 +51,15 @@ impl ProjectsCache {
     }
 }
 
+pub async fn clear_cache(account_id: &str) -> Result<(), HarvError> {
+    let path = ProjectsCache::path(account_id);
+    match fs::remove_file(&path).await {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(HarvError::Io(e)),
+    }
+}
+
 pub(crate) async fn get_cached_assignments(
     account_id: &str,
     ttl_hours: u64,

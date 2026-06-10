@@ -8,12 +8,22 @@ fn main() -> color_eyre::eyre::Result<()> {
 
     let cli = Cli::parse();
 
+    let requires_auth = !matches!(
+        &cli.command,
+        Some(Commands::Connect | Commands::Completion(_))
+    );
+    if requires_auth && !harv_sdk::HarvConfig::path().exists() {
+        eprintln!("Not authenticated. Run `harv connect` to log in.");
+        std::process::exit(1);
+    }
+
     let result: color_eyre::eyre::Result<()> = match cli.command {
         Some(cmd) => {
             let rt = tokio::runtime::Runtime::new()?;
             rt.block_on(async {
                 match cmd {
                     Commands::Connect => commands::connect::run().await?,
+                    Commands::Disconnect => commands::disconnect::run().await?,
                     Commands::Config(args) => commands::config_cmd::execute(&args).await?,
                     Commands::Track(args) => {
                         commands::track::run(
@@ -60,6 +70,7 @@ fn main() -> color_eyre::eyre::Result<()> {
                         commands::note::run(args.notes, args.overwrite, args.editor).await?
                     }
                     Commands::Status => commands::status::run(&cli.output).await?,
+                    Commands::Whoami => commands::whoami::run(&cli.output).await?,
                     Commands::Projects(args) => {
                         commands::projects::run(args.search, args.refresh, &cli.output).await?
                     }

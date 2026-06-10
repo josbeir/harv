@@ -32,18 +32,19 @@ fn test_config_no_config_file() {
     cmd.arg("config")
         .env("XDG_CONFIG_HOME", temp.path())
         .assert()
-        .success()
-        .stdout(predicate::str::contains("Config file:"))
-        .stdout(predicate::str::contains("harv connect"));
+        .code(1)
+        .stderr(predicate::str::contains("Not authenticated"))
+        .stderr(predicate::str::contains("harv connect"));
 }
 
 #[test]
 fn test_output_flag_json() {
     let temp = tempfile::tempdir().unwrap();
     let mut cmd = Command::cargo_bin("harv").unwrap();
-    cmd.arg("config")
-        .arg("--output")
+    cmd.arg("--output")
         .arg("json")
+        .arg("completion")
+        .arg("bash")
         .env("XDG_CONFIG_HOME", temp.path())
         .assert()
         .success();
@@ -53,9 +54,10 @@ fn test_output_flag_json() {
 fn test_output_flag_table() {
     let temp = tempfile::tempdir().unwrap();
     let mut cmd = Command::cargo_bin("harv").unwrap();
-    cmd.arg("config")
-        .arg("--output")
+    cmd.arg("--output")
         .arg("table")
+        .arg("completion")
+        .arg("bash")
         .env("XDG_CONFIG_HOME", temp.path())
         .assert()
         .success();
@@ -92,4 +94,41 @@ fn test_alias_help() {
         .stdout(predicate::str::contains("create"))
         .stdout(predicate::str::contains("list"))
         .stdout(predicate::str::contains("delete"));
+}
+
+// --- Auth guard tests ---
+
+#[test]
+fn test_requires_auth_no_config() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut cmd = Command::cargo_bin("harv").unwrap();
+    cmd.arg("status")
+        .env("XDG_CONFIG_HOME", temp.path())
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("Not authenticated"))
+        .stderr(predicate::str::contains("harv connect"));
+}
+
+#[test]
+fn test_connect_allowed_without_config() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut cmd = Command::cargo_bin("harv").unwrap();
+    cmd.arg("connect")
+        .arg("--help")
+        .env("XDG_CONFIG_HOME", temp.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Authenticate"));
+}
+
+#[test]
+fn test_completion_allowed_without_config() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut cmd = Command::cargo_bin("harv").unwrap();
+    cmd.arg("completion")
+        .arg("bash")
+        .env("XDG_CONFIG_HOME", temp.path())
+        .assert()
+        .success();
 }

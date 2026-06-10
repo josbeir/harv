@@ -52,7 +52,7 @@ fn project_assignments_json() -> serde_json::Value {
 }
 
 fn user_json() -> serde_json::Value {
-    json!({"id": 1, "first_name": "Test", "last_name": "User", "email": "test@test.com", "is_active": true, "created_at": null, "updated_at": null})
+    json!({"id": 1, "first_name": "Test", "last_name": "User", "email": "test@test.com", "is_active": true, "created_at": null, "updated_at": null, "access_roles": ["member"]})
 }
 
 // --- Projects command ---
@@ -775,4 +775,81 @@ async fn test_stop_with_notes_overwrite() {
     commands::stop::execute(&c, Some("fresh".into()), true, false)
         .await
         .unwrap();
+}
+
+// --- Whoami ---
+
+#[tokio::test]
+async fn test_whoami_execute() {
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+    Mock::given(method("GET"))
+        .and(path("/users/me"))
+        .respond_with(json_response(user_json()))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/company"))
+        .respond_with(json_response(json!({"name": "Test Company"})))
+        .mount(&server)
+        .await;
+
+    commands::whoami::execute(&c, &harv_cli::OutputFormat::Table)
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn test_whoami_execute_json() {
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+    Mock::given(method("GET"))
+        .and(path("/users/me"))
+        .respond_with(json_response(user_json()))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/company"))
+        .respond_with(json_response(json!({"name": "Test Company"})))
+        .mount(&server)
+        .await;
+
+    commands::whoami::execute(&c, &harv_cli::OutputFormat::Json)
+        .await
+        .unwrap();
+}
+
+// --- Disconnect ---
+
+#[tokio::test]
+async fn test_disconnect_no_config() {
+    let _guard = ENV_MUTEX.lock().await;
+    let tmp = tempfile::tempdir().unwrap();
+    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
+    unsafe { std::env::set_var("HOME", tmp.path()) };
+
+    commands::disconnect::run().await.unwrap();
+}
+
+#[tokio::test]
+async fn test_disconnect_with_config() {
+    let _guard = ENV_MUTEX.lock().await;
+    let tmp = tempfile::tempdir().unwrap();
+    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
+    unsafe { std::env::set_var("HOME", tmp.path()) };
+
+    let harv_dir = tmp.path().join(".config").join("harv");
+    std::fs::create_dir_all(&harv_dir).unwrap();
+    let config_path = harv_dir.join("config.json");
+    std::fs::write(&config_path, r#"{"access_token":"tok","account_id":"123"}"#).unwrap();
+    let cache_path = harv_dir.join("projects_cache_123.json");
+    std::fs::write(&cache_path, "{}").unwrap();
+
+    assert!(config_path.exists());
+    assert!(cache_path.exists());
+
+    commands::disconnect::run().await.unwrap();
+
+    assert!(!config_path.exists());
+    assert!(!cache_path.exists());
 }
