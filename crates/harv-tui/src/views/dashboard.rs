@@ -137,28 +137,67 @@ impl Dashboard {
             .saturating_sub(2); // Padding::horizontal(1)
 
         let hours_w = 12u16;
-        let spacing = 2u16; // column_spacing
-        let flex_w = inner_w.saturating_sub(hours_w).saturating_sub(spacing * 3);
+        let spacing = 2u16;
 
-        let project_w = ((flex_w as f32) * 0.50) as u16;
-        let task_w = ((flex_w as f32) * 0.15) as u16;
-        let notes_w = flex_w.saturating_sub(project_w).saturating_sub(task_w);
+        // Minimum widths for each flex column
+        let min_project = 28u16;
+        let min_task = 14u16;
+        let min_notes = 20u16;
 
-        let widths = [
-            Constraint::Length(project_w),
-            Constraint::Length(task_w),
-            Constraint::Length(hours_w),
-            Constraint::Length(notes_w),
-        ];
+        // Decide which columns to show based on available width
+        let show_notes = inner_w >= min_project + min_task + hours_w + min_notes + spacing * 3;
+        let show_task = inner_w >= min_project + min_task + hours_w + spacing * 2;
+
+        let num_gaps = if show_notes {
+            3
+        } else if show_task {
+            2
+        } else {
+            1
+        };
+        let flex_w = inner_w
+            .saturating_sub(hours_w)
+            .saturating_sub(spacing * num_gaps);
+
+        let (project_w, task_w, notes_w) = if show_notes {
+            let pw = ((flex_w as f32) * 0.50) as u16;
+            let tw = ((flex_w as f32) * 0.15) as u16;
+            let nw = flex_w.saturating_sub(pw).saturating_sub(tw);
+            (pw, tw, nw)
+        } else if show_task {
+            let pw = ((flex_w as f32) * 0.75) as u16;
+            let tw = flex_w.saturating_sub(pw);
+            (pw, tw, 0)
+        } else {
+            (flex_w, 0, 0)
+        };
+
+        // Build header labels
+        let mut header_labels = vec!["Project", "Hours"];
+        if show_task {
+            header_labels.insert(1, "Task");
+        }
+        if show_notes {
+            header_labels.push("Notes");
+        }
+
+        let header = Row::new(header_labels)
+            .style(Style::new().fg(theme.muted).add_modifier(Modifier::BOLD))
+            .height(1);
+
+        // Build widths vector
+        let mut widths = vec![Constraint::Length(project_w), Constraint::Length(hours_w)];
+        if show_task {
+            widths.insert(1, Constraint::Length(task_w));
+        }
+        if show_notes {
+            widths.push(Constraint::Length(notes_w));
+        }
 
         // Truncation limits (leave 1 char margin)
         let proj_max = project_w.saturating_sub(1) as usize;
         let task_max = task_w.saturating_sub(1) as usize;
         let notes_max = notes_w.saturating_sub(1) as usize;
-
-        let header = Row::new(vec!["Project", "Task", "Hours", "Notes"])
-            .style(Style::new().fg(theme.muted).add_modifier(Modifier::BOLD))
-            .height(1);
 
         let rows: Vec<Row> = self
             .entries
@@ -169,12 +208,7 @@ impl Dashboard {
                 let avail = proj_max.saturating_sub(prefix.chars().count());
 
                 let project = format!("{}{}", prefix, truncate_client_project(entry, avail));
-                let task = harv_core::text::truncate(&entry.task.name, task_max);
                 let hours = format_hours_cell(entry);
-                let notes = harv_core::text::truncate(
-                    entry.notes.as_deref().unwrap_or(""),
-                    notes_max.max(1),
-                );
 
                 let row_style = if is_running {
                     Style::new().fg(theme.success)
@@ -182,14 +216,23 @@ impl Dashboard {
                     Style::new().fg(theme.fg)
                 };
 
-                Row::new(vec![
-                    Cell::from(project),
-                    Cell::from(task),
-                    Cell::from(hours),
-                    Cell::from(notes),
-                ])
-                .style(row_style)
-                .height(1)
+                let mut cells: Vec<Cell> = Vec::new();
+                cells.push(Cell::from(project));
+                if show_task {
+                    cells.push(Cell::from(harv_core::text::truncate(
+                        &entry.task.name,
+                        task_max,
+                    )));
+                }
+                cells.push(Cell::from(hours));
+                if show_notes {
+                    cells.push(Cell::from(harv_core::text::truncate(
+                        entry.notes.as_deref().unwrap_or(""),
+                        notes_max.max(1),
+                    )));
+                }
+
+                Row::new(cells).style(row_style).height(1)
             })
             .collect();
 
