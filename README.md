@@ -79,9 +79,11 @@ Once you track time, your last-used project and task are remembered — next tim
 ```bash
 harv start [alias]       # Start a running timer
 harv stop                # Stop the running timer
-harv log 2.5 [alias]     # Log 2.5 hours
-harv note                # Edit running timer notes (append by default)
+harv track -H 1.5 [alias] # Track 1.5 hours (harv log is an alias)
+harv note                # Edit running timer notes
 harv status              # Show current timer + today's entries
+harv whoami              # Show authenticated user info
+harv disconnect          # Remove stored credentials
 ```
 
 ### 4. Aliases
@@ -98,7 +100,7 @@ Use aliases to skip prompts:
 
 ```bash
 harv start dev
-harv log 1.5 dev
+harv track -H 1.5 dev
 ```
 
 ## Terminal UI
@@ -149,26 +151,57 @@ Auto-detects dark/light mode from your OS. Real-time switching via D-Bus on Linu
 | Command | Description |
 |---------|-------------|
 | `harv connect` | Authenticate with Harvest via OAuth2 |
+| `harv disconnect` | Remove stored credentials |
 | `harv config` | Show full configuration |
 | `harv config get <key>` | Get a config value (e.g. `cache-ttl`) |
 | `harv config set <key> <val>` | Set a config value (e.g. `cache-ttl 48`) |
-| `harv track` | Interactive time entry wizard |
+| `harv track [alias]` | Track time (interactive wizard if no args; `harv log` is an alias) |
 | `harv start [alias]` | Start a running timer |
 | `harv stop` | Stop the current running timer |
-| `harv log <hours> [alias]` | Log time with specified hours |
 | `harv note` | Edit notes on the running timer |
 | `harv status` | Show current timer + today's entries |
+| `harv whoami` | Show authenticated user info and login status |
 | `harv projects` | List project assignments |
 | `harv tasks <project-id>` | List tasks for a project |
-| `harv alias` | Manage project/task aliases |
+| `harv alias create <name>` | Create a project/task alias |
+| `harv alias list` | List all aliases |
+| `harv alias delete <name>` | Delete an alias |
 | `harv completion <shell>` | Generate shell completion script |
+
+### Command Flags
+
+Most time-tracking commands (`track`, `start`) share common flags:
+
+| Flag | Description |
+|------|-------------|
+| `-p, --project-id <id>` | Skip project prompt |
+| `-t, --task-id <id>` | Skip task prompt |
+| `-H, --hours <hours>` | Hours in decimal (`2.5`) or HH:MM (`2:30`) — `track` only |
+| `-d, --date <date>` | Override date (default: today) |
+| `-n, --notes <text>` | Set notes inline |
+| `-e, --editor` | Open `$EDITOR` for notes |
+| `-R, --refresh` | Force-refresh cached project data |
+
+`harv stop` and `harv note` use a subset:
+
+| Flag | Description |
+|------|-------------|
+| `-n, --notes <text>` | Set notes inline |
+| `-e, --editor` | Open `$EDITOR` for notes |
+| `--overwrite` | Replace existing notes instead of appending |
+
+`harv projects`:
+
+| Flag | Description |
+|------|-------------|
+| `-s, --search <query>` | Filter projects by name |
+| `-R, --refresh` | Force-refresh cached data |
 
 ## Global Options
 
 | Flag | Description |
 |------|-------------|
-| `-o, --output <table\|json>` | Output format (default: table) |
-| `-R, --refresh` | Force-refresh cached data from the API |
+| `-o, --output <table\|json>` | Output format for list commands (default: `table`) |
 
 ## Configuration
 
@@ -178,7 +211,7 @@ Config is stored at `~/.config/harv/config.json`. View with `harv config`, modif
 |---------|---------|-------------|
 | `cache-ttl` | `24` | Cache lifetime in hours (0 = always fetch) |
 
-Project assignments are cached with the configured TTL. Subsequent `track`/`start`/`log` commands return instantly. Use `--refresh` to bypass the cache.
+Project assignments are cached with the configured TTL. Subsequent `track`/`start` commands return instantly. Use `--refresh` to bypass the cache.
 
 ### Custom OAuth2 Application
 
