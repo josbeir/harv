@@ -166,7 +166,7 @@ impl Dashboard {
             .map(|entry| {
                 let is_running = entry.is_running;
                 let prefix = if is_running { "● " } else { "" };
-                let avail = proj_max.saturating_sub(prefix.len());
+                let avail = proj_max.saturating_sub(prefix.chars().count());
 
                 let project = format!("{}{}", prefix, truncate_client_project(entry, avail));
                 let task = harv_core::text::truncate(&entry.task.name, task_max);
@@ -326,7 +326,7 @@ fn truncate_client_project(entry: &TimeEntry, max_w: usize) -> String {
     }
     match &entry.client {
         Some(client) => {
-            let client_w = (max_w / 3).min(client.name.len()).max(1);
+            let client_w = (max_w / 3).min(client.name.chars().count()).max(1);
             let proj_w = max_w.saturating_sub(client_w).saturating_sub(3); // " · "
             format!(
                 "{} · {}",
@@ -345,7 +345,7 @@ fn format_hours_cell(entry: &TimeEntry) -> String {
         entry
             .hours
             .map(harv_core::text::format_hours)
-            .unwrap_or_else(|| "—".into())
+            .unwrap_or_else(|| "0.00h".into())
     }
 }
 
