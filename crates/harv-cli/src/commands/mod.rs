@@ -9,3 +9,4 @@ pub mod status;
 pub mod stop;
 pub mod tasks;
 pub mod track;
+pub mod whoami;

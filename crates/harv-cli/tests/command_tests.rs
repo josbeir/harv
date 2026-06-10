@@ -776,3 +776,45 @@ async fn test_stop_with_notes_overwrite() {
         .await
         .unwrap();
 }
+
+// --- Whoami ---
+
+#[tokio::test]
+async fn test_whoami_execute() {
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+    Mock::given(method("GET"))
+        .and(path("/users/me"))
+        .respond_with(json_response(user_json()))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/company"))
+        .respond_with(json_response(json!({"name": "Test Company"})))
+        .mount(&server)
+        .await;
+
+    commands::whoami::execute(&c, &harv_cli::OutputFormat::Table)
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn test_whoami_execute_json() {
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+    Mock::given(method("GET"))
+        .and(path("/users/me"))
+        .respond_with(json_response(user_json()))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/company"))
+        .respond_with(json_response(json!({"name": "Test Company"})))
+        .mount(&server)
+        .await;
+
+    commands::whoami::execute(&c, &harv_cli::OutputFormat::Json)
+        .await
+        .unwrap();
+}

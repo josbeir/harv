@@ -42,6 +42,8 @@ pub enum Commands {
     Note(NoteArgs),
     /// Show current timer status and today's entries
     Status,
+    /// Show authenticated user info and login status
+    Whoami,
     /// List your project assignments
     Projects(ProjectsArgs),
     /// List tasks for a project

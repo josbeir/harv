@@ -23,6 +23,7 @@ use crate::views::help::Help;
 pub struct App {
     client: Arc<HarvClient>,
     user_id: u64,
+    user_name: Option<String>,
     current_view: View,
     form: Option<TimeEntryForm>,
     theme: Theme,
@@ -36,6 +37,7 @@ impl App {
         Self {
             client: Arc::new(client),
             user_id: 0,
+            user_name: None,
             current_view: View::default(),
             form: None,
             theme,
@@ -173,6 +175,7 @@ impl App {
             }
             Action::UserLoaded(user) => {
                 self.user_id = user.id;
+                self.user_name = Some(format!("{} {}", user.first_name, user.last_name));
 
                 // Start the timer poller now that we have a user_id
                 let poll_client = Arc::clone(&self.client);
@@ -525,15 +528,26 @@ impl App {
         let layout = Layout::horizontal([Constraint::Min(0), Constraint::Length(12)]).split(area);
 
         let version = env!("CARGO_PKG_VERSION");
-        let left = Line::from(vec![
-            Span::styled(
-                " HARV ",
-                Style::new()
-                    .fg(self.theme.primary)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(format!("v{} ", version), Style::new().fg(self.theme.muted)),
-        ]);
+        let mut spans = vec![Span::styled(
+            " HARV ",
+            Style::new()
+                .fg(self.theme.primary)
+                .add_modifier(Modifier::BOLD),
+        )];
+
+        if let Some(ref name) = self.user_name {
+            spans.push(Span::styled(
+                format!("{} ", name),
+                Style::new().fg(self.theme.fg),
+            ));
+        }
+
+        spans.push(Span::styled(
+            format!("v{} ", version),
+            Style::new().fg(self.theme.muted),
+        ));
+
+        let left = Line::from(spans);
 
         let status = if self.current_view.timer_running() {
             Span::styled(" ● Running ", Style::new().fg(self.theme.success))

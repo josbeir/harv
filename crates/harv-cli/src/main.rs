@@ -60,6 +60,7 @@ fn main() -> color_eyre::eyre::Result<()> {
                         commands::note::run(args.notes, args.overwrite, args.editor).await?
                     }
                     Commands::Status => commands::status::run(&cli.output).await?,
+                    Commands::Whoami => commands::whoami::run(&cli.output).await?,
                     Commands::Projects(args) => {
                         commands::projects::run(args.search, args.refresh, &cli.output).await?
                     }
