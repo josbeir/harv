@@ -753,6 +753,35 @@ mod tests {
     }
 
     #[test]
+    fn test_enter_on_running_passes_is_running_true() {
+        let mut d = Dashboard::default();
+        d.update_entries(vec![entry(1, 10, 20, None, true)]);
+        let actions = d.handle_key(&key_press(KeyCode::Enter));
+        assert!(matches!(
+            actions[0],
+            Action::OpenForm {
+                is_running: true,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn test_e_on_stopped_passes_is_running_false() {
+        let mut d = Dashboard::default();
+        d.update_entries(vec![entry(1, 10, 20, Some(2.0), false)]);
+        d.table_state.select(Some(0));
+        let actions = d.handle_key(&key_press(KeyCode::Char('e')));
+        assert!(matches!(
+            actions[0],
+            Action::OpenForm {
+                is_running: false,
+                ..
+            }
+        ));
+    }
+
+    #[test]
     fn test_enter_no_selection_returns_empty() {
         let mut d = Dashboard::default();
         let actions = d.handle_key(&key_press(KeyCode::Enter));

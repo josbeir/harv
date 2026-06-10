@@ -241,3 +241,51 @@ fn test_form_log_mode_shows_more_fields() {
     });
     assert!(has_content, "Edit form should render visible content");
 }
+
+#[test]
+fn test_form_render_edit_running_mode() {
+    let mut f = TimeEntryForm::new(
+        Some(10),
+        Some(20),
+        Some("Project".into()),
+        FormMode::Edit,
+        Some(42),
+        Some("2026-06-09".into()),
+        None,
+        None,
+        true,
+    );
+    let backend = TestBackend::new(80, 24);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| f.render(frame.area(), frame, &Theme::dark(), 0))
+        .unwrap();
+
+    let buffer = terminal.backend().buffer();
+    let has_content = (0..buffer.area().height).any(|y| {
+        (0..buffer.area().width)
+            .any(|x| !buffer[(x, y)].symbol().is_empty() && buffer[(x, y)].symbol() != " ")
+    });
+    assert!(
+        has_content,
+        "Edit running form should render visible content"
+    );
+
+    // Running edit form should NOT show Date or Hours fields
+    let buffer_str = (0..buffer.area().height)
+        .map(|y| {
+            (0..buffer.area().width)
+                .map(|x| buffer[(x, y)].symbol())
+                .collect::<String>()
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !buffer_str.contains("Date"),
+        "Running edit form should not show Date field"
+    );
+    assert!(
+        !buffer_str.contains("Hours"),
+        "Running edit form should not show Hours field"
+    );
+}

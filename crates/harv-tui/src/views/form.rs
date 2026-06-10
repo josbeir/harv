@@ -1243,4 +1243,212 @@ mod tests {
         f.filter_tasks();
         assert_eq!(f.filtered_tasks.len(), 3);
     }
+
+    #[test]
+    fn test_is_full_layout() {
+        // Start mode: always restricted (no date/hours)
+        let form = TimeEntryForm::new(
+            None,
+            None,
+            None,
+            FormMode::Start,
+            None,
+            None,
+            None,
+            None,
+            false,
+        );
+        assert!(!form.is_full_layout());
+
+        // Create mode: always full layout
+        let form = TimeEntryForm::new(
+            None,
+            None,
+            None,
+            FormMode::Create,
+            None,
+            None,
+            None,
+            None,
+            false,
+        );
+        assert!(form.is_full_layout());
+
+        // Edit + stopped: full layout
+        let form = TimeEntryForm::new(
+            None,
+            None,
+            None,
+            FormMode::Edit,
+            Some(1),
+            None,
+            None,
+            None,
+            false,
+        );
+        assert!(form.is_full_layout());
+
+        // Edit + running: restricted layout
+        let form = TimeEntryForm::new(
+            None,
+            None,
+            None,
+            FormMode::Edit,
+            Some(1),
+            None,
+            None,
+            None,
+            true,
+        );
+        assert!(!form.is_full_layout());
+    }
+
+    #[test]
+    fn test_submit_edit_running_dispatches_edit() {
+        let mut f = TimeEntryForm::new(
+            Some(10),
+            Some(20),
+            None,
+            FormMode::Edit,
+            Some(42),
+            Some("2026-06-09".into()),
+            Some("1.5".into()),
+            Some("my notes".into()),
+            true,
+        );
+        f.assignments = vec![project_assignment(10, "Beta")];
+        f.filtered_assignments = vec![0];
+        f.project_list.select(Some(0));
+        f.selected_project_id = Some(10);
+        f.tasks = vec![task_assignment(20, "Development")];
+        f.filter_tasks();
+        f.task_list.select(Some(0));
+
+        let actions = f.submit_entry();
+        assert!(matches!(
+            actions[0],
+            Action::EditEntry {
+                entry_id: 42,
+                project_id: 10,
+                task_id: 20,
+                hours: None,
+                ..
+            }
+        ));
+        // Notes still passed through
+        assert!(matches!(
+            actions[0],
+            Action::EditEntry {
+                notes: Some(ref n),
+                ..
+            } if n == "my notes"
+        ));
+    }
+
+    #[test]
+    fn test_tab_cycles_fields_in_running_edit_mode() {
+        let mut f = TimeEntryForm::new(
+            None,
+            None,
+            None,
+            FormMode::Edit,
+            Some(1),
+            None,
+            None,
+            None,
+            true,
+        );
+        assert_eq!(f.active, Field::ProjectList);
+
+        // ProjectList Tab → TaskList
+        f.handle_key(&key_press(KeyCode::Tab));
+        assert_eq!(f.active, Field::TaskList);
+
+        // TaskList Tab → Notes (no Date/Hours when running)
+        f.handle_key(&key_press(KeyCode::Tab));
+        assert_eq!(f.active, Field::Notes);
+
+        // Notes Tab → ProjectList
+        f.handle_key(&key_press(KeyCode::Tab));
+        assert_eq!(f.active, Field::ProjectList);
+
+        // Notes BackTab → TaskList
+        f.active = Field::Notes;
+        f.handle_key(&key_press(KeyCode::BackTab));
+        assert_eq!(f.active, Field::TaskList);
+    }
+
+    #[test]
+    fn test_task_enter_advances_to_notes_when_running() {
+        let mut f = TimeEntryForm::new(
+            None,
+            None,
+            None,
+            FormMode::Edit,
+            Some(1),
+            None,
+            None,
+            None,
+            true,
+        );
+        f.active = Field::TaskList;
+        f.handle_key(&key_press(KeyCode::Enter));
+        assert_eq!(f.active, Field::Notes);
+    }
+
+    #[test]
+    fn test_notes_enter_submits_when_running() {
+        let mut f = TimeEntryForm::new(
+            None,
+            None,
+            None,
+            FormMode::Edit,
+            Some(1),
+            None,
+            None,
+            None,
+            true,
+        );
+        f.active = Field::Notes;
+        let actions = f.handle_key(&key_press(KeyCode::Enter));
+        // Submit requires project + task, so returns empty
+        // but it did try to submit rather than advance to another field
+        assert!(actions.is_empty());
+    }
+
+    #[test]
+    fn test_text_enter_on_date_advances_to_hours_in_full_layout() {
+        let mut f = TimeEntryForm::new(
+            None,
+            None,
+            None,
+            FormMode::Create,
+            None,
+            None,
+            None,
+            None,
+            false,
+        );
+        f.active = Field::Date;
+        f.handle_key(&key_press(KeyCode::Enter));
+        assert_eq!(f.active, Field::Hours);
+    }
+
+    #[test]
+    fn test_hours_enter_advances_to_notes_in_full_layout() {
+        let mut f = TimeEntryForm::new(
+            None,
+            None,
+            None,
+            FormMode::Create,
+            None,
+            None,
+            None,
+            None,
+            false,
+        );
+        f.active = Field::Hours;
+        f.handle_key(&key_press(KeyCode::Enter));
+        assert_eq!(f.active, Field::Notes);
+    }
 }
