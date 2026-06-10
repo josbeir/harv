@@ -332,6 +332,46 @@ mod tests {
     }
 
     #[test]
+    fn test_user_deserialize_with_new_fields() {
+        let json = r#"{
+            "id": 1,
+            "first_name": "Test",
+            "last_name": "User",
+            "email": "test@example.com",
+            "is_active": true,
+            "created_at": null,
+            "updated_at": null,
+            "timezone": "America/New_York",
+            "weekly_capacity": 144000,
+            "is_admin": true,
+            "is_project_manager": false
+        }"#;
+        let user: User = serde_json::from_str(json).unwrap();
+        assert_eq!(user.timezone, Some("America/New_York".into()));
+        assert_eq!(user.weekly_capacity, Some(144000));
+        assert_eq!(user.is_admin, Some(true));
+        assert_eq!(user.is_project_manager, Some(false));
+    }
+
+    #[test]
+    fn test_user_deserialize_without_new_fields() {
+        let json = r#"{
+            "id": 1,
+            "first_name": "Test",
+            "last_name": "User",
+            "email": "test@example.com",
+            "is_active": true,
+            "created_at": null,
+            "updated_at": null
+        }"#;
+        let user: User = serde_json::from_str(json).unwrap();
+        assert_eq!(user.timezone, None);
+        assert_eq!(user.weekly_capacity, None);
+        assert_eq!(user.is_admin, None);
+        assert_eq!(user.is_project_manager, None);
+    }
+
+    #[test]
     fn test_client_deserialize() {
         let json = r#"{
             "id": 1,
