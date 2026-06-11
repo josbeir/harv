@@ -2,19 +2,21 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use unic_langid::LanguageIdentifier;
 
-pub const SUPPORTED_LANGS: &[&str] = &["en", "nl", "fr", "de", "es", "it"];
+pub const SUPPORTED_LANGS: &[&str] = include!(concat!(env!("OUT_DIR"), "/supported_langs.rs"));
 
-/// Default BCP-47 regions for supported language codes.
-/// Used by `resolve_locale` to produce region-qualified identifiers
-/// so ICU4X can resolve locale-specific date/month names.
-const DEFAULT_REGIONS: &[(&str, &str)] = &[
-    ("en", "US"),
-    ("nl", "NL"),
-    ("fr", "FR"),
-    ("de", "DE"),
-    ("es", "ES"),
-    ("it", "IT"),
-];
+/// If a LanguageIdentifier has no region, derive the default region.
+/// For "en" the PRD region is "US"; for all other languages the
+/// two-letter language code uppercased is the region (nl→NL, fr→FR, etc.).
+fn with_default_region(mut lid: LanguageIdentifier) -> LanguageIdentifier {
+    if lid.region.is_none() {
+        let lang = lid.language.as_str();
+        let region_str = if lang == "en" { "US" } else { lang };
+        if let Ok(region) = region_str.parse() {
+            lid.region = Some(region);
+        }
+    }
+    lid
+}
 
 static MESSAGES: Mutex<Option<HashMap<String, String>>> = Mutex::new(None);
 static CURRENT_LANG: Mutex<String> = Mutex::new(String::new());
@@ -69,20 +71,7 @@ fn load_messages(langid: &LanguageIdentifier) -> HashMap<String, String> {
 
     let lang_code = langid.language.as_str();
     if lang_code != "en" {
-        let ftl = match lang_code {
-            "nl" => include_str!("../locales/nl/main.ftl"),
-            "fr" => include_str!("../locales/fr/main.ftl"),
-            "de" => include_str!("../locales/de/main.ftl"),
-            "es" => include_str!("../locales/es/main.ftl"),
-            "it" => include_str!("../locales/it/main.ftl"),
-            _ => "",
-        };
-        if !ftl.is_empty() {
-            let overlay = parse_ftl(ftl);
-            for (k, v) in overlay {
-                messages.insert(k, v);
-            }
-        }
+        include!(concat!(env!("OUT_DIR"), "/lang_load.rs"));
     }
 
     messages
@@ -159,20 +148,6 @@ fn resolve_locale(override_locale: Option<&str>) -> LanguageIdentifier {
     }
 
     with_default_region("en".parse().unwrap())
-}
-
-/// If a LanguageIdentifier has no region, add the default region for that language
-/// from DEFAULT_REGIONS. Returns the original if already region-qualified.
-fn with_default_region(mut lid: LanguageIdentifier) -> LanguageIdentifier {
-    if lid.region.is_none()
-        && let Some(region) = DEFAULT_REGIONS
-            .iter()
-            .find(|(l, _)| *l == lid.language.as_str())
-            .map(|(_, r)| *r)
-    {
-        lid.region = Some(region.parse().expect("valid region"));
-    }
-    lid
 }
 
 #[cfg(test)]
@@ -265,7 +240,10 @@ mod tests {
         init(Some("en"));
         let en_msg = t(key);
 
-        for lang in &["nl", "fr", "de", "es", "it"] {
+        for lang in SUPPORTED_LANGS {
+            if *lang == "en" {
+                continue;
+            }
             init(Some(lang));
             let msg = t(key);
             assert!(
@@ -285,7 +263,7 @@ mod tests {
 
     #[test]
     fn test_translations_include_harv_connect() {
-        for lang in &["en", "nl", "fr", "de", "es", "it"] {
+        for lang in SUPPORTED_LANGS {
             init(Some(lang));
             let msg = t("err-not-authenticated");
             assert!(
