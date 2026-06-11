@@ -46,18 +46,7 @@ pub fn t(key: &str) -> String {
 /// Look up a message with arguments. Arguments are `(name, value)` pairs.
 /// Performs simple { $name } substitution on the resolved pattern.
 pub fn t_args(key: &str, args: &[(&str, String)]) -> String {
-    let pattern = match MESSAGES.lock() {
-        Ok(guard) => match guard.as_ref() {
-            Some(map) => match map.get(key) {
-                Some(p) => p.clone(),
-                None => return key.to_string(),
-            },
-            None => return key.to_string(),
-        },
-        Err(_) => return key.to_string(),
-    };
-
-    let mut result = pattern;
+    let mut result = t(key);
     for (name, value) in args {
         result = result.replace(&format!("{{ ${} }}", name), value);
     }
@@ -268,14 +257,6 @@ mod tests {
         let msg = t("err-not-authenticated");
         assert!(msg.contains("harv connect"));
         assert!(!msg.is_empty());
-    }
-
-    #[test]
-    fn test_datetime_keys_exist() {
-        init(None);
-        assert!(!t("datetime-today").is_empty());
-        assert!(!t("datetime-at").is_empty());
-        assert!(!t("text-no-client").is_empty());
     }
 
     #[test]

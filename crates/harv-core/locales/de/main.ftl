@@ -15,12 +15,9 @@ err-oauth-failed = Zugriffstoken konnte nicht aus der OAuth2-Antwort abgerufen w
 err-oauth-denied = Autorisierung wurde verweigert. Versuchen Sie es erneut mit `harv connect`.
 
 # Date/Time
-datetime-today = Heute
-datetime-at = um
-datetime-hours-suffix = Std
+datetime-hours-suffix = Std.
 
 # Text
-text-no-client = Kein Kunde
 text-yes = Ja
 text-no = Nein
 

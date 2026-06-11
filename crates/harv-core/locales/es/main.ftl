@@ -15,12 +15,9 @@ err-oauth-failed = No se pudo obtener el token de acceso de la respuesta OAuth2.
 err-oauth-denied = La autorización fue denegada. Inténtelo de nuevo con `harv connect`.
 
 # Date/Time
-datetime-today = Hoy
-datetime-at = a las
 datetime-hours-suffix = h
 
 # Text
-text-no-client = Sin cliente
 text-yes = Sí
 text-no = No
 

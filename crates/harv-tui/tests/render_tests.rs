@@ -348,7 +348,7 @@ fn test_table_title_shows_date_when_not_today() {
         buffer_str.contains("total"),
         "Table with total should render"
     );
-    let expected_date = harv_core::datetime::format_date_short(past);
+    let expected_date = harv_core::datetime::format_date_short(past, &harv_core::current_langid());
     assert!(
         buffer_str.contains(&expected_date),
         "Table title should show past date '{expected_date}', got buffer:\n{buffer_str}"

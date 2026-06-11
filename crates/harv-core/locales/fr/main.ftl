@@ -15,12 +15,9 @@ err-oauth-failed = Le jeton d'accès n'a pas pu être récupéré depuis la rép
 err-oauth-denied = L'autorisation a été refusée. Réessayez avec `harv connect`.
 
 # Date/Time
-datetime-today = Aujourd'hui
-datetime-at = à
 datetime-hours-suffix = h
 
 # Text
-text-no-client = Aucun client
 text-yes = Oui
 text-no = Non
 

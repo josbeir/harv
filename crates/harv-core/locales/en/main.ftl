@@ -15,12 +15,9 @@ err-oauth-failed = Access token could not be retrieved from the OAuth2 response.
 err-oauth-denied = Authorization was denied. Try again with `harv connect`.
 
 # Date/Time
-datetime-today = Today
-datetime-at = at
 datetime-hours-suffix = h
 
 # Text
-text-no-client = No client
 text-yes = Yes
 text-no = No
 

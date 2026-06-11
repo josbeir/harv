@@ -112,7 +112,10 @@ impl Dashboard {
 
     fn render_date_nav(&self, area: Rect, f: &mut Frame, theme: &Theme) {
         let is_today = self.selected_date == harv_core::datetime::today();
-        let date_formatted = harv_core::datetime::format_date_header(self.selected_date);
+        let date_formatted = harv_core::datetime::format_date_header(
+            self.selected_date,
+            &harv_core::current_langid(),
+        );
 
         let mut spans = vec![
             Span::styled(" < ", Style::new().fg(theme.muted)),
@@ -308,7 +311,7 @@ impl Dashboard {
         let block_title = if self.selected_date == harv_core::datetime::today() {
             harv_core::t("tui-dash-block-today")
         } else {
-            harv_core::datetime::format_date_short(self.selected_date)
+            harv_core::datetime::format_date_short(self.selected_date, &harv_core::current_langid())
         };
         let block = Block::new()
             .title(block_title)
@@ -469,10 +472,10 @@ fn format_hours_cell(entry: &TimeEntry) -> String {
     if entry.is_running {
         format_timer_elapsed(entry)
     } else {
-        entry
-            .hours
-            .map(harv_core::text::format_hours)
-            .unwrap_or_else(|| format!("0.00{}", harv_core::t("datetime-hours-suffix")))
+        entry.hours.map_or_else(
+            || format!("0.00{}", harv_core::t("datetime-hours-suffix")),
+            |h| format!("{:.2}{}", h, harv_core::t("datetime-hours-suffix")),
+        )
     }
 }
 
@@ -544,7 +547,10 @@ fn render_harv_header(area: Rect, f: &mut Frame, theme: &Theme, date: NaiveDate)
     } else {
         harv_core::t_args(
             "tui-dash-empty-past",
-            &[("date", harv_core::datetime::format_date_short(date))],
+            &[(
+                "date",
+                harv_core::datetime::format_date_short(date, &harv_core::current_langid()),
+            )],
         )
     };
 

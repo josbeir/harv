@@ -12,10 +12,13 @@ pub fn format_date(date: NaiveDate) -> String {
 
 /// Locale-aware date header for the TUI date navigation bar.
 ///
-/// Uses ICU4X for locale-appropriate format (weekday + date).
+/// Uses ICU4X for locale-appropriate format (weekday + date). `locale` should
+/// be a region-qualified BCP-47 string like "en-US" or "nl-NL".
 /// English: "Thu, Jun 11, 2026" — Dutch: "do 11 jun 2026"
-pub fn format_date_header(date: NaiveDate) -> String {
-    let locale = icu_locale();
+pub fn format_date_header(date: NaiveDate, locale: &str) -> String {
+    let Ok(locale) = locale.parse::<icu::locale::Locale>() else {
+        return date.format("%a, %b %e, %Y").to_string();
+    };
     let Ok(formatter) = icu::datetime::DateTimeFormatter::try_new(
         locale.into(),
         icu::datetime::fieldsets::YMDE::medium(),
@@ -27,9 +30,12 @@ pub fn format_date_header(date: NaiveDate) -> String {
 
 /// Locale-aware short date for dashboard entries.
 ///
+/// `locale` should be a region-qualified BCP-47 string like "en-US" or "nl-NL".
 /// English: "Jun 11, 2026" — Dutch: "11 jun 2026"
-pub fn format_date_short(date: NaiveDate) -> String {
-    let locale = icu_locale();
+pub fn format_date_short(date: NaiveDate, locale: &str) -> String {
+    let Ok(locale) = locale.parse::<icu::locale::Locale>() else {
+        return date.format("%b %e, %Y").to_string();
+    };
     let Ok(formatter) = icu::datetime::DateTimeFormatter::try_new(
         locale.into(),
         icu::datetime::fieldsets::YMD::medium(),
@@ -41,9 +47,12 @@ pub fn format_date_short(date: NaiveDate) -> String {
 
 /// Locale-aware month+year for the date picker title.
 ///
+/// `locale` should be a region-qualified BCP-47 string like "en-US" or "nl-NL".
 /// English: "June 2026" — Dutch: "juni 2026"
-pub fn format_date_month_year(date: NaiveDate) -> String {
-    let locale = icu_locale();
+pub fn format_date_month_year(date: NaiveDate, locale: &str) -> String {
+    let Ok(locale) = locale.parse::<icu::locale::Locale>() else {
+        return date.format("%B %Y").to_string();
+    };
     let Ok(formatter) = icu::datetime::DateTimeFormatter::try_new(
         locale.into(),
         icu::datetime::fieldsets::YM::long(),
@@ -51,15 +60,6 @@ pub fn format_date_month_year(date: NaiveDate) -> String {
         return date.format("%B %Y").to_string();
     };
     formatter.format(&date).to_string()
-}
-
-/// Get the current locale as an ICU4X Locale.
-/// `current_langid()` always returns a region-qualified BCP-47 string
-/// (e.g. "nl-NL", not "nl") so ICU4X can resolve date/month names.
-fn icu_locale() -> icu::locale::Locale {
-    crate::locale::current_langid()
-        .parse()
-        .unwrap_or_else(|_| "en-US".parse().unwrap())
 }
 
 /// Formats a DateTime<Utc> as a localized display string.
@@ -263,27 +263,24 @@ mod tests {
 
     #[test]
     fn test_format_date_header_nl() {
-        crate::locale::init(Some("nl"));
         let d = NaiveDate::from_ymd_opt(2026, 6, 11).unwrap();
-        let s = format_date_header(d);
+        let s = format_date_header(d, "nl-NL");
         assert!(s.contains("jun"), "should contain Dutch month: {s}");
         assert!(s.contains("do"), "should contain Dutch weekday: {s}");
     }
 
     #[test]
     fn test_format_date_short_nl() {
-        crate::locale::init(Some("nl"));
         let d = NaiveDate::from_ymd_opt(2026, 6, 11).unwrap();
-        let s = format_date_short(d);
+        let s = format_date_short(d, "nl-NL");
         assert!(s.contains("jun"), "should contain Dutch month: {s}");
         assert!(s.contains("11"), "should contain day: {s}");
     }
 
     #[test]
     fn test_format_date_month_year_nl() {
-        crate::locale::init(Some("nl"));
         let d = NaiveDate::from_ymd_opt(2026, 6, 1).unwrap();
-        let s = format_date_month_year(d);
+        let s = format_date_month_year(d, "nl-NL");
         assert!(s.contains("juni"), "should contain full Dutch month: {s}");
         assert!(s.contains("2026"), "should contain year: {s}");
         assert!(!s.contains("1"), "should not contain day: {s}");

@@ -43,7 +43,10 @@ impl DatePicker {
 
         let today = harv_core::datetime::today();
 
-        let month_title = harv_core::datetime::format_date_month_year(self.current_month);
+        let month_title = harv_core::datetime::format_date_month_year(
+            self.current_month,
+            &harv_core::current_langid(),
+        );
         let month_start = self.current_month;
         let first_weekday = month_start.weekday().num_days_from_sunday() as i64;
         let grid_start = month_start - Duration::days(first_weekday);

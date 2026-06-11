@@ -15,12 +15,9 @@ err-oauth-failed = Impossibile recuperare il token di accesso dalla risposta OAu
 err-oauth-denied = L'autorizzazione è stata negata. Riprova con `harv connect`.
 
 # Date/Time
-datetime-today = Oggi
-datetime-at = alle
 datetime-hours-suffix = h
 
 # Text
-text-no-client = Nessun cliente
 text-yes = Sì
 text-no = No
 

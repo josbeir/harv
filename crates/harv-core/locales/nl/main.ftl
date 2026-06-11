@@ -15,12 +15,9 @@ err-oauth-failed = Toegangstoken kon niet worden opgehaald uit de OAuth2-respons
 err-oauth-denied = Autorisatie is geweigerd. Probeer opnieuw met `harv connect`.
 
 # Date/Time
-datetime-today = Vandaag
-datetime-at = om
 datetime-hours-suffix = u
 
 # Text
-text-no-client = Geen klant
 text-yes = Ja
 text-no = Nee
 
