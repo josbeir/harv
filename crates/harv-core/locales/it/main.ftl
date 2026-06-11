@@ -17,27 +17,15 @@ err-oauth-denied = L'autorizzazione è stata negata. Riprova con `harv connect`.
 # Date/Time
 datetime-today = Oggi
 datetime-at = alle
-datetime-am = am
-datetime-pm = pm
 datetime-hours-suffix = h
-datetime-unknown = sconosciuto
 
 # Text
 text-no-client = Nessun cliente
-text-running = In esecuzione
-text-not-running = Fermo
-text-none = —
-text-unknown-hours = —
 text-yes = Sì
 text-no = No
 
 # CLI — Auth
-cli-auth-opening = Apertura browser per l'autenticazione Harvest…
 cli-auth-manual-url = Se il browser non si apre, visita l'URL mostrato sotto.
-cli-auth-success = Autenticato con successo su Harvest. Configurazione salvata in { $path }.
-cli-auth-timeout = Accesso OAuth scaduto dopo 120 secondi.
-cli-auth-failed-bind = Impossibile associarsi alla porta { $port }: { $err }
-cli-auth-failed-browser = Impossibile aprire il browser: { $err }. Apri manualmente questo URL:
 
 # CLI — Connect
 cli-connect-opening = Apertura browser per l'autenticazione Harvest…

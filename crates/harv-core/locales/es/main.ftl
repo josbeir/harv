@@ -17,27 +17,15 @@ err-oauth-denied = La autorización fue denegada. Inténtelo de nuevo con `harv 
 # Date/Time
 datetime-today = Hoy
 datetime-at = a las
-datetime-am = am
-datetime-pm = pm
 datetime-hours-suffix = h
-datetime-unknown = desconocido
 
 # Text
 text-no-client = Sin cliente
-text-running = En marcha
-text-not-running = Detenido
-text-none = —
-text-unknown-hours = —
 text-yes = Sí
 text-no = No
 
 # CLI — Auth
-cli-auth-opening = Abriendo navegador para autenticación de Harvest…
 cli-auth-manual-url = Si el navegador no se abre, visite la URL indicada abajo.
-cli-auth-success = Autenticado con éxito en Harvest. Configuración guardada en { $path }.
-cli-auth-timeout = Inicio de sesión OAuth agotado tras 120 segundos.
-cli-auth-failed-bind = No se pudo vincular al puerto { $port }: { $err }
-cli-auth-failed-browser = No se pudo abrir el navegador: { $err }. Abra esta URL manualmente:
 
 # CLI — Connect
 cli-connect-opening = Abriendo navegador para autenticación de Harvest…

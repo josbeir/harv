@@ -17,27 +17,15 @@ err-oauth-denied = Autorisatie is geweigerd. Probeer opnieuw met `harv connect`.
 # Date/Time
 datetime-today = Vandaag
 datetime-at = om
-datetime-am = am
-datetime-pm = pm
 datetime-hours-suffix = u
-datetime-unknown = onbekend
 
 # Text
 text-no-client = Geen klant
-text-running = Lopend
-text-not-running = Gestopt
-text-none = —
-text-unknown-hours = —
 text-yes = Ja
 text-no = Nee
 
 # CLI — Auth
-cli-auth-opening = Browser openen voor Harvest-authenticatie…
 cli-auth-manual-url = Als de browser niet opent, bezoek dan de onderstaande URL.
-cli-auth-success = Succesvol geauthenticeerd met Harvest. Configuratie opgeslagen in { $path }.
-cli-auth-timeout = OAuth-login time-out na 120 seconden.
-cli-auth-failed-bind = Kon niet binden aan poort { $port }: { $err }
-cli-auth-failed-browser = Kon browser niet openen: { $err }. Open deze URL handmatig:
 
 # CLI — Connect
 cli-connect-opening = Browser openen voor Harvest-authenticatie…

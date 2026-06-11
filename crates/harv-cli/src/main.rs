@@ -15,7 +15,7 @@ fn main() -> color_eyre::eyre::Result<()> {
         Some(Commands::Connect | Commands::Completion(_))
     );
     if requires_auth && !harv_sdk::HarvConfig::path().exists() {
-        eprintln!("Not authenticated. Run `harv connect` to log in.");
+        eprintln!("{}", harv_core::t("err-not-authenticated"));
         std::process::exit(1);
     }
 

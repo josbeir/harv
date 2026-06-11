@@ -4,6 +4,18 @@ use unic_langid::LanguageIdentifier;
 
 pub const SUPPORTED_LANGS: &[&str] = &["en", "nl", "fr", "de", "es", "it"];
 
+/// Default BCP-47 regions for supported language codes.
+/// Used by `resolve_locale` to produce region-qualified identifiers
+/// so ICU4X can resolve locale-specific date/month names.
+const DEFAULT_REGIONS: &[(&str, &str)] = &[
+    ("en", "US"),
+    ("nl", "NL"),
+    ("fr", "FR"),
+    ("de", "DE"),
+    ("es", "ES"),
+    ("it", "IT"),
+];
+
 static MESSAGES: Mutex<Option<HashMap<String, String>>> = Mutex::new(None);
 static CURRENT_LANG: Mutex<String> = Mutex::new(String::new());
 
@@ -13,12 +25,10 @@ pub fn init(override_locale: Option<&str>) {
     let langid = resolve_locale(override_locale);
     let messages = load_messages(&langid);
 
-    if let Ok(mut guard) = MESSAGES.lock() {
-        *guard = Some(messages);
-    }
-    if let Ok(mut guard) = CURRENT_LANG.lock() {
-        *guard = langid.to_string();
-    }
+    let mut msgs = MESSAGES.lock().unwrap_or_else(|e| e.into_inner());
+    *msgs = Some(messages);
+    let mut lang = CURRENT_LANG.lock().unwrap_or_else(|e| e.into_inner());
+    *lang = langid.to_string();
 }
 
 /// Look up a message by key. Returns the key itself if locale is not
@@ -62,11 +72,6 @@ pub fn current_langid() -> String {
         .filter(|s| !s.is_empty())
         .map(|s| s.clone())
         .unwrap_or_else(|| "en".into())
-}
-
-/// Returns true if the locale system has been initialized.
-pub fn is_initialized() -> bool {
-    MESSAGES.lock().ok().is_some_and(|guard| guard.is_some())
 }
 
 fn load_messages(langid: &LanguageIdentifier) -> HashMap<String, String> {
@@ -154,17 +159,31 @@ fn resolve_locale(override_locale: Option<&str>) -> LanguageIdentifier {
     });
 
     if let Some(lid) = requested {
-        return lid;
+        return with_default_region(lid);
     }
 
     if let Some(sys_loc) = sys_locale::get_locale()
         && let Ok(lid) = sys_loc.parse::<LanguageIdentifier>()
         && SUPPORTED_LANGS.contains(&lid.language.as_str())
     {
-        return lid;
+        return with_default_region(lid);
     }
 
-    "en".parse().unwrap()
+    with_default_region("en".parse().unwrap())
+}
+
+/// If a LanguageIdentifier has no region, add the default region for that language
+/// from DEFAULT_REGIONS. Returns the original if already region-qualified.
+fn with_default_region(mut lid: LanguageIdentifier) -> LanguageIdentifier {
+    if lid.region.is_none()
+        && let Some(region) = DEFAULT_REGIONS
+            .iter()
+            .find(|(l, _)| *l == lid.language.as_str())
+            .map(|(_, r)| *r)
+    {
+        lid.region = Some(region.parse().expect("valid region"));
+    }
+    lid
 }
 
 #[cfg(test)]
@@ -219,27 +238,27 @@ mod tests {
     fn test_override_locale_supported() {
         init(Some("nl"));
         let lid = current_langid();
-        assert_eq!(lid, "nl");
+        assert_eq!(lid, "nl-NL");
     }
 
     #[test]
     fn test_override_locale_trimmed() {
         init(Some("  fr  "));
         let lid = current_langid();
-        assert_eq!(lid, "fr");
+        assert_eq!(lid, "fr-FR");
     }
 
     #[test]
     fn test_current_langid() {
         init(Some("en"));
-        assert_eq!(current_langid(), "en");
+        assert_eq!(current_langid(), "en-US");
     }
 
     #[test]
     fn test_all_supported_locales_init() {
         for lang in SUPPORTED_LANGS {
             init(Some(lang));
-            assert_eq!(current_langid(), *lang);
+            assert!(current_langid().starts_with(*lang));
         }
     }
 

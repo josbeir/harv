@@ -21,7 +21,7 @@ async fn show() -> color_eyre::eyre::Result<()> {
 
     if !path.exists() {
         println!("  {}", t("cli-config-not-found"));
-        println!("Run `harv connect` to authenticate with Harvest.");
+        println!("{}", t("err-config-not-found"));
         return Ok(());
     }
 

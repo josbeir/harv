@@ -17,27 +17,15 @@ err-oauth-denied = Autorisierung wurde verweigert. Versuchen Sie es erneut mit `
 # Date/Time
 datetime-today = Heute
 datetime-at = um
-datetime-am = Uhr
-datetime-pm = Uhr
 datetime-hours-suffix = Std
-datetime-unknown = unbekannt
 
 # Text
 text-no-client = Kein Kunde
-text-running = Laufend
-text-not-running = Gestoppt
-text-none = —
-text-unknown-hours = —
 text-yes = Ja
 text-no = Nein
 
 # CLI — Auth
-cli-auth-opening = Browser für Harvest-Authentifizierung wird geöffnet…
 cli-auth-manual-url = Wenn der Browser nicht öffnet, besuchen Sie die untenstehende URL.
-cli-auth-success = Erfolgreich bei Harvest authentifiziert. Konfiguration gespeichert in { $path }.
-cli-auth-timeout = OAuth-Anmeldung nach 120 Sekunden abgelaufen.
-cli-auth-failed-bind = Bindung an Port { $port } fehlgeschlagen: { $err }
-cli-auth-failed-browser = Browser konnte nicht geöffnet werden: { $err }. Öffnen Sie diese URL manuell:
 
 # CLI — Connect
 cli-connect-opening = Browser für Harvest-Authentifizierung wird geöffnet…

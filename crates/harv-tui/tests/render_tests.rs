@@ -38,7 +38,7 @@ fn entry(id: u64, proj: u64, task: u64, hours: Option<f64>, running: bool) -> Ti
 }
 #[test]
 fn test_dashboard_render_with_entries() {
-    harv_core::init_locale(None);
+    harv_core::init_locale(Some("en"));
     let mut d = Dashboard::default();
     d.update_entries(vec![
         entry(1, 10, 20, Some(2.5), false),
@@ -52,7 +52,7 @@ fn test_dashboard_render_with_entries() {
 }
 #[test]
 fn test_dashboard_render_loading() {
-    harv_core::init_locale(None);
+    harv_core::init_locale(Some("en"));
     let mut d = Dashboard::default();
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).unwrap();
@@ -62,7 +62,7 @@ fn test_dashboard_render_loading() {
 }
 #[test]
 fn test_dashboard_render_empty() {
-    harv_core::init_locale(None);
+    harv_core::init_locale(Some("en"));
     let mut d = Dashboard::default();
     d.set_loaded(true);
     let backend = TestBackend::new(80, 24);
@@ -228,7 +228,7 @@ fn test_form_log_mode_shows_more_fields() {
 }
 #[test]
 fn test_form_render_edit_running_mode() {
-    harv_core::locale::init(None);
+    harv_core::init_locale(Some("en"));
     let mut f = TimeEntryForm::new(
         Some(10),
         Some(20),
@@ -278,8 +278,7 @@ fn test_form_render_edit_running_mode() {
 }
 #[test]
 fn test_date_nav_bar_renders_with_today() {
-    harv_core::locale::init(None);
-    harv_core::init_locale(None);
+    harv_core::init_locale(Some("en"));
     let mut d = Dashboard::default();
     d.update_entries(vec![entry(1, 10, 20, Some(2.0), false)]);
     let backend = TestBackend::new(80, 24);
@@ -302,7 +301,7 @@ fn test_date_nav_bar_renders_with_today() {
 }
 #[test]
 fn test_date_nav_bar_on_past_date_no_today() {
-    harv_core::init_locale(None);
+    harv_core::init_locale(Some("en"));
     let mut d = Dashboard::default();
     d.update_entries(vec![entry(1, 10, 20, Some(2.0), false)]);
     let past = harv_core::datetime::today() - chrono::Duration::days(3);
@@ -327,7 +326,7 @@ fn test_date_nav_bar_on_past_date_no_today() {
 }
 #[test]
 fn test_table_title_shows_date_when_not_today() {
-    harv_core::init_locale(None);
+    harv_core::init_locale(Some("en"));
     let mut d = Dashboard::default();
     d.update_entries(vec![entry(1, 10, 20, Some(2.0), false)]);
     let past = harv_core::datetime::today() - chrono::Duration::days(3);
@@ -349,7 +348,7 @@ fn test_table_title_shows_date_when_not_today() {
         buffer_str.contains("total"),
         "Table with total should render"
     );
-    let expected_date = past.format("%b %e, %Y").to_string();
+    let expected_date = harv_core::datetime::format_date_short(past);
     assert!(
         buffer_str.contains(&expected_date),
         "Table title should show past date '{expected_date}', got buffer:\n{buffer_str}"

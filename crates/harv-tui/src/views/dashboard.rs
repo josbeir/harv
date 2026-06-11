@@ -112,7 +112,7 @@ impl Dashboard {
 
     fn render_date_nav(&self, area: Rect, f: &mut Frame, theme: &Theme) {
         let is_today = self.selected_date == harv_core::datetime::today();
-        let date_formatted = self.selected_date.format("%a, %b %e, %Y").to_string();
+        let date_formatted = harv_core::datetime::format_date_header(self.selected_date);
 
         let mut spans = vec![
             Span::styled(" < ", Style::new().fg(theme.muted)),
@@ -308,7 +308,7 @@ impl Dashboard {
         let block_title = if self.selected_date == harv_core::datetime::today() {
             harv_core::t("tui-dash-block-today")
         } else {
-            self.selected_date.format("%b %e, %Y").to_string()
+            harv_core::datetime::format_date_short(self.selected_date)
         };
         let block = Block::new()
             .title(block_title)
@@ -544,7 +544,7 @@ fn render_harv_header(area: Rect, f: &mut Frame, theme: &Theme, date: NaiveDate)
     } else {
         harv_core::t_args(
             "tui-dash-empty-past",
-            &[("date", date.format("%b %e, %Y").to_string())],
+            &[("date", harv_core::datetime::format_date_short(date))],
         )
     };
 

@@ -10,6 +10,58 @@ pub fn format_date(date: NaiveDate) -> String {
     date.format("%Y-%m-%d").to_string()
 }
 
+/// Locale-aware date header for the TUI date navigation bar.
+///
+/// Uses ICU4X for locale-appropriate format (weekday + date).
+/// English: "Thu, Jun 11, 2026" — Dutch: "do 11 jun 2026"
+pub fn format_date_header(date: NaiveDate) -> String {
+    let locale = icu_locale();
+    let Ok(formatter) = icu::datetime::DateTimeFormatter::try_new(
+        locale.into(),
+        icu::datetime::fieldsets::YMDE::medium(),
+    ) else {
+        return date.format("%a, %b %e, %Y").to_string();
+    };
+    formatter.format(&date).to_string()
+}
+
+/// Locale-aware short date for dashboard entries.
+///
+/// English: "Jun 11, 2026" — Dutch: "11 jun 2026"
+pub fn format_date_short(date: NaiveDate) -> String {
+    let locale = icu_locale();
+    let Ok(formatter) = icu::datetime::DateTimeFormatter::try_new(
+        locale.into(),
+        icu::datetime::fieldsets::YMD::medium(),
+    ) else {
+        return date.format("%b %e, %Y").to_string();
+    };
+    formatter.format(&date).to_string()
+}
+
+/// Locale-aware month+year for the date picker title.
+///
+/// English: "June 2026" — Dutch: "juni 2026"
+pub fn format_date_month_year(date: NaiveDate) -> String {
+    let locale = icu_locale();
+    let Ok(formatter) = icu::datetime::DateTimeFormatter::try_new(
+        locale.into(),
+        icu::datetime::fieldsets::YM::long(),
+    ) else {
+        return date.format("%B %Y").to_string();
+    };
+    formatter.format(&date).to_string()
+}
+
+/// Get the current locale as an ICU4X Locale.
+/// `current_langid()` always returns a region-qualified BCP-47 string
+/// (e.g. "nl-NL", not "nl") so ICU4X can resolve date/month names.
+fn icu_locale() -> icu::locale::Locale {
+    crate::locale::current_langid()
+        .parse()
+        .unwrap_or_else(|_| "en-US".parse().unwrap())
+}
+
 /// Formats a DateTime<Utc> as a localized display string.
 ///
 /// Example: "Jun 8, 2026" or "Jun 8, 2026 at 14:30"
@@ -207,5 +259,67 @@ mod tests {
         assert!(parse_hours("-1:30").is_err());
         assert!(parse_hours(":").is_err());
         assert!(parse_hours("1:30:00").is_err());
+    }
+
+    #[test]
+    fn test_format_date_header_nl() {
+        crate::locale::init(Some("nl"));
+        let d = NaiveDate::from_ymd_opt(2026, 6, 11).unwrap();
+        let s = format_date_header(d);
+        assert!(s.contains("jun"), "should contain Dutch month: {s}");
+        assert!(s.contains("do"), "should contain Dutch weekday: {s}");
+    }
+
+    #[test]
+    fn test_format_date_short_nl() {
+        crate::locale::init(Some("nl"));
+        let d = NaiveDate::from_ymd_opt(2026, 6, 11).unwrap();
+        let s = format_date_short(d);
+        assert!(s.contains("jun"), "should contain Dutch month: {s}");
+        assert!(s.contains("11"), "should contain day: {s}");
+    }
+
+    #[test]
+    fn test_format_date_month_year_nl() {
+        crate::locale::init(Some("nl"));
+        let d = NaiveDate::from_ymd_opt(2026, 6, 1).unwrap();
+        let s = format_date_month_year(d);
+        assert!(s.contains("juni"), "should contain full Dutch month: {s}");
+        assert!(s.contains("2026"), "should contain year: {s}");
+        assert!(!s.contains("1"), "should not contain day: {s}");
+    }
+
+    #[test]
+    fn test_icu4x_formatters_output_localized() {
+        use icu::datetime::DateTimeFormatter;
+        use icu::datetime::fieldsets;
+
+        let date = NaiveDate::from_ymd_opt(2026, 6, 11).unwrap();
+
+        // Create formatter for `en` and verify English output
+        let en: icu::locale::Locale = "en-US".parse().unwrap();
+        let fmt = DateTimeFormatter::try_new(en.into(), fieldsets::YMDE::medium()).unwrap();
+        let s = fmt.format(&date).to_string();
+        assert!(
+            s.contains("Jun") || s.contains("Thu,"),
+            "ICU4X en-US should contain English month or weekday, got: {s}"
+        );
+
+        // Create formatter for `nl` (bare) and `nl-NL` (region-qualified)
+        let nl: icu::locale::Locale = "nl".parse().unwrap();
+        let fmt = DateTimeFormatter::try_new(nl.into(), fieldsets::YMDE::medium()).unwrap();
+        let s = fmt.format(&date).to_string();
+        assert!(
+            s.contains("jun") || s.contains("do"),
+            "ICU4X bare nl should contain Dutch month or weekday, got: {s}"
+        );
+
+        let nl_nl: icu::locale::Locale = "nl-NL".parse().unwrap();
+        let fmt = DateTimeFormatter::try_new(nl_nl.into(), fieldsets::YMDE::medium()).unwrap();
+        let s = fmt.format(&date).to_string();
+        assert!(
+            s.contains("jun") || s.contains("do"),
+            "ICU4X nl-NL should contain Dutch month or weekday, got: {s}"
+        );
     }
 }
