@@ -1,3 +1,4 @@
+use harv_core::{t, t_args};
 use harv_sdk::HarvConfig;
 
 use crate::{ConfigAction, ConfigArgs};
@@ -13,31 +14,49 @@ pub async fn execute(args: &ConfigArgs) -> color_eyre::eyre::Result<()> {
 async fn show() -> color_eyre::eyre::Result<()> {
     let path = HarvConfig::path();
 
-    println!("Config file: {}", path.display());
+    println!(
+        "{}",
+        t_args("cli-config-file", &[("path", path.display().to_string())])
+    );
 
     if !path.exists() {
-        println!("  (not found)");
+        println!("  {}", t("cli-config-not-found"));
         println!("Run `harv connect` to authenticate with Harvest.");
         return Ok(());
     }
 
-    let config = HarvConfig::load()
-        .await
-        .map_err(|e| color_eyre::eyre::eyre!("Failed to load config: {}", e.user_message()))?;
+    let config = HarvConfig::load().await.map_err(|e| {
+        color_eyre::eyre::eyre!(
+            "{}",
+            t_args("cli-config-load-failed", &[("err", e.user_message())])
+        )
+    })?;
 
     println!();
     println!(
         "  {:<20} {}",
-        "access-token:",
+        t("cli-config-access-token"),
         redact_token(&config.access_token)
     );
-    println!("  {:<20} {}", "account-id:", config.account_id);
-    println!("  {:<20} {}h", "cache-ttl:", config.cache_ttl_hours);
+    println!("  {:<20} {}", t("cli-config-account-id"), config.account_id);
     println!(
         "  {:<20} {}",
-        "aliases:",
+        t("cli-config-locale"),
+        config
+            .locale
+            .as_deref()
+            .unwrap_or(&t("cli-config-auto-detect"))
+    );
+    println!(
+        "  {:<20} {}h",
+        t("cli-config-cache-ttl"),
+        config.cache_ttl_hours
+    );
+    println!(
+        "  {:<20} {}",
+        t("cli-config-aliases"),
         if config.aliases.is_empty() {
-            "(none)".into()
+            t("cli-config-none-bare")
         } else {
             config
                 .aliases
@@ -52,30 +71,41 @@ async fn show() -> color_eyre::eyre::Result<()> {
 }
 
 async fn get(setting: &str) -> color_eyre::eyre::Result<()> {
-    let config = HarvConfig::load()
-        .await
-        .map_err(|e| color_eyre::eyre::eyre!("Failed to load config: {}", e.user_message()))?;
+    let config = HarvConfig::load().await.map_err(|e| {
+        color_eyre::eyre::eyre!(
+            "{}",
+            t_args("cli-config-load-failed", &[("err", e.user_message())])
+        )
+    })?;
 
     match setting {
         "cache-ttl" => println!("{}", config.cache_ttl_hours),
         "access-token" => println!("{}", redact_token(&config.access_token)),
         "account-id" => println!("{}", config.account_id),
+        "locale" => println!("{}", config.locale.as_deref().unwrap_or("")),
         "aliases" => {
             if config.aliases.is_empty() {
-                println!("(none)");
+                println!("{}", t("cli-config-none-bare"));
             } else {
                 for (name, alias) in config.aliases.iter() {
                     println!(
-                        "{} -> project: {}, task: {}",
-                        name, alias.project_id, alias.task_id
+                        "{}",
+                        t_args(
+                            "cli-config-alias-format",
+                            &[
+                                ("name", name.clone()),
+                                ("pid", alias.project_id.to_string()),
+                                ("tid", alias.task_id.to_string()),
+                            ],
+                        )
                     );
                 }
             }
         }
         other => {
             return Err(color_eyre::eyre::eyre!(
-                "Unknown setting: {}. Valid settings: access-token, account-id, aliases, cache-ttl",
-                other
+                "{}",
+                t_args("cli-config-unknown-setting", &[("setting", other.into())])
             ));
         }
     }
@@ -83,37 +113,69 @@ async fn get(setting: &str) -> color_eyre::eyre::Result<()> {
 }
 
 async fn set(setting: &str, value: &str) -> color_eyre::eyre::Result<()> {
-    let mut config = HarvConfig::load()
-        .await
-        .map_err(|e| color_eyre::eyre::eyre!("Failed to load config: {}", e.user_message()))?;
+    let mut config = HarvConfig::load().await.map_err(|e| {
+        color_eyre::eyre::eyre!(
+            "{}",
+            t_args("cli-config-load-failed", &[("err", e.user_message())])
+        )
+    })?;
 
     match setting {
         "cache-ttl" => {
             let hours: u64 = value
                 .parse()
-                .map_err(|_| color_eyre::eyre::eyre!("cache-ttl must be a positive number"))?;
+                .map_err(|_| color_eyre::eyre::eyre!("{}", t("cli-config-cache-ttl-invalid")))?;
             config.cache_ttl_hours = hours;
+        }
+        "locale" => {
+            if value.is_empty() || value == "auto" {
+                config.locale = None;
+            } else {
+                let valid = harv_core::locale::SUPPORTED_LANGS;
+                if valid.contains(&value) {
+                    config.locale = Some(value.into());
+                } else {
+                    return Err(color_eyre::eyre::eyre!(
+                        "{}",
+                        t_args(
+                            "cli-config-locale-invalid",
+                            &[("value", value.into()), ("supported", valid.join(", ")),]
+                        )
+                    ));
+                }
+            }
         }
         other => {
             return Err(color_eyre::eyre::eyre!(
-                "Unknown setting: {}. Valid settings: cache-ttl",
-                other
+                "{}",
+                t_args(
+                    "cli-config-unknown-setting-set",
+                    &[("setting", other.into())]
+                )
             ));
         }
     }
 
-    config
-        .save()
-        .await
-        .map_err(|e| color_eyre::eyre::eyre!("Failed to save config: {}", e.user_message()))?;
-    println!("{} set to {}", setting, value);
+    config.save().await.map_err(|e| {
+        color_eyre::eyre::eyre!(
+            "{}",
+            t_args("cli-config-save-failed", &[("err", e.user_message())])
+        )
+    })?;
+    println!(
+        "{}",
+        t_args(
+            "cli-config-set-success",
+            &[("setting", setting.into()), ("value", value.into())]
+        )
+    );
     Ok(())
 }
 
 fn redact_token(token: &str) -> String {
     let chars: Vec<char> = token.chars().collect();
     if chars.len() <= 8 {
-        return "<redacted>".into();
+        return t("cli-config-redacted");
     }
     let prefix: String = chars.iter().take(4).collect();
     let suffix: String = chars

@@ -236,8 +236,19 @@ Config is stored at `~/.config/harv/config.toml`. View with `harv config`, modif
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `cache-ttl` | `24` | Cache lifetime in hours (0 = always fetch) |
+| `locale` | *(auto-detect)* | Display language. Supported: `en`, `nl`, `fr`, `de`, `es`, `it` |
 
 Project assignments are cached with the configured TTL. Subsequent `track`/`start` commands return instantly. Use `--refresh` to bypass the cache.
+
+### Localization
+
+`harv` auto-detects your system language via the `LANG` environment variable or OS locale. To override, set `locale` in your config:
+
+```bash
+harv config set locale nl
+```
+
+This affects all CLI output, error messages, and TUI labels. If a translation is missing for your locale, it falls back to English. Supported: English, Dutch, French, German, Spanish, Italian.
 
 ### Custom OAuth2 Application
 

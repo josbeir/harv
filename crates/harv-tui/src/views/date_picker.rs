@@ -49,11 +49,20 @@ impl DatePicker {
         let grid_start = month_start - Duration::days(first_weekday);
 
         // Header row — abbreviated day names
-        let day_names = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+        let day_names = [
+            harv_core::t("tui-datepicker-sun"),
+            harv_core::t("tui-datepicker-mon"),
+            harv_core::t("tui-datepicker-tue"),
+            harv_core::t("tui-datepicker-wed"),
+            harv_core::t("tui-datepicker-thu"),
+            harv_core::t("tui-datepicker-fri"),
+            harv_core::t("tui-datepicker-sat"),
+        ];
         let header_cells: Vec<Cell> = day_names
             .iter()
             .map(|name| {
-                Cell::from(*name).style(Style::new().fg(theme.muted).add_modifier(Modifier::BOLD))
+                Cell::from(name.as_str())
+                    .style(Style::new().fg(theme.muted).add_modifier(Modifier::BOLD))
             })
             .collect();
 

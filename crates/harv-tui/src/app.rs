@@ -272,7 +272,7 @@ impl App {
                 notes,
             } => {
                 let View::Dashboard(d) = &mut self.current_view;
-                d.set_loading("Creating entry...");
+                d.set_loading(harv_core::t("tui-app-loading-create"));
 
                 // Save last used project/task to config
                 {
@@ -314,7 +314,7 @@ impl App {
                 notes,
             } => {
                 let View::Dashboard(d) = &mut self.current_view;
-                d.set_loading("Saving changes...");
+                d.set_loading(harv_core::t("tui-app-loading-save"));
 
                 {
                     let mut config = self.client.config().clone();
@@ -355,7 +355,7 @@ impl App {
             }
             Action::Refresh => {
                 let View::Dashboard(d) = &mut self.current_view;
-                d.set_loading("Syncing with Harvest...");
+                d.set_loading(harv_core::t("tui-app-loading-sync"));
                 let date = d.selected_date();
                 self.fetch_dashboard_data(tx, true, date);
             }
@@ -368,21 +368,21 @@ impl App {
                 let View::Dashboard(d) = &mut self.current_view;
                 d.prev_day();
                 let date = d.selected_date();
-                d.set_loading("Loading...");
+                d.set_loading(harv_core::t("tui-app-loading-generic"));
                 self.fetch_entries(tx, date);
             }
             Action::NavigateDayNext => {
                 let View::Dashboard(d) = &mut self.current_view;
                 d.next_day();
                 let date = d.selected_date();
-                d.set_loading("Loading...");
+                d.set_loading(harv_core::t("tui-app-loading-generic"));
                 self.fetch_entries(tx, date);
             }
             Action::NavigateDayToday => {
                 let View::Dashboard(d) = &mut self.current_view;
                 d.go_today();
                 let date = d.selected_date();
-                d.set_loading("Loading...");
+                d.set_loading(harv_core::t("tui-app-loading-generic"));
                 self.fetch_entries(tx, date);
             }
             Action::OpenDatePicker => {
@@ -404,7 +404,7 @@ impl App {
                 } else {
                     let View::Dashboard(d) = &mut self.current_view;
                     d.set_date(date);
-                    d.set_loading("Loading...");
+                    d.set_loading(harv_core::t("tui-app-loading-generic"));
                     self.fetch_entries(tx, date);
                 }
                 self.date_picker = None;
@@ -433,7 +433,7 @@ impl App {
             }
             Action::StopTimer { entry_id } => {
                 let View::Dashboard(d) = &mut self.current_view;
-                d.set_loading("Stopping timer...");
+                d.set_loading(harv_core::t("tui-app-loading-stop"));
                 let client = Arc::clone(&self.client);
                 let tx = tx.clone();
                 tokio::spawn(async move {
@@ -445,7 +445,7 @@ impl App {
             }
             Action::DeleteEntry { entry_id } => {
                 let View::Dashboard(d) = &mut self.current_view;
-                d.set_loading("Deleting entry...");
+                d.set_loading(harv_core::t("tui-app-loading-delete"));
                 let client = Arc::clone(&self.client);
                 let tx = tx.clone();
                 tokio::spawn(async move {
@@ -464,7 +464,7 @@ impl App {
                 entry_desc,
             } => {
                 self.pending_confirm = Some((
-                    format!("\"{}\"\nDelete this entry?", entry_desc),
+                    harv_core::t_args("tui-app-confirm-delete", &[("desc", entry_desc)]),
                     vec![Action::DeleteEntry { entry_id }],
                 ));
             }
@@ -473,16 +473,13 @@ impl App {
                 entry_desc,
             } => {
                 self.pending_confirm = Some((
-                    format!(
-                        "A timer is currently running:\n\"{}\"\n\nStop it and start a new one?",
-                        entry_desc
-                    ),
+                    harv_core::t_args("tui-app-confirm-stop-start", &[("desc", entry_desc)]),
                     vec![Action::StopAndStartNew { entry_id }],
                 ));
             }
             Action::StopAndStartNew { entry_id } => {
                 let View::Dashboard(d) = &mut self.current_view;
-                d.set_loading("Stopping timer...");
+                d.set_loading(harv_core::t("tui-app-loading-stop"));
                 let client = Arc::clone(&self.client);
                 let tx = tx.clone();
                 tokio::spawn(async move {
@@ -618,7 +615,7 @@ impl App {
 
         let version = env!("CARGO_PKG_VERSION");
         let mut spans = vec![Span::styled(
-            " HARV ",
+            format!(" {} ", harv_core::t("tui-app-title")),
             Style::new()
                 .fg(self.theme.primary)
                 .add_modifier(Modifier::BOLD),
@@ -639,9 +636,15 @@ impl App {
         let left = Line::from(spans);
 
         let status = if self.current_view.timer_running() {
-            Span::styled(" ● Running ", Style::new().fg(self.theme.success))
+            Span::styled(
+                format!(" {}", harv_core::t("tui-app-running")),
+                Style::new().fg(self.theme.success),
+            )
         } else {
-            Span::styled(" ○ Idle ", Style::new().fg(self.theme.muted))
+            Span::styled(
+                format!(" {}", harv_core::t("tui-app-idle")),
+                Style::new().fg(self.theme.muted),
+            )
         };
 
         f.render_widget(
@@ -657,21 +660,21 @@ impl App {
 
     fn render_bottom_bar(&self, area: Rect, f: &mut Frame) {
         let mut actions = vec![
-            ("h/l", "Day"),
-            ("g", "Pick"),
-            ("n/t", "New"),
-            ("s", "Start"),
-            ("e", "Edit"),
+            ("h/l", harv_core::t("tui-short-day")),
+            ("g", harv_core::t("tui-short-pick")),
+            ("n/t", harv_core::t("tui-short-new")),
+            ("s", harv_core::t("tui-short-start")),
+            ("e", harv_core::t("tui-short-edit")),
         ];
 
         if self.current_view.timer_running() {
-            actions.push(("x", "Stop"));
+            actions.push(("x", harv_core::t("tui-short-stop")));
         }
 
-        actions.push(("d", "Del"));
-        actions.push(("r", "Refr"));
-        actions.push(("q", "Quit"));
-        actions.push(("?", "Help"));
+        actions.push(("d", harv_core::t("tui-short-del")));
+        actions.push(("r", harv_core::t("tui-short-refr")));
+        actions.push(("q", harv_core::t("tui-short-quit")));
+        actions.push(("?", harv_core::t("tui-short-help")));
 
         let spans: Vec<Span> = actions
             .iter()
@@ -709,7 +712,7 @@ fn render_confirm_dialog(area: Rect, f: &mut Frame, msg: &str, theme: &Theme) {
     f.render_widget(Clear, centered);
 
     let block = Block::new()
-        .title(" Confirm ")
+        .title(format!(" {} ", harv_core::t("tui-app-confirm-title")))
         .title_alignment(Alignment::Center)
         .borders(Borders::ALL)
         .border_style(Style::new().fg(theme.warning))
@@ -739,7 +742,7 @@ fn render_confirm_dialog(area: Rect, f: &mut Frame, msg: &str, theme: &Theme) {
 
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
-        " y = confirm   any other key = cancel ",
+        format!(" {} ", harv_core::t("tui-app-confirm-prompt")),
         Style::new().fg(theme.muted),
     )));
 

@@ -24,7 +24,7 @@ pub fn render_harv_loading(area: Rect, f: &mut Frame, tick: u64, msg: &str, them
 
     let offset = (tick % 4) as usize;
     let version = env!("CARGO_PKG_VERSION");
-    let version_visible = format!("HARV CLI v{}", version);
+    let version_visible = format!("{} v{}", harv_core::t("tui-app-title"), version);
     let inner_pad = (21usize.saturating_sub(version_visible.len())) / 2;
 
     let mut lines: Vec<Line> = Vec::new();
@@ -55,7 +55,7 @@ pub fn render_harv_loading(area: Rect, f: &mut Frame, tick: u64, msg: &str, them
     lines.push(Line::from(vec![
         Span::styled(" ".repeat(inner_pad), Style::default()),
         Span::styled(
-            "HARV CLI",
+            harv_core::t("tui-app-title"),
             Style::new()
                 .fg(Color::Rgb(250, 93, 0))
                 .add_modifier(Modifier::BOLD),

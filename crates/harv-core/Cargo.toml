@@ -9,6 +9,11 @@ description = "Domain types and errors for the Harvest time tracking CLI"
 serde = { version = "1", features = ["derive"] }
 chrono = { version = "0.4", features = ["serde"] }
 thiserror = "2"
+unic-langid = "0.9"
+sys-locale = "0.3"
+icu_datetime = { version = "2", features = ["compiled_data"] }
+icu_calendar = "2"
+icu_locale_core = "2"
 
 [dev-dependencies]
 serde_json = "1"

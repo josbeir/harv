@@ -53,29 +53,22 @@ impl HarvError {
     /// User-friendly message suitable for display in the CLI.
     pub fn user_message(&self) -> String {
         match self {
-            Self::NotAuthenticated => String::from(
-                "You are not authenticated. Run `harv connect` to log in to your Harvest account.",
+            Self::NotAuthenticated => crate::locale::t("err-not-authenticated"),
+            Self::ConfigNotFound(_) => crate::locale::t("err-config-not-found"),
+            Self::Api { status, message } => crate::locale::t_args(
+                "err-api",
+                &[("status", status.to_string()), ("message", message.clone())],
             ),
-            Self::ConfigNotFound(_) => String::from(
-                "Config file not found. Run `harv connect` to log in to your Harvest account.",
+            Self::NoRunningTimer => crate::locale::t("err-no-running-timer"),
+            Self::NoProjectAssignments => crate::locale::t("err-no-project-assignments"),
+            Self::NoTaskAssignments { project_id } => crate::locale::t_args(
+                "err-no-task-assignments",
+                &[("project_id", project_id.to_string())],
             ),
-            Self::Api { status, message } => {
-                format!("Harvest API returned error ({}): {}", status, message)
-            }
-            Self::NoRunningTimer => String::from("No timer is currently running."),
-            Self::NoProjectAssignments => String::from("You have no project assignments."),
-            Self::NoTaskAssignments { project_id } => {
-                format!("No task assignments found for project {}.", project_id)
-            }
             Self::AliasNotFound(name) => {
-                format!(
-                    "Alias '{}' not found. Use `harv alias list` to see available aliases.",
-                    name
-                )
+                crate::locale::t_args("err-alias-not-found", &[("name", name.clone())])
             }
-            Self::OAuthDenied => {
-                String::from("Authorization was denied. Try again with `harv connect`.")
-            }
+            Self::OAuthDenied => crate::locale::t("err-oauth-denied"),
             _ => self.to_string(),
         }
     }
@@ -86,14 +79,20 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
 
+    fn ensure_locale() {
+        crate::locale::init(None);
+    }
+
     #[test]
     fn test_not_authenticated_display() {
+        ensure_locale();
         let err = HarvError::NotAuthenticated;
         assert!(err.to_string().contains("harv connect"));
     }
 
     #[test]
     fn test_config_not_found_display() {
+        ensure_locale();
         let path = PathBuf::from("/home/user/.config/harv/config.toml");
         let err = HarvError::ConfigNotFound(path.clone());
         let msg = err.to_string();
@@ -103,12 +102,14 @@ mod tests {
 
     #[test]
     fn test_config_not_found_user_message() {
+        ensure_locale();
         let err = HarvError::ConfigNotFound(PathBuf::from("/tmp/config.toml"));
         assert!(err.user_message().contains("harv connect"));
     }
 
     #[test]
     fn test_api_error_display() {
+        ensure_locale();
         let err = HarvError::Api {
             status: 422,
             message: "Validation failed".into(),
@@ -118,6 +119,7 @@ mod tests {
 
     #[test]
     fn test_api_error_user_message() {
+        ensure_locale();
         let err = HarvError::Api {
             status: 404,
             message: "Not found".into(),
@@ -128,18 +130,21 @@ mod tests {
 
     #[test]
     fn test_no_running_timer_display() {
+        ensure_locale();
         let err = HarvError::NoRunningTimer;
         assert_eq!(err.to_string(), "No running timer found.");
     }
 
     #[test]
     fn test_no_running_timer_user_message() {
+        ensure_locale();
         let err = HarvError::NoRunningTimer;
         assert_eq!(err.user_message(), "No timer is currently running.");
     }
 
     #[test]
     fn test_alias_not_found_user_message() {
+        ensure_locale();
         let err = HarvError::AliasNotFound("myalias".into());
         assert!(err.user_message().contains("myalias"));
         assert!(err.user_message().contains("harv alias list"));
@@ -147,6 +152,7 @@ mod tests {
 
     #[test]
     fn test_io_error_from() {
+        ensure_locale();
         let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
         let harv_err: HarvError = io_err.into();
         let msg = harv_err.to_string();
@@ -156,12 +162,14 @@ mod tests {
 
     #[test]
     fn test_other_error() {
+        ensure_locale();
         let err = HarvError::Other("something went wrong".into());
         assert_eq!(err.to_string(), "something went wrong");
     }
 
     #[test]
     fn test_config_malformed() {
+        ensure_locale();
         let err = HarvError::ConfigMalformed("bad json".into());
         assert!(err.to_string().contains("malformed"));
         assert!(err.to_string().contains("bad json"));
@@ -169,6 +177,7 @@ mod tests {
 
     #[test]
     fn test_http_error() {
+        ensure_locale();
         let err = HarvError::Http("connection refused".into());
         assert!(err.to_string().contains("HTTP error"));
         assert!(err.to_string().contains("connection refused"));
@@ -176,55 +185,79 @@ mod tests {
 
     #[test]
     fn test_invalid_date() {
+        ensure_locale();
         let err = HarvError::InvalidDate("2026-13-01".into());
         assert!(err.to_string().contains("Invalid date"));
     }
 
     #[test]
     fn test_invalid_time() {
+        ensure_locale();
         let err = HarvError::InvalidTime("25:00".into());
         assert!(err.to_string().contains("Invalid time"));
     }
 
     #[test]
     fn test_no_project_assignments_display() {
+        ensure_locale();
         let err = HarvError::NoProjectAssignments;
         assert!(err.to_string().contains("No project assignments"));
     }
 
     #[test]
     fn test_no_project_assignments_user_message() {
+        ensure_locale();
         let err = HarvError::NoProjectAssignments;
         assert_eq!(err.user_message(), "You have no project assignments.");
     }
 
     #[test]
     fn test_no_task_assignments_display() {
+        ensure_locale();
         let err = HarvError::NoTaskAssignments { project_id: 42 };
         assert!(err.to_string().contains("project 42"));
     }
 
     #[test]
     fn test_no_task_assignments_user_message() {
+        ensure_locale();
         let err = HarvError::NoTaskAssignments { project_id: 42 };
         assert!(err.user_message().contains("42"));
     }
 
     #[test]
     fn test_oauth_failed_display() {
+        ensure_locale();
         let err = HarvError::OAuthFailed;
         assert!(err.to_string().contains("access token"));
     }
 
     #[test]
     fn test_oauth_denied_display() {
+        ensure_locale();
         let err = HarvError::OAuthDenied;
         assert!(err.to_string().contains("denied"));
     }
 
     #[test]
     fn test_oauth_denied_user_message() {
+        ensure_locale();
         let err = HarvError::OAuthDenied;
         assert!(err.user_message().contains("harv connect"));
+    }
+
+    #[test]
+    fn test_oauth_failed_user_message() {
+        ensure_locale();
+        let err = HarvError::OAuthFailed;
+        assert!(err.user_message().contains("access token"));
+    }
+
+    #[test]
+    fn test_config_malformed_user_message() {
+        ensure_locale();
+        let err = HarvError::ConfigMalformed("bad toml".into());
+        assert!(err.user_message().contains("malformed"));
+        assert!(err.user_message().contains("bad toml"));
     }
 }
