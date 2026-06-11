@@ -41,7 +41,7 @@ impl HarvClient {
         self
     }
 
-    /// Load config from `~/.config/harv/config.json` and create a client.
+    /// Load config from `~/.config/harv/config.toml` and create a client.
     pub async fn from_config_file() -> Result<Self, HarvError> {
         let config = HarvConfig::load().await?;
         Self::new(config)
