@@ -94,7 +94,7 @@ mod tests {
 
     #[test]
     fn test_config_not_found_display() {
-        let path = PathBuf::from("/home/user/.config/harv/config.json");
+        let path = PathBuf::from("/home/user/.config/harv/config.toml");
         let err = HarvError::ConfigNotFound(path.clone());
         let msg = err.to_string();
         assert!(msg.contains(&*path.to_string_lossy()));
@@ -103,7 +103,7 @@ mod tests {
 
     #[test]
     fn test_config_not_found_user_message() {
-        let err = HarvError::ConfigNotFound(PathBuf::from("/tmp/config.json"));
+        let err = HarvError::ConfigNotFound(PathBuf::from("/tmp/config.toml"));
         assert!(err.user_message().contains("harv connect"));
     }
 

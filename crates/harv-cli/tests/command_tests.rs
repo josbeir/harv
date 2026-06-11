@@ -265,8 +265,11 @@ async fn test_config_show_with_file() {
     let harv_dir = tmp.path().join(".config").join("harv");
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
-        harv_dir.join("config.json"),
-        r#"{"access_token":"tok","account_id":"1","cache_ttl_hours":48}"#,
+        harv_dir.join("config.toml"),
+        r#"access_token = "tok"
+account_id = "1"
+cache_ttl_hours = 48
+"#,
     )
     .unwrap();
     commands::config_cmd::execute(&harv_cli::ConfigArgs { action: None })
@@ -283,8 +286,11 @@ async fn test_config_get_cache_ttl() {
     let harv_dir = tmp.path().join(".config").join("harv");
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
-        harv_dir.join("config.json"),
-        r#"{"access_token":"tok","account_id":"1","cache_ttl_hours":48}"#,
+        harv_dir.join("config.toml"),
+        r#"access_token = "tok"
+account_id = "1"
+cache_ttl_hours = 48
+"#,
     )
     .unwrap();
     commands::config_cmd::execute(&harv_cli::ConfigArgs {
@@ -305,8 +311,10 @@ async fn test_config_get_invalid() {
     let harv_dir = tmp.path().join(".config").join("harv");
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
-        harv_dir.join("config.json"),
-        r#"{"access_token":"tok","account_id":"1"}"#,
+        harv_dir.join("config.toml"),
+        r#"access_token = "tok"
+account_id = "1"
+"#,
     )
     .unwrap();
     let result = commands::config_cmd::execute(&harv_cli::ConfigArgs {
@@ -327,8 +335,10 @@ async fn test_config_set_cache_ttl() {
     let harv_dir = tmp.path().join(".config").join("harv");
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
-        harv_dir.join("config.json"),
-        r#"{"access_token":"tok","account_id":"1"}"#,
+        harv_dir.join("config.toml"),
+        r#"access_token = "tok"
+account_id = "1"
+"#,
     )
     .unwrap();
     commands::config_cmd::execute(&harv_cli::ConfigArgs {
@@ -353,8 +363,10 @@ async fn test_config_set_invalid() {
     let harv_dir = tmp.path().join(".config").join("harv");
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
-        harv_dir.join("config.json"),
-        r#"{"access_token":"tok","account_id":"1"}"#,
+        harv_dir.join("config.toml"),
+        r#"access_token = "tok"
+account_id = "1"
+"#,
     )
     .unwrap();
     let result = commands::config_cmd::execute(&harv_cli::ConfigArgs {
@@ -457,8 +469,10 @@ async fn test_track_no_project_assignments() {
     let harv_dir = tmp.path().join(".config").join("harv");
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
-        harv_dir.join("config.json"),
-        r#"{"access_token":"t","account_id":"1"}"#,
+        harv_dir.join("config.toml"),
+        r#"access_token = "t"
+account_id = "1"
+"#,
     )
     .unwrap();
 
@@ -487,8 +501,10 @@ async fn test_track_alias_not_found() {
     let harv_dir = tmp.path().join(".config").join("harv");
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
-        harv_dir.join("config.json"),
-        r#"{"access_token":"t","account_id":"1"}"#,
+        harv_dir.join("config.toml"),
+        r#"access_token = "t"
+account_id = "1"
+"#,
     )
     .unwrap();
 
@@ -566,8 +582,10 @@ async fn test_alias_list_empty() {
     let harv_dir = tmp.path().join(".config").join("harv");
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
-        harv_dir.join("config.json"),
-        r#"{"access_token":"t","account_id":"1"}"#,
+        harv_dir.join("config.toml"),
+        r#"access_token = "t"
+account_id = "1"
+"#,
     )
     .unwrap();
     let c = client("http://unused"); // never hit — aliases empty, early returns
@@ -585,8 +603,10 @@ async fn test_alias_delete_not_found() {
     let harv_dir = tmp.path().join(".config").join("harv");
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
-        harv_dir.join("config.json"),
-        r#"{"access_token":"t","account_id":"1"}"#,
+        harv_dir.join("config.toml"),
+        r#"access_token = "t"
+account_id = "1"
+"#,
     )
     .unwrap();
     commands::alias::delete_execute("nonexistent")
@@ -603,8 +623,14 @@ async fn test_alias_list_with_data() {
     let harv_dir = tmp.path().join(".config").join("harv");
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
-        harv_dir.join("config.json"),
-        r#"{"access_token":"t","account_id":"1","aliases":{"dev":{"project_id":100,"task_id":200}}}"#,
+        harv_dir.join("config.toml"),
+        r#"access_token = "t"
+account_id = "1"
+
+[aliases.dev]
+project_id = 100
+task_id = 200
+"#,
     )
     .unwrap();
 
@@ -630,8 +656,14 @@ async fn test_alias_list_stale() {
     let harv_dir = tmp.path().join(".config").join("harv");
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
-        harv_dir.join("config.json"),
-        r#"{"access_token":"t","account_id":"1","aliases":{"old":{"project_id":999,"task_id":888}}}"#,
+        harv_dir.join("config.toml"),
+        r#"access_token = "t"
+account_id = "1"
+
+[aliases.old]
+project_id = 999
+task_id = 888
+"#,
     )
     .unwrap();
 
@@ -657,8 +689,14 @@ async fn test_alias_list_api_error() {
     let harv_dir = tmp.path().join(".config").join("harv");
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
-        harv_dir.join("config.json"),
-        r#"{"access_token":"t","account_id":"1","aliases":{"dev":{"project_id":100,"task_id":200}}}"#,
+        harv_dir.join("config.toml"),
+        r#"access_token = "t"
+account_id = "1"
+
+[aliases.dev]
+project_id = 100
+task_id = 200
+"#,
     )
     .unwrap();
 
@@ -936,8 +974,14 @@ async fn test_disconnect_with_config() {
 
     let harv_dir = tmp.path().join(".config").join("harv");
     std::fs::create_dir_all(&harv_dir).unwrap();
-    let config_path = harv_dir.join("config.json");
-    std::fs::write(&config_path, r#"{"access_token":"tok","account_id":"123"}"#).unwrap();
+    let config_path = harv_dir.join("config.toml");
+    std::fs::write(
+        &config_path,
+        r#"access_token = "tok"
+account_id = "123"
+"#,
+    )
+    .unwrap();
     let cache_path = harv_dir.join("projects_cache_123.json");
     std::fs::write(&cache_path, "{}").unwrap();
 

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use tokio::fs;
 
-/// Configuration stored at `~/.config/harv/config.json`.
+/// Configuration stored at `~/.config/harv/config.toml`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HarvConfig {
     pub access_token: String,
@@ -31,7 +31,7 @@ pub struct Alias {
 }
 
 impl HarvConfig {
-    /// Load config from `~/.config/harv/config.json`.
+    /// Load config from `~/.config/harv/config.toml`.
     pub async fn load() -> Result<Self, HarvError> {
         let path = Self::path();
         let contents = fs::read_to_string(&path)
@@ -40,27 +40,27 @@ impl HarvConfig {
                 std::io::ErrorKind::NotFound => HarvError::ConfigNotFound(path),
                 _ => HarvError::Io(e),
             })?;
-        serde_json::from_str(&contents).map_err(|e| HarvError::ConfigMalformed(e.to_string()))
+        toml::from_str(&contents).map_err(|e| HarvError::ConfigMalformed(e.to_string()))
     }
 
-    /// Save config to `~/.config/harv/config.json`. Creates the directory if needed.
+    /// Save config to `~/.config/harv/config.toml`. Creates the directory if needed.
     pub async fn save(&self) -> Result<(), HarvError> {
         let path = Self::path();
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).await?;
         }
-        let json = serde_json::to_string_pretty(self)
-            .map_err(|e| HarvError::ConfigMalformed(e.to_string()))?;
-        fs::write(&path, json).await?;
+        let toml =
+            toml::to_string_pretty(self).map_err(|e| HarvError::ConfigMalformed(e.to_string()))?;
+        fs::write(&path, toml).await?;
         Ok(())
     }
 
-    /// Returns the path to the config file: `~/.config/harv/config.json`.
+    /// Returns the path to the config file: `~/.config/harv/config.toml`.
     pub fn path() -> PathBuf {
         dirs::config_dir()
             .unwrap_or_else(|| PathBuf::from("."))
             .join("harv")
-            .join("config.json")
+            .join("config.toml")
     }
 
     /// Look up an alias by name. Returns `None` if not found.
@@ -109,29 +109,26 @@ mod tests {
     #[tokio::test]
     async fn test_load_nonexistent() {
         let _guard = ENV_MUTEX.lock().await;
-        // Point config_dir to a temp dir that has no harv/config.json
         let dir = tempdir().unwrap();
         unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
         unsafe { std::env::set_var("HOME", dir.path()) };
-        let _ = dirs::config_dir(); // force dirs to pick up the env var (best-effort)
+        let _ = dirs::config_dir();
 
-        // Since dirs may cache, we test load failure differently
-        // Just verify the path function returns something reasonable
         let path = HarvConfig::path();
-        assert!(path.ends_with("config.json"));
+        assert!(path.ends_with("config.toml"));
     }
 
     #[tokio::test]
     async fn test_save_and_load() {
         let dir = tempdir().unwrap();
-        let file_path = dir.path().join("config.json");
+        let file_path = dir.path().join("config.toml");
         let config = test_config();
 
-        let json = serde_json::to_string_pretty(&config).unwrap();
-        tokio::fs::write(&file_path, &json).await.unwrap();
+        let toml = toml::to_string_pretty(&config).unwrap();
+        tokio::fs::write(&file_path, &toml).await.unwrap();
 
         let contents = tokio::fs::read_to_string(&file_path).await.unwrap();
-        let loaded: HarvConfig = serde_json::from_str(&contents).unwrap();
+        let loaded: HarvConfig = toml::from_str(&contents).unwrap();
         assert_eq!(loaded.access_token, "test-token");
         assert_eq!(loaded.account_id, "1234567");
     }
@@ -168,31 +165,41 @@ mod tests {
                 task_id: 20,
             },
         );
-        let json = serde_json::to_string(&config).unwrap();
-        assert!(json.contains("dev"));
-        assert!(json.contains("10"));
+        let toml = toml::to_string(&config).unwrap();
+        assert!(toml.contains("dev"));
+        assert!(toml.contains("10"));
     }
 
     #[test]
     fn test_deserialize_with_aliases() {
-        let json = r#"{"access_token":"tok","account_id":"1","aliases":{"dev":{"project_id":10,"task_id":20}}}"#;
-        let config: HarvConfig = serde_json::from_str(json).unwrap();
+        let toml = r#"
+access_token = "tok"
+account_id = "1"
+
+[aliases.dev]
+project_id = 10
+task_id = 20
+"#;
+        let config: HarvConfig = toml::from_str(toml).unwrap();
         assert_eq!(config.access_token, "tok");
         assert!(config.alias("dev").is_some());
     }
 
     #[test]
     fn test_deserialize_without_aliases() {
-        let json = r#"{"access_token":"tok","account_id":"1"}"#;
-        let config: HarvConfig = serde_json::from_str(json).unwrap();
+        let toml = r#"
+access_token = "tok"
+account_id = "1"
+"#;
+        let config: HarvConfig = toml::from_str(toml).unwrap();
         assert!(config.aliases.is_empty());
     }
 
     #[test]
-    fn test_path_ends_with_config_json() {
+    fn test_path_ends_with_config_toml() {
         let path = HarvConfig::path();
         assert!(path.to_string_lossy().contains("harv"));
-        assert!(path.ends_with("config.json"));
+        assert!(path.ends_with("config.toml"));
     }
 
     #[tokio::test]
@@ -251,7 +258,7 @@ mod tests {
         unsafe { std::env::set_var("HOME", tmp.path()) };
         let harv_dir = tmp.path().join(".config").join("harv");
         std::fs::create_dir_all(&harv_dir).unwrap();
-        std::fs::write(harv_dir.join("config.json"), "not valid json").unwrap();
+        std::fs::write(harv_dir.join("config.toml"), "not valid toml = = =").unwrap();
 
         let result = HarvConfig::load().await;
         assert!(result.is_err());
@@ -259,22 +266,32 @@ mod tests {
 
     #[test]
     fn test_default_cache_ttl() {
-        let json = r#"{"access_token":"tok","account_id":"1"}"#;
-        let config: HarvConfig = serde_json::from_str(json).unwrap();
+        let toml = r#"
+access_token = "tok"
+account_id = "1"
+"#;
+        let config: HarvConfig = toml::from_str(toml).unwrap();
         assert_eq!(config.cache_ttl_hours, 24);
     }
 
     #[test]
     fn test_deserialize_custom_cache_ttl() {
-        let json = r#"{"access_token":"tok","account_id":"1","cache_ttl_hours":48}"#;
-        let config: HarvConfig = serde_json::from_str(json).unwrap();
+        let toml = r#"
+access_token = "tok"
+account_id = "1"
+cache_ttl_hours = 48
+"#;
+        let config: HarvConfig = toml::from_str(toml).unwrap();
         assert_eq!(config.cache_ttl_hours, 48);
     }
 
     #[test]
     fn test_deserialize_last_used_default_none() {
-        let json = r#"{"access_token":"tok","account_id":"1"}"#;
-        let config: HarvConfig = serde_json::from_str(json).unwrap();
+        let toml = r#"
+access_token = "tok"
+account_id = "1"
+"#;
+        let config: HarvConfig = toml::from_str(toml).unwrap();
         assert_eq!(config.last_project_id, None);
         assert_eq!(config.last_task_id, None);
     }

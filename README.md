@@ -57,7 +57,7 @@ Other shells: replace `bash` with `zsh`, `fish`, `elvish`, or `powershell`.
 harv connect
 ```
 
-Opens your browser to authenticate with Harvest via OAuth2. Credentials are stored at `~/.config/harv/config.json`.
+Opens your browser to authenticate with Harvest via OAuth2. Credentials are stored at `~/.config/harv/config.toml`.
 
 ### 2. Track time
 
@@ -231,7 +231,7 @@ Most time-tracking commands (`track`, `start`) share common flags:
 
 ## Configuration
 
-Config is stored at `~/.config/harv/config.json`. View with `harv config`, modify with `harv config set`.
+Config is stored at `~/.config/harv/config.toml`. View with `harv config`, modify with `harv config set`.
 
 | Setting | Default | Description |
 |---------|---------|-------------|
