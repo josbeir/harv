@@ -16,3 +16,4 @@ icu_datetime = { version = "2", features = ["compiled_data", "unstable_chrono_0_
 
 [dev-dependencies]
 serde_json = "1"
+serial_test = "3"

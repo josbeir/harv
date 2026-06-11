@@ -77,12 +77,14 @@ impl HarvError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::path::PathBuf;
 
     fn ensure_locale() {
         crate::locale::init(None);
     }
 
+    #[serial]
     #[test]
     fn test_not_authenticated_display() {
         ensure_locale();
@@ -90,6 +92,7 @@ mod tests {
         assert!(err.to_string().contains("harv connect"));
     }
 
+    #[serial]
     #[test]
     fn test_config_not_found_display() {
         ensure_locale();
@@ -100,6 +103,7 @@ mod tests {
         assert!(msg.contains("harv connect"));
     }
 
+    #[serial]
     #[test]
     fn test_config_not_found_user_message() {
         ensure_locale();
@@ -107,6 +111,7 @@ mod tests {
         assert!(err.user_message().contains("harv connect"));
     }
 
+    #[serial]
     #[test]
     fn test_api_error_display() {
         ensure_locale();
@@ -117,6 +122,7 @@ mod tests {
         assert_eq!(err.to_string(), "API error (422): Validation failed");
     }
 
+    #[serial]
     #[test]
     fn test_api_error_user_message() {
         ensure_locale();
@@ -128,6 +134,7 @@ mod tests {
         assert!(err.user_message().contains("Not found"));
     }
 
+    #[serial]
     #[test]
     fn test_no_running_timer_display() {
         ensure_locale();
@@ -135,6 +142,7 @@ mod tests {
         assert_eq!(err.to_string(), "No running timer found.");
     }
 
+    #[serial]
     #[test]
     fn test_no_running_timer_user_message() {
         ensure_locale();
@@ -142,6 +150,7 @@ mod tests {
         assert_eq!(err.user_message(), "No timer is currently running.");
     }
 
+    #[serial]
     #[test]
     fn test_alias_not_found_user_message() {
         ensure_locale();
@@ -150,6 +159,7 @@ mod tests {
         assert!(err.user_message().contains("harv alias list"));
     }
 
+    #[serial]
     #[test]
     fn test_io_error_from() {
         ensure_locale();
@@ -160,6 +170,7 @@ mod tests {
         assert!(msg.contains("file not found"));
     }
 
+    #[serial]
     #[test]
     fn test_other_error() {
         ensure_locale();
@@ -167,6 +178,7 @@ mod tests {
         assert_eq!(err.to_string(), "something went wrong");
     }
 
+    #[serial]
     #[test]
     fn test_config_malformed() {
         ensure_locale();
@@ -175,6 +187,7 @@ mod tests {
         assert!(err.to_string().contains("bad json"));
     }
 
+    #[serial]
     #[test]
     fn test_http_error() {
         ensure_locale();
@@ -183,6 +196,7 @@ mod tests {
         assert!(err.to_string().contains("connection refused"));
     }
 
+    #[serial]
     #[test]
     fn test_invalid_date() {
         ensure_locale();
@@ -190,6 +204,7 @@ mod tests {
         assert!(err.to_string().contains("Invalid date"));
     }
 
+    #[serial]
     #[test]
     fn test_invalid_time() {
         ensure_locale();
@@ -197,6 +212,7 @@ mod tests {
         assert!(err.to_string().contains("Invalid time"));
     }
 
+    #[serial]
     #[test]
     fn test_no_project_assignments_display() {
         ensure_locale();
@@ -204,6 +220,7 @@ mod tests {
         assert!(err.to_string().contains("No project assignments"));
     }
 
+    #[serial]
     #[test]
     fn test_no_project_assignments_user_message() {
         ensure_locale();
@@ -211,6 +228,7 @@ mod tests {
         assert_eq!(err.user_message(), "You have no project assignments.");
     }
 
+    #[serial]
     #[test]
     fn test_no_task_assignments_display() {
         ensure_locale();
@@ -218,6 +236,7 @@ mod tests {
         assert!(err.to_string().contains("project 42"));
     }
 
+    #[serial]
     #[test]
     fn test_no_task_assignments_user_message() {
         ensure_locale();
@@ -225,6 +244,7 @@ mod tests {
         assert!(err.user_message().contains("42"));
     }
 
+    #[serial]
     #[test]
     fn test_oauth_failed_display() {
         ensure_locale();
@@ -232,6 +252,7 @@ mod tests {
         assert!(err.to_string().contains("access token"));
     }
 
+    #[serial]
     #[test]
     fn test_oauth_denied_display() {
         ensure_locale();
@@ -239,6 +260,7 @@ mod tests {
         assert!(err.to_string().contains("denied"));
     }
 
+    #[serial]
     #[test]
     fn test_oauth_denied_user_message() {
         ensure_locale();
@@ -246,6 +268,7 @@ mod tests {
         assert!(err.user_message().contains("harv connect"));
     }
 
+    #[serial]
     #[test]
     fn test_oauth_failed_user_message() {
         ensure_locale();
@@ -253,6 +276,7 @@ mod tests {
         assert!(err.user_message().contains("access token"));
     }
 
+    #[serial]
     #[test]
     fn test_config_malformed_user_message() {
         ensure_locale();

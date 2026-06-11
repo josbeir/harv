@@ -153,7 +153,9 @@ fn resolve_locale(override_locale: Option<&str>) -> LanguageIdentifier {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
+    #[serial]
     #[test]
     fn test_simple_lookup() {
         init(None);
@@ -162,6 +164,7 @@ mod tests {
         assert!(!msg.is_empty());
     }
 
+    #[serial]
     #[test]
     fn test_lookup_with_args() {
         init(None);
@@ -176,6 +179,7 @@ mod tests {
         assert!(msg.contains("Validation failed"));
     }
 
+    #[serial]
     #[test]
     fn test_missing_key_fallback() {
         init(None);
@@ -183,6 +187,7 @@ mod tests {
         assert_eq!(msg, "this-key-does-not-exist");
     }
 
+    #[serial]
     #[test]
     fn test_english_fallback() {
         init(None);
@@ -191,6 +196,7 @@ mod tests {
         assert!(msg.contains("project"));
     }
 
+    #[serial]
     #[test]
     fn test_override_locale_unsupported() {
         init(Some("jp"));
@@ -198,6 +204,7 @@ mod tests {
         assert_ne!(lid, "jp", "unsupported locale should not be used");
     }
 
+    #[serial]
     #[test]
     fn test_override_locale_supported() {
         init(Some("nl"));
@@ -205,6 +212,7 @@ mod tests {
         assert_eq!(lid, "nl-NL");
     }
 
+    #[serial]
     #[test]
     fn test_override_locale_trimmed() {
         init(Some("  fr  "));
@@ -212,12 +220,14 @@ mod tests {
         assert_eq!(lid, "fr-FR");
     }
 
+    #[serial]
     #[test]
     fn test_current_langid() {
         init(Some("en"));
         assert_eq!(current_langid(), "en-US");
     }
 
+    #[serial]
     #[test]
     fn test_all_supported_locales_init() {
         for lang in SUPPORTED_LANGS {
@@ -226,6 +236,7 @@ mod tests {
         }
     }
 
+    #[serial]
     #[test]
     fn test_non_english_locale_falls_back_to_en() {
         init(Some("nl"));
@@ -234,6 +245,7 @@ mod tests {
         assert!(!msg.is_empty());
     }
 
+    #[serial]
     #[test]
     fn test_translations_return_real_messages() {
         let key = "err-not-authenticated";
@@ -261,6 +273,7 @@ mod tests {
         }
     }
 
+    #[serial]
     #[test]
     fn test_translations_include_harv_connect() {
         for lang in SUPPORTED_LANGS {
@@ -273,6 +286,7 @@ mod tests {
         }
     }
 
+    #[serial]
     #[test]
     fn test_t_args_with_multiple_args() {
         init(None);
