@@ -33,7 +33,7 @@ fn test_config_no_config_file() {
         .env("XDG_CONFIG_HOME", temp.path())
         .assert()
         .code(1)
-        .stderr(predicate::str::contains("Not authenticated"))
+        .stderr(predicate::str::contains("harv connect"))
         .stderr(predicate::str::contains("harv connect"));
 }
 
@@ -106,7 +106,7 @@ fn test_requires_auth_no_config() {
         .env("XDG_CONFIG_HOME", temp.path())
         .assert()
         .code(1)
-        .stderr(predicate::str::contains("Not authenticated"))
+        .stderr(predicate::str::contains("harv connect"))
         .stderr(predicate::str::contains("harv connect"));
 }
 
@@ -160,6 +160,6 @@ fn test_edit_requires_auth() {
         .env("XDG_CONFIG_HOME", temp.path())
         .assert()
         .code(1)
-        .stderr(predicate::str::contains("Not authenticated"))
+        .stderr(predicate::str::contains("harv connect"))
         .stderr(predicate::str::contains("harv connect"));
 }

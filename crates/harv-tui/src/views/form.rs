@@ -289,9 +289,9 @@ impl TimeEntryForm {
         f.render_widget(Clear, popup);
 
         let title = match self.mode {
-            FormMode::Start => " Start Timer ",
-            FormMode::Create => " New Entry ",
-            FormMode::Edit => " Edit Entry ",
+            FormMode::Start => format!(" {} ", harv_core::t("tui-form-title-start")),
+            FormMode::Create => format!(" {} ", harv_core::t("tui-form-title-create")),
+            FormMode::Edit => format!(" {} ", harv_core::t("tui-form-title-edit")),
         };
 
         let block = Block::new()
@@ -321,7 +321,7 @@ impl TimeEntryForm {
             self.render_project_section(layout[0], inner_width, content_x, f, theme, tick);
             self.render_task_section(layout[1], inner_width, content_x, f, theme, tick);
             self.render_text_field(
-                "Date (YYYY-MM-DD)",
+                &harv_core::t("tui-form-date-label"),
                 &self.date,
                 self.active == Field::Date,
                 Rect {
@@ -334,7 +334,7 @@ impl TimeEntryForm {
                 theme,
             );
             self.render_text_field(
-                "Hours (e.g. 1.5 or 1:30)",
+                &harv_core::t("tui-form-hours-label"),
                 &self.hours,
                 self.active == Field::Hours,
                 Rect {
@@ -347,7 +347,7 @@ impl TimeEntryForm {
                 theme,
             );
             self.render_text_field(
-                "Notes (optional)",
+                &harv_core::t("tui-form-notes-label"),
                 &self.notes,
                 self.active == Field::Notes,
                 Rect {
@@ -361,7 +361,7 @@ impl TimeEntryForm {
             );
 
             let help = Span::styled(
-                " Tab: next field │ Enter: next/send │ Esc: cancel ",
+                format!(" {} ", harv_core::t("tui-form-help-create")),
                 Style::new().fg(theme.muted),
             );
             f.render_widget(Paragraph::new(help), layout[5]);
@@ -378,7 +378,7 @@ impl TimeEntryForm {
             self.render_project_section(layout[0], inner_width, content_x, f, theme, tick);
             self.render_task_section(layout[1], inner_width, content_x, f, theme, tick);
             self.render_text_field(
-                "Notes (optional)",
+                &harv_core::t("tui-form-notes-label"),
                 &self.notes,
                 self.active == Field::Notes,
                 Rect {
@@ -392,8 +392,8 @@ impl TimeEntryForm {
             );
 
             let help_text = match self.mode {
-                FormMode::Start => " Tab: next field │ Enter: start timer │ Esc: cancel ",
-                FormMode::Edit => " Tab: next field │ Enter: save │ Esc: cancel ",
+                FormMode::Start => format!(" {} ", harv_core::t("tui-form-help-start")),
+                FormMode::Edit => format!(" {} ", harv_core::t("tui-form-help-edit")),
                 FormMode::Create => unreachable!(),
             };
             let help = Span::styled(help_text, Style::new().fg(theme.muted));
@@ -418,9 +418,12 @@ impl TimeEntryForm {
         };
 
         let title = if !self.project_search.is_empty() {
-            format!(" Project [{}] ", self.project_search)
+            harv_core::t_args(
+                "tui-form-project-search",
+                &[("search", self.project_search.clone())],
+            )
         } else {
-            " Project ".into()
+            format!(" {} ", harv_core::t("tui-form-project-title"))
         };
 
         let block = Block::new()
@@ -431,13 +434,14 @@ impl TimeEntryForm {
         let items: Vec<Line> = if self.assignments_loading {
             let spinner = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
             let text = format!(
-                "{} Loading projects...",
-                spinner[(tick as usize) % spinner.len()]
+                "{} {}",
+                spinner[(tick as usize) % spinner.len()],
+                harv_core::t("tui-form-project-loading")
             );
             vec![Line::from(Span::styled(text, Style::new().fg(theme.muted)))]
         } else if self.assignments.is_empty() {
             vec![Line::from(Span::styled(
-                "No project assignments",
+                harv_core::t("tui-form-project-empty"),
                 Style::new().fg(theme.muted),
             ))]
         } else {
@@ -493,9 +497,12 @@ impl TimeEntryForm {
         };
 
         let title = if !self.task_search.is_empty() {
-            format!(" Task [{}] ", self.task_search)
+            harv_core::t_args(
+                "tui-form-task-search",
+                &[("search", self.task_search.clone())],
+            )
         } else {
-            " Task ".into()
+            format!(" {} ", harv_core::t("tui-form-task-title"))
         };
 
         let block = Block::new()
@@ -504,11 +511,11 @@ impl TimeEntryForm {
             .border_style(border_style);
 
         let list_text: Vec<String> = if self.assignments_loading {
-            vec!["Loading...".into()]
+            vec![harv_core::t("tui-app-loading-generic")]
         } else if self.tasks.is_empty() && self.selected_project().is_some() {
-            vec!["No tasks available".into()]
+            vec![harv_core::t("tui-form-task-empty")]
         } else if self.selected_project().is_none() {
-            vec!["Select a project first".into()]
+            vec![harv_core::t("tui-form-task-select-first")]
         } else {
             self.filtered_tasks
                 .iter()
@@ -570,7 +577,10 @@ impl TimeEntryForm {
             .border_style(border_style);
 
         let display = if value.is_empty() {
-            Span::styled("(empty)", Style::new().fg(theme.muted))
+            Span::styled(
+                harv_core::t("tui-form-empty-field"),
+                Style::new().fg(theme.muted),
+            )
         } else {
             Span::styled(value.to_string(), Style::new().fg(theme.fg))
         };

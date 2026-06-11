@@ -8,6 +8,10 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 
 static ENV_MUTEX: Mutex<()> = Mutex::const_new(());
 
+fn ensure_locale() {
+    harv_core::init_locale(None);
+}
+
 fn test_config() -> HarvConfig {
     HarvConfig {
         access_token: "t".into(),
@@ -15,6 +19,7 @@ fn test_config() -> HarvConfig {
         cache_ttl_hours: 24,
         last_project_id: None,
         last_task_id: None,
+        locale: None,
         aliases: HashMap::new(),
     }
 }
@@ -59,6 +64,7 @@ fn user_json() -> serde_json::Value {
 
 #[tokio::test]
 async fn test_projects_execute() {
+    ensure_locale();
     let server = MockServer::start().await;
     let c = client(&server.uri());
     Mock::given(method("GET"))
@@ -74,6 +80,7 @@ async fn test_projects_execute() {
 
 #[tokio::test]
 async fn test_projects_with_search() {
+    ensure_locale();
     let server = MockServer::start().await;
     let c = client(&server.uri());
     Mock::given(method("GET"))
@@ -96,6 +103,7 @@ async fn test_projects_with_search() {
 
 #[tokio::test]
 async fn test_tasks_execute() {
+    ensure_locale();
     let server = MockServer::start().await;
     let c = client(&server.uri());
     Mock::given(method("GET"))
@@ -118,6 +126,7 @@ async fn test_tasks_execute() {
 
 #[tokio::test]
 async fn test_stop_no_timer() {
+    ensure_locale();
     let server = MockServer::start().await;
     let c = client(&server.uri());
     Mock::given(method("GET"))
@@ -136,6 +145,7 @@ async fn test_stop_no_timer() {
 
 #[tokio::test]
 async fn test_stop_single_timer() {
+    ensure_locale();
     let server = MockServer::start().await;
     let c = client(&server.uri());
 
@@ -176,6 +186,7 @@ async fn test_stop_single_timer() {
 
 #[tokio::test]
 async fn test_note_no_timer() {
+    ensure_locale();
     let server = MockServer::start().await;
     let c = client(&server.uri());
     Mock::given(method("GET"))
@@ -196,6 +207,7 @@ async fn test_note_no_timer() {
 
 #[tokio::test]
 async fn test_status_no_timers() {
+    ensure_locale();
     let server = MockServer::start().await;
     let c = client(&server.uri());
     Mock::given(method("GET"))
@@ -214,6 +226,7 @@ async fn test_status_no_timers() {
 
 #[tokio::test]
 async fn test_status_with_timers() {
+    ensure_locale();
     let server = MockServer::start().await;
     let c = client(&server.uri());
 
@@ -247,6 +260,7 @@ async fn test_status_with_timers() {
 
 #[tokio::test]
 async fn test_config_execute_no_file() {
+    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
@@ -258,6 +272,7 @@ async fn test_config_execute_no_file() {
 
 #[tokio::test]
 async fn test_config_show_with_file() {
+    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
@@ -279,6 +294,7 @@ cache_ttl_hours = 48
 
 #[tokio::test]
 async fn test_config_get_cache_ttl() {
+    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
@@ -304,6 +320,7 @@ cache_ttl_hours = 48
 
 #[tokio::test]
 async fn test_config_get_invalid() {
+    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
@@ -328,6 +345,7 @@ account_id = "1"
 
 #[tokio::test]
 async fn test_config_set_cache_ttl() {
+    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
@@ -356,6 +374,7 @@ account_id = "1"
 
 #[tokio::test]
 async fn test_config_set_invalid() {
+    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
@@ -383,6 +402,11 @@ account_id = "1"
 
 #[tokio::test]
 async fn test_track_with_ids() {
+    ensure_locale();
+    let _guard = ENV_MUTEX.lock().await;
+    let tmp = tempfile::tempdir().unwrap();
+    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
+    unsafe { std::env::set_var("HOME", tmp.path()) };
     let server = MockServer::start().await;
     let c = client(&server.uri());
 
@@ -419,6 +443,7 @@ async fn test_track_with_ids() {
 
 #[tokio::test]
 async fn test_track_with_last_used_auto_task() {
+    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
@@ -462,6 +487,7 @@ async fn test_track_with_last_used_auto_task() {
 
 #[tokio::test]
 async fn test_track_no_project_assignments() {
+    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
@@ -494,6 +520,7 @@ account_id = "1"
 
 #[tokio::test]
 async fn test_track_alias_not_found() {
+    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
@@ -536,6 +563,7 @@ account_id = "1"
 
 #[tokio::test]
 async fn test_note_single_timer() {
+    ensure_locale();
     let server = MockServer::start().await;
     let c = client(&server.uri());
 
@@ -575,6 +603,7 @@ async fn test_note_single_timer() {
 
 #[tokio::test]
 async fn test_alias_list_empty() {
+    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
@@ -596,6 +625,7 @@ account_id = "1"
 
 #[tokio::test]
 async fn test_alias_delete_not_found() {
+    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
@@ -616,6 +646,7 @@ account_id = "1"
 
 #[tokio::test]
 async fn test_alias_list_with_data() {
+    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
@@ -649,6 +680,7 @@ task_id = 200
 
 #[tokio::test]
 async fn test_alias_list_stale() {
+    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
@@ -682,6 +714,7 @@ task_id = 888
 
 #[tokio::test]
 async fn test_alias_list_api_error() {
+    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
@@ -716,6 +749,7 @@ task_id = 200
 
 #[tokio::test]
 async fn test_start_delegation() {
+    ensure_locale();
     let server = MockServer::start().await;
     let c = client(&server.uri());
 
@@ -753,6 +787,7 @@ async fn test_start_delegation() {
 
 #[tokio::test]
 async fn test_note_append_to_existing() {
+    ensure_locale();
     let server = MockServer::start().await;
     let c = client(&server.uri());
 
@@ -789,6 +824,7 @@ async fn test_note_append_to_existing() {
 
 #[tokio::test]
 async fn test_note_overwrite() {
+    ensure_locale();
     let server = MockServer::start().await;
     let c = client(&server.uri());
 
@@ -825,6 +861,7 @@ async fn test_note_overwrite() {
 
 #[tokio::test]
 async fn test_stop_with_notes_append() {
+    ensure_locale();
     let server = MockServer::start().await;
     let c = client(&server.uri());
 
@@ -870,6 +907,7 @@ async fn test_stop_with_notes_append() {
 
 #[tokio::test]
 async fn test_stop_with_notes_overwrite() {
+    ensure_locale();
     let server = MockServer::start().await;
     let c = client(&server.uri());
 
@@ -915,6 +953,7 @@ async fn test_stop_with_notes_overwrite() {
 
 #[tokio::test]
 async fn test_whoami_execute() {
+    ensure_locale();
     let server = MockServer::start().await;
     let c = client(&server.uri());
     Mock::given(method("GET"))
@@ -935,6 +974,7 @@ async fn test_whoami_execute() {
 
 #[tokio::test]
 async fn test_whoami_execute_json() {
+    ensure_locale();
     let server = MockServer::start().await;
     let c = client(&server.uri());
     Mock::given(method("GET"))
@@ -957,6 +997,7 @@ async fn test_whoami_execute_json() {
 
 #[tokio::test]
 async fn test_disconnect_no_config() {
+    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
@@ -967,6 +1008,7 @@ async fn test_disconnect_no_config() {
 
 #[tokio::test]
 async fn test_disconnect_with_config() {
+    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
@@ -1029,6 +1071,7 @@ fn running_entry_json(id: u64) -> serde_json::Value {
 
 #[tokio::test]
 async fn test_edit_non_interactive_with_entry_id() {
+    ensure_locale();
     let server = MockServer::start().await;
     let c = client(&server.uri());
 
@@ -1066,6 +1109,7 @@ async fn test_edit_non_interactive_with_entry_id() {
 
 #[tokio::test]
 async fn test_edit_running_entry_rejects_hours() {
+    ensure_locale();
     let server = MockServer::start().await;
     let c = client(&server.uri());
 
@@ -1104,6 +1148,7 @@ async fn test_edit_running_entry_rejects_hours() {
 
 #[tokio::test]
 async fn test_edit_running_entry_rejects_date() {
+    ensure_locale();
     let server = MockServer::start().await;
     let c = client(&server.uri());
 
@@ -1142,6 +1187,7 @@ async fn test_edit_running_entry_rejects_date() {
 
 #[tokio::test]
 async fn test_edit_running_entry_allows_notes() {
+    ensure_locale();
     let server = MockServer::start().await;
     let c = client(&server.uri());
 
@@ -1192,6 +1238,7 @@ async fn test_edit_running_entry_allows_notes() {
 
 #[tokio::test]
 async fn test_edit_confirmation_falls_back_to_submitted_hours() {
+    ensure_locale();
     let server = MockServer::start().await;
     let c = client(&server.uri());
 
@@ -1243,6 +1290,7 @@ async fn test_edit_confirmation_falls_back_to_submitted_hours() {
 
 #[tokio::test]
 async fn test_edit_entry_not_found() {
+    ensure_locale();
     let server = MockServer::start().await;
     let c = client(&server.uri());
 

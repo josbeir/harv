@@ -1,5 +1,4 @@
 pub mod commands;
-pub mod header;
 pub(crate) mod output;
 pub(crate) mod prompts;
 pub(crate) mod spinner;

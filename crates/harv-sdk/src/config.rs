@@ -16,6 +16,8 @@ pub struct HarvConfig {
     #[serde(default)]
     pub last_task_id: Option<u64>,
     #[serde(default)]
+    pub locale: Option<String>,
+    #[serde(default)]
     pub aliases: HashMap<String, Alias>,
 }
 
@@ -102,6 +104,7 @@ mod tests {
             cache_ttl_hours: 24,
             last_project_id: None,
             last_task_id: None,
+            locale: None,
             aliases: HashMap::new(),
         }
     }

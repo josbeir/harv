@@ -1,4 +1,5 @@
 use crate::OutputFormat;
+use harv_core::{t, t_args};
 use harv_sdk::{HarvClient, HarvConfig};
 
 pub async fn execute(client: &HarvClient, output: &OutputFormat) -> color_eyre::eyre::Result<()> {
@@ -7,8 +8,8 @@ pub async fn execute(client: &HarvClient, output: &OutputFormat) -> color_eyre::
         Ok(c) => Some(c),
         Err(e) => {
             eprintln!(
-                "Warning: could not fetch company info: {}",
-                e.user_message()
+                "{}",
+                t_args("cli-whoami-warning-company", &[("err", e.user_message())])
             );
             None
         }
@@ -16,27 +17,42 @@ pub async fn execute(client: &HarvClient, output: &OutputFormat) -> color_eyre::
 
     match output {
         OutputFormat::Table => {
-            println!("  Authenticated to account {}", client.config().account_id);
+            println!(
+                "  {}",
+                t_args(
+                    "cli-whoami-account-label",
+                    &[("account_id", client.config().account_id.clone())]
+                )
+            );
             println!();
-            println!("  {:<20} {} {}", "Name:", user.first_name, user.last_name);
-            println!("  {:<20} {}", "Email:", user.email);
+            println!(
+                "  {:<20} {} {}",
+                t("cli-whoami-name"),
+                user.first_name,
+                user.last_name
+            );
+            println!("  {:<20} {}", t("cli-whoami-email"), user.email);
             println!(
                 "  {:<20} {}",
-                "Active:",
-                if user.is_active { "yes" } else { "no" }
+                t("cli-whoami-active"),
+                if user.is_active {
+                    t("text-yes")
+                } else {
+                    t("text-no")
+                }
             );
             if let Some(ref tz) = user.timezone {
-                println!("  {:<20} {}", "Timezone:", tz);
+                println!("  {:<20} {}", t("cli-whoami-timezone"), tz);
             }
             if let Some(cap) = user.weekly_capacity {
                 let hours = cap as f64 / 3600.0;
-                println!("  {:<20} {:.0}h", "Weekly capacity:", hours);
+                println!("  {:<20} {:.0}h", t("cli-whoami-capacity"), hours);
             }
             if let Some(ref roles) = user.access_roles {
-                println!("  {:<20} {}", "Access roles:", roles.join(", "));
+                println!("  {:<20} {}", t("cli-whoami-roles"), roles.join(", "));
             }
             if let Some(ref company) = company {
-                println!("  {:<20} {}", "Company:", company.name);
+                println!("  {:<20} {}", t("cli-whoami-company"), company.name);
             }
         }
         OutputFormat::Json => {
@@ -61,8 +77,8 @@ pub async fn execute(client: &HarvClient, output: &OutputFormat) -> color_eyre::
 
 pub async fn run(output: &OutputFormat) -> color_eyre::eyre::Result<()> {
     if !HarvConfig::path().exists() {
-        println!("Not authenticated.");
-        println!("Run `harv connect` to log in with your Harvest account.");
+        println!("{}", t("cli-whoami-not-auth"));
+        println!("{}", t("cli-whoami-not-auth-hint"));
         return Ok(());
     }
 

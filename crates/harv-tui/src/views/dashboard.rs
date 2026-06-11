@@ -15,7 +15,7 @@ pub struct Dashboard {
     daily_total: f64,
     table_state: TableState,
     loaded: bool,
-    loading_msg: &'static str,
+    loading_msg: String,
     selected_date: NaiveDate,
 }
 
@@ -27,14 +27,14 @@ impl Default for Dashboard {
             daily_total: 0.0,
             table_state: TableState::default().with_selected(Some(0)),
             loaded: false,
-            loading_msg: "Loading...",
+            loading_msg: harv_core::t("tui-app-loading-generic"),
             selected_date: harv_core::datetime::today(),
         }
     }
 }
 
 impl Dashboard {
-    pub fn set_loading(&mut self, msg: &'static str) {
+    pub fn set_loading(&mut self, msg: String) {
         self.loaded = false;
         self.loading_msg = msg;
     }
@@ -91,7 +91,7 @@ impl Dashboard {
         self.render_date_nav(layout[1], f, theme);
 
         if !self.loaded {
-            crate::loading::render_harv_loading(layout[2], f, tick, self.loading_msg, theme);
+            crate::loading::render_harv_loading(layout[2], f, tick, &self.loading_msg, theme);
             return;
         }
 
@@ -112,7 +112,10 @@ impl Dashboard {
 
     fn render_date_nav(&self, area: Rect, f: &mut Frame, theme: &Theme) {
         let is_today = self.selected_date == harv_core::datetime::today();
-        let date_formatted = self.selected_date.format("%a, %b %e, %Y").to_string();
+        let date_formatted = harv_core::datetime::format_date_header(
+            self.selected_date,
+            &harv_core::current_langid(),
+        );
 
         let mut spans = vec![
             Span::styled(" < ", Style::new().fg(theme.muted)),
@@ -122,7 +125,10 @@ impl Dashboard {
             ),
         ];
         if is_today {
-            spans.push(Span::styled(" (Today) ", Style::new().fg(theme.muted)));
+            spans.push(Span::styled(
+                format!(" {} ", harv_core::t("tui-dash-today")),
+                Style::new().fg(theme.muted),
+            ));
         }
         spans.push(Span::styled(" > ", Style::new().fg(theme.muted)));
 
@@ -133,10 +139,11 @@ impl Dashboard {
 
     fn render_timer_header(&self, area: Rect, f: &mut Frame, theme: &Theme) {
         let (indicator, status_text, elapsed) = if let Some(ref entry) = self.running_entry {
-            let elapsed = format_timer_elapsed(entry);
-            ("●", format!("RUNNING {}", elapsed), true)
+            let elapsed_str = format_timer_elapsed(entry);
+            let status = harv_core::t_args("tui-dash-running-header", &[("elapsed", elapsed_str)]);
+            (harv_core::t("tui-dash-running-prefix"), status, true)
         } else {
-            ("○", "IDLE".into(), false)
+            ("○".to_string(), harv_core::t("tui-dash-idle-header"), false)
         };
 
         let color = if elapsed { theme.success } else { theme.muted };
@@ -160,7 +167,10 @@ impl Dashboard {
             Line::from(vec![
                 Span::styled(format!(" {} ", indicator), Style::new().fg(color)),
                 Span::styled(format!(" {} ", status_text), Style::new().fg(color)),
-                Span::styled(" No timer running ", Style::new().fg(theme.muted)),
+                Span::styled(
+                    format!(" {} ", harv_core::t("tui-dash-no-timer")),
+                    Style::new().fg(theme.muted),
+                ),
             ])
         };
 
@@ -228,12 +238,15 @@ impl Dashboard {
         };
 
         // Build header labels
-        let mut header_labels = vec!["Project", "Hours"];
+        let mut header_labels = vec![
+            harv_core::t("tui-dash-table-project"),
+            harv_core::t("tui-dash-table-hours"),
+        ];
         if show_task {
-            header_labels.insert(1, "Task");
+            header_labels.insert(1, harv_core::t("tui-dash-table-task"));
         }
         if show_notes {
-            header_labels.push("Notes");
+            header_labels.push(harv_core::t("tui-dash-table-notes"));
         }
 
         let header = Row::new(header_labels)
@@ -259,7 +272,11 @@ impl Dashboard {
             .iter()
             .map(|entry| {
                 let is_running = entry.is_running;
-                let prefix = if is_running { "● " } else { "" };
+                let prefix = if is_running {
+                    format!("{} ", harv_core::t("tui-dash-running-prefix"))
+                } else {
+                    String::new()
+                };
                 let avail = proj_max.saturating_sub(prefix.chars().count());
 
                 let project = format!("{}{}", prefix, truncate_client_project(entry, avail));
@@ -292,13 +309,16 @@ impl Dashboard {
             .collect();
 
         let block_title = if self.selected_date == harv_core::datetime::today() {
-            "Today".to_string()
+            harv_core::t("tui-dash-block-today")
         } else {
-            self.selected_date.format("%b %e, %Y").to_string()
+            harv_core::datetime::format_date_short(self.selected_date, &harv_core::current_langid())
         };
         let block = Block::new()
             .title(block_title)
-            .title_bottom(format!(" {:.2}h total ", self.daily_total))
+            .title_bottom(harv_core::t_args(
+                "tui-dash-hours-total",
+                &[("total", format!("{:.2}", self.daily_total))],
+            ))
             .borders(Borders::ALL)
             .border_style(Style::new().fg(theme.border))
             .style(Style::new().bg(theme.bg))
@@ -366,19 +386,19 @@ impl Dashboard {
             }
             KeyCode::Char('d') => {
                 if let Some(entry) = self.selected_entry() {
-                    let desc = format!(
+                    let entry_desc = format!(
                         "{} · {} ({})",
                         entry.project.name,
                         entry.task.name,
                         if entry.is_running {
-                            "running"
+                            harv_core::t("tui-dash-desc-running")
                         } else {
-                            "stopped"
+                            harv_core::t("tui-dash-desc-stopped")
                         }
                     );
                     return vec![Action::ConfirmDelete {
                         entry_id: entry.id,
-                        entry_desc: desc,
+                        entry_desc,
                     }];
                 }
                 vec![]
@@ -452,10 +472,10 @@ fn format_hours_cell(entry: &TimeEntry) -> String {
     if entry.is_running {
         format_timer_elapsed(entry)
     } else {
-        entry
-            .hours
-            .map(harv_core::text::format_hours)
-            .unwrap_or_else(|| "0.00h".into())
+        entry.hours.map_or_else(
+            || format!("0.00{}", harv_core::t("datetime-hours-suffix")),
+            |h| format!("{:.2}{}", h, harv_core::t("datetime-hours-suffix")),
+        )
     }
 }
 
@@ -488,7 +508,7 @@ fn render_harv_header(area: Rect, f: &mut Frame, theme: &Theme, date: NaiveDate)
     ];
 
     let version = env!("CARGO_PKG_VERSION");
-    let version_text = format!("HARV CLI v{}", version);
+    let version_text = format!("{} v{}", harv_core::t("tui-app-title"), version);
     let pad = (21usize.saturating_sub(version_text.len())) / 2;
 
     let version_color = match theme.mode {
@@ -511,7 +531,7 @@ fn render_harv_header(area: Rect, f: &mut Frame, theme: &Theme, date: NaiveDate)
     lines.push(Line::from(vec![
         Span::styled(" ".repeat(pad), Style::default()),
         Span::styled(
-            "HARV CLI",
+            harv_core::t("tui-app-title"),
             Style::new()
                 .fg(Color::Rgb(250, 93, 0))
                 .add_modifier(Modifier::BOLD),
@@ -523,11 +543,14 @@ fn render_harv_header(area: Rect, f: &mut Frame, theme: &Theme, date: NaiveDate)
         ),
     ]));
     let empty_msg = if date == harv_core::datetime::today() {
-        "No entries today. Press n to start tracking!".to_string()
+        harv_core::t("tui-dash-empty-today")
     } else {
-        format!(
-            "No entries for {}. Press n to log time!",
-            date.format("%b %e, %Y")
+        harv_core::t_args(
+            "tui-dash-empty-past",
+            &[(
+                "date",
+                harv_core::datetime::format_date_short(date, &harv_core::current_langid()),
+            )],
         )
     };
 
@@ -691,7 +714,7 @@ mod tests {
         let mut d = Dashboard::default();
         d.update_entries(vec![entry(1, 10, 20, Some(1.0), false)]);
         assert!(d.loaded);
-        d.set_loading("Test");
+        d.set_loading("Test".to_string());
         assert!(!d.loaded);
         assert_eq!(d.loading_msg, "Test");
     }

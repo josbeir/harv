@@ -10,9 +10,15 @@ use color_eyre::eyre;
 use harv_sdk::HarvClient;
 
 pub async fn run() -> eyre::Result<()> {
+    harv_core::init_locale(None);
+
     let client = HarvClient::from_config_file()
         .await
         .map_err(|e| eyre::eyre!("{}", e.user_message()))?;
+
+    if let Some(locale) = &client.config().locale {
+        harv_core::init_locale(Some(locale));
+    }
 
     let theme = theme::Theme::detect();
     tui::init()?;

@@ -33,31 +33,37 @@ impl Help {
 
         let shortcuts = vec![
             (
-                "Navigation",
+                harv_core::t("tui-help-section-nav"),
                 vec![
-                    ("j / ↓", "Move down (lists)"),
-                    ("k / ↑", "Move up (lists)"),
-                    ("h / ←", "Previous day"),
-                    ("l / →", "Next day"),
-                    ("T", "Go to today"),
-                    ("Tab", "Next field"),
-                    ("Shift+Tab", "Previous field"),
-                    ("Enter", "Select / confirm"),
-                    ("Esc", "Cancel / back"),
+                    ("j / ↓", harv_core::t("tui-help-nav-down")),
+                    ("k / ↑", harv_core::t("tui-help-nav-up")),
+                    ("h / ←", harv_core::t("tui-help-nav-prev-day")),
+                    ("l / →", harv_core::t("tui-help-nav-next-day")),
+                    ("T", harv_core::t("tui-help-nav-today")),
+                    ("Tab", harv_core::t("tui-help-nav-next-field")),
+                    ("Shift+Tab", harv_core::t("tui-help-nav-prev-field")),
+                    ("Enter", harv_core::t("tui-help-nav-select")),
+                    ("Esc", harv_core::t("tui-help-nav-cancel")),
                 ],
             ),
             (
-                "Actions",
+                harv_core::t("tui-help-section-actions"),
                 vec![
-                    ("s", "Start timer"),
-                    ("n / t", "New entry (with hours)"),
-                    ("Enter / e", "Edit entry"),
-                    ("d", "Delete entry"),
-                    ("g", "Open date picker"),
-                    ("r", "Refresh"),
+                    ("s", harv_core::t("tui-help-action-start")),
+                    ("n / t", harv_core::t("tui-help-action-new")),
+                    ("Enter / e", harv_core::t("tui-help-action-edit")),
+                    ("d", harv_core::t("tui-help-action-delete")),
+                    ("g", harv_core::t("tui-help-action-pick")),
+                    ("r", harv_core::t("tui-help-action-refresh")),
                 ],
             ),
-            ("General", vec![("?", "Toggle help"), ("q", "Quit")]),
+            (
+                harv_core::t("tui-help-section-general"),
+                vec![
+                    ("?", harv_core::t("tui-help-general-help")),
+                    ("q", harv_core::t("tui-help-general-quit")),
+                ],
+            ),
         ];
 
         let mut lines: Vec<Line> = Vec::new();
@@ -76,7 +82,7 @@ impl Help {
         }
 
         let block = Block::new()
-            .title(" Help ")
+            .title(format!(" {} ", harv_core::t("tui-help-title")))
             .title_alignment(Alignment::Center)
             .borders(Borders::ALL)
             .border_style(Style::new().fg(theme.primary))

@@ -6,6 +6,8 @@ fn main() -> color_eyre::eyre::Result<()> {
     color_eyre::install()?;
     harv_cli::setup_tracing();
 
+    harv_core::init_locale(None);
+
     let cli = Cli::parse();
 
     let requires_auth = !matches!(
@@ -13,7 +15,7 @@ fn main() -> color_eyre::eyre::Result<()> {
         Some(Commands::Connect | Commands::Completion(_))
     );
     if requires_auth && !harv_sdk::HarvConfig::path().exists() {
-        eprintln!("Not authenticated. Run `harv connect` to log in.");
+        eprintln!("{}", harv_core::t("err-not-authenticated"));
         std::process::exit(1);
     }
 
@@ -21,6 +23,12 @@ fn main() -> color_eyre::eyre::Result<()> {
         Some(cmd) => {
             let rt = tokio::runtime::Runtime::new()?;
             rt.block_on(async {
+                // Apply locale override from config
+                if let Ok(config) = harv_sdk::HarvConfig::load().await
+                    && let Some(locale) = &config.locale
+                {
+                    harv_core::init_locale(Some(locale));
+                }
                 match cmd {
                     Commands::Connect => commands::connect::run().await?,
                     Commands::Disconnect => commands::disconnect::run().await?,
