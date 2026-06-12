@@ -15,6 +15,7 @@ const BASE_URL: &str = "https://api.harvestapp.com/v2";
 const USER_AGENT_STRING: &str = "harv-cli (https://github.com/josbeir/harv)";
 
 /// The main entry point for interacting with the Harvest API v2.
+#[derive(Clone)]
 pub struct HarvClient {
     http: reqwest::Client,
     config: HarvConfig,

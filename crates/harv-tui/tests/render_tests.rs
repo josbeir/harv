@@ -41,10 +41,13 @@ fn entry(id: u64, proj: u64, task: u64, hours: Option<f64>, running: bool) -> Ti
 fn test_dashboard_render_with_entries() {
     harv_core::init_locale(Some("en"));
     let mut d = Dashboard::default();
-    d.update_entries(vec![
-        entry(1, 10, 20, Some(2.5), false),
-        entry(2, 11, 21, None, true),
-    ]);
+    d.update_entries(
+        vec![
+            entry(1, 10, 20, Some(2.5), false),
+            entry(2, 11, 21, None, true),
+        ],
+        0,
+    );
     let backend = TestBackend::new(80, 20);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal
@@ -281,7 +284,7 @@ fn test_form_render_edit_running_mode() {
 fn test_date_nav_bar_renders_with_today() {
     harv_core::init_locale(Some("en"));
     let mut d = Dashboard::default();
-    d.update_entries(vec![entry(1, 10, 20, Some(2.0), false)]);
+    d.update_entries(vec![entry(1, 10, 20, Some(2.0), false)], 0);
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).unwrap();
     let theme = Theme::dark();
@@ -304,7 +307,7 @@ fn test_date_nav_bar_renders_with_today() {
 fn test_date_nav_bar_on_past_date_no_today() {
     harv_core::init_locale(Some("en"));
     let mut d = Dashboard::default();
-    d.update_entries(vec![entry(1, 10, 20, Some(2.0), false)]);
+    d.update_entries(vec![entry(1, 10, 20, Some(2.0), false)], 0);
     let past = harv_core::datetime::today() - chrono::Duration::days(3);
     d.set_date(past);
     let backend = TestBackend::new(80, 24);
@@ -329,7 +332,7 @@ fn test_date_nav_bar_on_past_date_no_today() {
 fn test_table_title_shows_date_when_not_today() {
     harv_core::init_locale(Some("en"));
     let mut d = Dashboard::default();
-    d.update_entries(vec![entry(1, 10, 20, Some(2.0), false)]);
+    d.update_entries(vec![entry(1, 10, 20, Some(2.0), false)], 0);
     let past = harv_core::datetime::today() - chrono::Duration::days(3);
     d.set_date(past);
     let backend = TestBackend::new(80, 24);
@@ -346,13 +349,36 @@ fn test_table_title_shows_date_when_not_today() {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        buffer_str.contains("total"),
-        "Table with total should render"
+        buffer_str.contains("0 projects") || buffer_str.contains("projecten"),
+        "Stats footer should render with project count"
     );
     let expected_date = harv_core::datetime::format_date_short(past, &harv_core::current_langid());
     assert!(
         buffer_str.contains(&expected_date),
         "Table title should show past date '{expected_date}', got buffer:\n{buffer_str}"
+    );
+}
+#[test]
+fn test_stats_footer_shows_non_zero_project_count() {
+    harv_core::init_locale(Some("en"));
+    let mut d = Dashboard::default();
+    d.update_entries(vec![entry(1, 10, 20, Some(2.0), false)], 5);
+    let backend = TestBackend::new(80, 24);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let theme = Theme::dark();
+    terminal.draw(|f| d.render(f.area(), f, &theme, 0)).unwrap();
+    let buffer = terminal.backend().buffer();
+    let buffer_str = (0..buffer.area().height)
+        .map(|y| {
+            (0..buffer.area().width)
+                .map(|x| buffer[(x, y)].symbol())
+                .collect::<String>()
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        buffer_str.contains("5 projects") || buffer_str.contains("projecten"),
+        "Stats footer should render with non-zero project count, got buffer:\n{buffer_str}"
     );
 }
 #[test]

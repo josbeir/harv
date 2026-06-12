@@ -11,7 +11,7 @@ pub async fn execute(
     format: &OutputFormat,
 ) -> color_eyre::eyre::Result<()> {
     let pb = spinner::new_spinner("Loading project assignments...");
-    let assignments = client.projects().my_assignments(refresh).await?;
+    let (assignments, _) = client.projects().my_assignments(refresh).await?;
     pb.finish_and_clear();
 
     let mut filtered: Vec<_> = if let Some(query) = &search {

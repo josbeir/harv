@@ -19,7 +19,7 @@ pub async fn execute(
     let config = client.config().clone();
 
     let pb = spinner::new_spinner("Loading project assignments...");
-    let assignments = client.projects().my_assignments(refresh).await?;
+    let (assignments, _) = client.projects().my_assignments(refresh).await?;
     pb.finish_and_clear();
 
     let choices = prompts::build_project_choices(&assignments, config.last_project_id);

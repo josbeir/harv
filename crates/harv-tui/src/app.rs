@@ -255,7 +255,7 @@ impl App {
                 let tx = tx.clone();
                 tokio::spawn(async move {
                     match client.projects().my_assignments(false).await {
-                        Ok(assignments) => {
+                        Ok((assignments, _)) => {
                             let _ = tx.send(Action::FormAssignmentsUpdate(assignments));
                         }
                         Err(e) => {
@@ -357,7 +357,7 @@ impl App {
                 let View::Dashboard(d) = &mut self.current_view;
                 d.update_running(entries);
             }
-            Action::TodayEntriesUpdate(mut entries, _total) => {
+            Action::TodayEntriesUpdate(mut entries, _total, project_count) => {
                 for e in &entries {
                     if let Some(ref code) = e.project_code {
                         self.project_codes.insert(e.project.id, code.clone());
@@ -369,7 +369,10 @@ impl App {
                     }
                 }
                 let View::Dashboard(d) = &mut self.current_view;
-                d.update_entries(entries);
+                // Preserve existing project_count on light refreshes (day nav)
+                // that don't fetch assignments (project_count = 0 from fetch_entries).
+                let pc = project_count.max(d.project_count());
+                d.update_entries(entries, pc);
             }
             Action::Refresh => {
                 let View::Dashboard(d) = &mut self.current_view;
@@ -516,6 +519,10 @@ impl App {
                     let _ = tx.send(Action::RefreshEntries);
                 });
             }
+            Action::SetLoadingMessage(msg) => {
+                let View::Dashboard(d) = &mut self.current_view;
+                d.set_loading_msg(msg);
+            }
             Action::Error(msg) => {
                 tracing::error!("{}", msg);
             }
@@ -547,16 +554,22 @@ impl App {
                 ..Default::default()
             };
 
-            let time_api = client.time_entries();
-            let projects_api = client.projects();
-            let (entries_result, assignments_result) = tokio::join!(
-                time_api.list(&params),
-                projects_api.my_assignments(force_assignments),
-            );
+            let _ = tx.send(Action::SetLoadingMessage(harv_core::t(
+                "tui-app-loading-entries",
+            )));
+            let entries_result = client.time_entries().list(&params).await;
 
             match entries_result {
                 Ok(mut entries) => {
-                    if let Ok(assignments) = &assignments_result {
+                    let _ = tx.send(Action::SetLoadingMessage(harv_core::t(
+                        "tui-app-loading-assignments",
+                    )));
+                    let assignments_result =
+                        client.projects().my_assignments(force_assignments).await;
+
+                    let mut project_count = 0usize;
+                    if let Ok((assignments, total_projects)) = &assignments_result {
+                        project_count = *total_projects;
                         let code_map: std::collections::HashMap<u64, &str> = assignments
                             .iter()
                             .filter_map(|a| {
@@ -568,12 +581,13 @@ impl App {
                         }
                     }
                     let total: f64 = entries.iter().filter_map(|e| e.hours).sum();
-                    let _ = tx.send(Action::TodayEntriesUpdate(entries, total));
+                    let _ = tx.send(Action::TodayEntriesUpdate(entries, total, project_count));
                 }
                 Err(e) => {
                     let _ = tx.send(Action::Error(e.user_message()));
+                    let _ = tx.send(Action::TodayEntriesUpdate(vec![], 0.0, 0));
                 }
-            }
+            };
         });
     }
 
@@ -599,7 +613,7 @@ impl App {
             match client.time_entries().list(&params).await {
                 Ok(entries) => {
                     let total: f64 = entries.iter().filter_map(|e| e.hours).sum();
-                    let _ = tx.send(Action::TodayEntriesUpdate(entries, total));
+                    let _ = tx.send(Action::TodayEntriesUpdate(entries, total, 0));
                 }
                 Err(e) => {
                     let _ = tx.send(Action::Error(e.user_message()));

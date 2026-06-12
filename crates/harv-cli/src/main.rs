@@ -111,7 +111,10 @@ fn main() -> color_eyre::eyre::Result<()> {
         Err(e)
             if matches!(
                 e.downcast_ref::<inquire::InquireError>(),
-                Some(inquire::InquireError::OperationInterrupted)
+                Some(
+                    inquire::InquireError::OperationInterrupted
+                        | inquire::InquireError::OperationCanceled,
+                )
             ) =>
         {
             std::process::exit(130)
