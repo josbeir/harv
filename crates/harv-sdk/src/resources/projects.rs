@@ -23,22 +23,35 @@ impl<'c> ProjectsApi<'c> {
     }
 
     /// List the authenticated user's project assignments.
+    ///
+    /// Returns `(assignments, total_projects)` where `total_projects` is the
+    /// total number of active projects across the account (not just the ones
+    /// assigned to this user).
     pub async fn my_assignments(
         &self,
         force: bool,
-    ) -> Result<Vec<ProjectAssignment>, harv_core::HarvError> {
+    ) -> Result<(Vec<ProjectAssignment>, usize), harv_core::HarvError> {
         let account_id = self.client.config().account_id.clone();
         let ttl = self.client.config().cache_ttl_hours;
         crate::cache::get_cached_assignments(&account_id, ttl, force, async {
-            let mut assignments: Vec<ProjectAssignment> = crate::pagination::fetch_all_pages(
-                self.client,
-                "/users/me/project_assignments",
-                &[],
-                "project_assignments",
-            )
-            .await?;
+            let (assignments_result, projects_result) = tokio::join!(
+                crate::pagination::fetch_all_pages::<ProjectAssignment>(
+                    self.client,
+                    "/users/me/project_assignments",
+                    &[],
+                    "project_assignments",
+                ),
+                crate::pagination::fetch_all_pages::<Project>(
+                    self.client,
+                    "/projects",
+                    &[("is_active", "true")],
+                    "projects",
+                ),
+            );
+            let mut assignments = assignments_result?;
+            let projects = projects_result?;
+            let total_projects = projects.len();
 
-            let projects: Vec<Project> = self.list().await?;
             let code_map: std::collections::HashMap<u64, Option<String>> =
                 projects.into_iter().map(|p| (p.id, p.code)).collect();
 
@@ -46,7 +59,7 @@ impl<'c> ProjectsApi<'c> {
                 a.project_code = code_map.get(&a.project.id).and_then(|c| c.clone());
             }
 
-            Ok(assignments)
+            Ok((assignments, total_projects))
         })
         .await
     }

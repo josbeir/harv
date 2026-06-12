@@ -467,7 +467,7 @@ async fn test_projects_my_assignments() {
         .mount(&server)
         .await;
 
-    let assignments = client.projects().my_assignments(false).await.unwrap();
+    let (assignments, _) = client.projects().my_assignments(false).await.unwrap();
     assert_eq!(assignments.len(), 1);
     assert_eq!(assignments[0].project.name, "Test Project");
     assert_eq!(assignments[0].project_code.as_deref(), Some("TEST"));
@@ -768,4 +768,37 @@ async fn test_pagination_multiple_pages() {
     assert_eq!(projects.len(), 2);
     assert_eq!(projects[0].name, "Project 1");
     assert_eq!(projects[1].name, "Project 2");
+}
+
+#[tokio::test]
+async fn test_pagination_page_failure_propagates() {
+    let server = MockServer::start().await;
+    let client = HarvClient::new(test_config())
+        .unwrap()
+        .with_base_url(&server.uri());
+
+    // Page 1 succeeds, indicating 2 total pages
+    Mock::given(method("GET"))
+        .and(path("/projects"))
+        .and(query_param("page", "1"))
+        .respond_with(json_response(json!({
+            "projects": [{"id": 1, "name": "Project 1", "client": null, "is_active": true, "code": null, "notes": null, "starts_on": null, "ends_on": null, "created_at": null, "updated_at": null}],
+            "total_pages": 2,
+            "page": 1,
+            "total_entries": 2,
+            "per_page": 1
+        })))
+        .mount(&server)
+        .await;
+
+    // Page 2 fails with 500
+    Mock::given(method("GET"))
+        .and(path("/projects"))
+        .and(query_param("page", "2"))
+        .respond_with(ResponseTemplate::new(500))
+        .mount(&server)
+        .await;
+
+    let result = client.projects().list().await;
+    assert!(result.is_err());
 }

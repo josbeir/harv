@@ -265,3 +265,11 @@ tui-datepicker-wed = Me
 tui-datepicker-thu = Je
 tui-datepicker-fri = Ve
 tui-datepicker-sat = Sa
+
+# Progress steps for TUI refresh
+tui-app-loading-entries = Chargement des entrées de temps...
+tui-app-loading-assignments = Chargement des données projet...
+
+# TUI — Dashboard stats footer
+tui-dash-projects = projets
+tui-dash-stats-total = total

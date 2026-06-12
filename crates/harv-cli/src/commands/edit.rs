@@ -99,7 +99,7 @@ pub async fn execute(
 
     // Interactive path: load assignments and prompt
     let pb = spinner::new_spinner("Loading project assignments...");
-    let assignments = client.projects().my_assignments(refresh).await?;
+    let (assignments, _) = client.projects().my_assignments(refresh).await?;
     pb.finish_and_clear();
 
     let choices = prompts::build_project_choices(&assignments, None);

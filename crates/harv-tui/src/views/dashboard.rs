@@ -17,6 +17,7 @@ pub struct Dashboard {
     loaded: bool,
     loading_msg: String,
     selected_date: NaiveDate,
+    project_count: usize,
 }
 
 impl Default for Dashboard {
@@ -29,6 +30,7 @@ impl Default for Dashboard {
             loaded: false,
             loading_msg: harv_core::t("tui-app-loading-generic"),
             selected_date: harv_core::datetime::today(),
+            project_count: 0,
         }
     }
 }
@@ -39,7 +41,11 @@ impl Dashboard {
         self.loading_msg = msg;
     }
 
-    pub fn update_entries(&mut self, entries: Vec<TimeEntry>) {
+    pub fn set_loading_msg(&mut self, msg: String) {
+        self.loading_msg = msg;
+    }
+
+    pub fn update_entries(&mut self, entries: Vec<TimeEntry>, project_count: usize) {
         self.loaded = true;
         self.running_entry = entries.iter().find(|e| e.is_running).cloned();
         self.daily_total = entries
@@ -48,6 +54,7 @@ impl Dashboard {
             .filter_map(|e| e.hours)
             .sum();
         self.entries = entries;
+        self.project_count = project_count;
     }
 
     pub fn update_running(&mut self, entries: Vec<TimeEntry>) {
@@ -62,6 +69,10 @@ impl Dashboard {
 
     pub fn selected_date(&self) -> NaiveDate {
         self.selected_date
+    }
+
+    pub fn project_count(&self) -> usize {
+        self.project_count
     }
 
     pub fn set_date(&mut self, date: NaiveDate) {
@@ -84,30 +95,34 @@ impl Dashboard {
         let layout = Layout::vertical([
             Constraint::Length(1),
             Constraint::Length(1),
+            Constraint::Length(1),
             Constraint::Min(0),
+            Constraint::Length(3),
         ])
         .split(area);
 
         self.render_date_nav(layout[1], f, theme);
 
         if !self.loaded {
-            crate::loading::render_harv_loading(layout[2], f, tick, &self.loading_msg, theme);
+            crate::loading::render_harv_loading(layout[3], f, tick, &self.loading_msg, theme);
             return;
         }
 
         if self.entries.is_empty() {
-            render_harv_header(layout[2], f, theme, self.selected_date);
+            render_harv_header(layout[3], f, theme, self.selected_date);
+            self.render_stats_footer(layout[4], f, theme);
             return;
         }
 
         let header_rows = if self.running_entry.is_some() { 2 } else { 0 };
         let body = Layout::vertical([Constraint::Length(header_rows), Constraint::Min(0)])
-            .split(layout[2]);
+            .split(layout[3]);
 
         if self.running_entry.is_some() {
             self.render_timer_header(body[0], f, theme);
         }
         self.render_entry_table(body[1], f, theme);
+        self.render_stats_footer(layout[4], f, theme);
     }
 
     fn render_date_nav(&self, area: Rect, f: &mut Frame, theme: &Theme) {
@@ -194,7 +209,7 @@ impl Dashboard {
     fn render_entry_table(&mut self, area: Rect, f: &mut Frame, theme: &Theme) {
         let hmargin = 2u16;
         let vtop = 0u16;
-        let vbottom = 2u16;
+        let vbottom = 1u16;
         let padded_area = Rect {
             x: area.x + hmargin,
             y: area.y + vtop,
@@ -322,10 +337,6 @@ impl Dashboard {
         };
         let block = Block::new()
             .title(block_title)
-            .title_bottom(harv_core::t_args(
-                "tui-dash-hours-total",
-                &[("total", format!("{:.2}", self.daily_total))],
-            ))
             .borders(Borders::ALL)
             .border_style(Style::new().fg(theme.border))
             .style(Style::new().bg(theme.bg))
@@ -343,6 +354,52 @@ impl Dashboard {
             .column_spacing(spacing);
 
         f.render_stateful_widget(table, padded_area, &mut self.table_state);
+    }
+
+    fn render_stats_footer(&self, area: Rect, f: &mut Frame, theme: &Theme) {
+        let hmargin = 2u16;
+        let padded = Rect {
+            x: area.x + hmargin,
+            y: area.y,
+            width: area.width.saturating_sub(hmargin * 2),
+            height: area.height,
+        };
+
+        let block = Block::new()
+            .borders(Borders::ALL)
+            .border_style(Style::new().fg(theme.border))
+            .style(Style::new().bg(theme.bg));
+        let inner = block.inner(padded);
+
+        let hours = format!(
+            "{:.2}{} {}",
+            self.daily_total.abs(),
+            harv_core::t("datetime-hours-suffix"),
+            harv_core::t("tui-dash-stats-total"),
+        );
+        let projects = format!(
+            "{} {}",
+            self.project_count,
+            harv_core::t("tui-dash-projects"),
+        );
+
+        let line = Line::from(vec![
+            Span::styled(
+                hours,
+                Style::new().fg(theme.primary).add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("  ·  "),
+            Span::styled(projects, Style::new().fg(theme.muted)),
+        ]);
+
+        let paragraph = Paragraph::new(line)
+            .alignment(Alignment::Center)
+            .style(Style::new().bg(theme.bg));
+
+        f.render_widget(block, padded);
+        if inner.height > 0 {
+            f.render_widget(paragraph, inner);
+        }
     }
 
     pub fn handle_key(&mut self, key: &ratatui::crossterm::event::KeyEvent) -> Vec<Action> {
@@ -680,13 +737,21 @@ mod tests {
     }
 
     #[test]
+    fn test_project_count_tracks_value() {
+        let mut d = Dashboard::default();
+        assert_eq!(d.project_count(), 0);
+        d.update_entries(vec![], 42);
+        assert_eq!(d.project_count(), 42);
+    }
+
+    #[test]
     fn test_update_entries_sets_data() {
         let mut d = Dashboard::default();
         let entries = vec![
             entry(1, 10, 20, Some(2.5), false),
             entry(2, 11, 21, None, true),
         ];
-        d.update_entries(entries);
+        d.update_entries(entries, 0);
         assert!(d.loaded);
         assert_eq!(d.entries.len(), 2);
         assert!(d.running_entry.is_some());
@@ -696,18 +761,21 @@ mod tests {
     #[test]
     fn test_daily_total_excludes_running() {
         let mut d = Dashboard::default();
-        d.update_entries(vec![
-            entry(1, 10, 20, Some(2.5), false),
-            entry(2, 11, 21, Some(1.5), false),
-            entry(3, 12, 22, None, true),
-        ]);
+        d.update_entries(
+            vec![
+                entry(1, 10, 20, Some(2.5), false),
+                entry(2, 11, 21, Some(1.5), false),
+                entry(3, 12, 22, None, true),
+            ],
+            0,
+        );
         assert!((d.daily_total - 4.0).abs() < f64::EPSILON);
     }
 
     #[test]
     fn test_update_running_preserves_entries() {
         let mut d = Dashboard::default();
-        d.update_entries(vec![entry(1, 10, 20, Some(2.5), false)]);
+        d.update_entries(vec![entry(1, 10, 20, Some(2.5), false)], 0);
         d.update_running(vec![entry(99, 10, 20, None, true)]);
         assert_eq!(d.entries.len(), 1);
         assert!(d.running_entry.is_some());
@@ -717,10 +785,13 @@ mod tests {
     #[test]
     fn test_selected_entry() {
         let mut d = Dashboard::default();
-        d.update_entries(vec![
-            entry(1, 10, 20, Some(1.0), false),
-            entry(2, 11, 21, Some(2.0), false),
-        ]);
+        d.update_entries(
+            vec![
+                entry(1, 10, 20, Some(1.0), false),
+                entry(2, 11, 21, Some(2.0), false),
+            ],
+            0,
+        );
         d.table_state.select(Some(0));
         assert_eq!(d.selected_entry().unwrap().id, 1);
         d.table_state.select(Some(1));
@@ -732,7 +803,7 @@ mod tests {
     #[test]
     fn test_set_loading() {
         let mut d = Dashboard::default();
-        d.update_entries(vec![entry(1, 10, 20, Some(1.0), false)]);
+        d.update_entries(vec![entry(1, 10, 20, Some(1.0), false)], 0);
         assert!(d.loaded);
         d.set_loading("Test".to_string());
         assert!(!d.loaded);
@@ -742,11 +813,14 @@ mod tests {
     #[test]
     fn test_navigate_down() {
         let mut d = Dashboard::default();
-        d.update_entries(vec![
-            entry(1, 10, 20, Some(1.0), false),
-            entry(2, 11, 21, Some(2.0), false),
-            entry(3, 12, 22, Some(3.0), false),
-        ]);
+        d.update_entries(
+            vec![
+                entry(1, 10, 20, Some(1.0), false),
+                entry(2, 11, 21, Some(2.0), false),
+                entry(3, 12, 22, Some(3.0), false),
+            ],
+            0,
+        );
         d.handle_key(&key_press(KeyCode::Char('j')));
         assert_eq!(d.table_state.selected(), Some(1));
         d.handle_key(&key_press(KeyCode::Char('j')));
@@ -758,10 +832,13 @@ mod tests {
     #[test]
     fn test_navigate_up() {
         let mut d = Dashboard::default();
-        d.update_entries(vec![
-            entry(1, 10, 20, Some(1.0), false),
-            entry(2, 11, 21, Some(2.0), false),
-        ]);
+        d.update_entries(
+            vec![
+                entry(1, 10, 20, Some(1.0), false),
+                entry(2, 11, 21, Some(2.0), false),
+            ],
+            0,
+        );
         d.table_state.select(Some(1));
         d.handle_key(&key_press(KeyCode::Char('k')));
         assert_eq!(d.table_state.selected(), Some(0));
@@ -772,7 +849,7 @@ mod tests {
     #[test]
     fn test_s_stops_running() {
         let mut d = Dashboard::default();
-        d.update_entries(vec![entry(1, 10, 20, None, true)]);
+        d.update_entries(vec![entry(1, 10, 20, None, true)], 0);
         let actions = d.handle_key(&key_press(KeyCode::Char('s')));
         assert!(matches!(
             actions[0],
@@ -783,7 +860,7 @@ mod tests {
     #[test]
     fn test_s_no_timer_opens_start_form() {
         let mut d = Dashboard::default();
-        d.update_entries(vec![entry(1, 10, 20, Some(1.0), false)]);
+        d.update_entries(vec![entry(1, 10, 20, Some(1.0), false)], 0);
         let actions = d.handle_key(&key_press(KeyCode::Char('s')));
         assert!(matches!(
             actions[0],
@@ -797,7 +874,7 @@ mod tests {
     #[test]
     fn test_x_stops_running_timer() {
         let mut d = Dashboard::default();
-        d.update_entries(vec![entry(1, 10, 20, None, true)]);
+        d.update_entries(vec![entry(1, 10, 20, None, true)], 0);
         let actions = d.handle_key(&key_press(KeyCode::Char('x')));
         assert!(matches!(actions[0], Action::StopTimer { entry_id: 1 }));
     }
@@ -805,7 +882,7 @@ mod tests {
     #[test]
     fn test_x_idle_does_nothing() {
         let mut d = Dashboard::default();
-        d.update_entries(vec![entry(1, 10, 20, Some(1.0), false)]);
+        d.update_entries(vec![entry(1, 10, 20, Some(1.0), false)], 0);
         let actions = d.handle_key(&key_press(KeyCode::Char('x')));
         assert!(actions.is_empty());
     }
@@ -826,7 +903,7 @@ mod tests {
     #[test]
     fn test_e_opens_edit_form() {
         let mut d = Dashboard::default();
-        d.update_entries(vec![entry(42, 10, 20, Some(2.0), false)]);
+        d.update_entries(vec![entry(42, 10, 20, Some(2.0), false)], 0);
         d.table_state.select(Some(0));
         let actions = d.handle_key(&key_press(KeyCode::Char('e')));
         assert!(matches!(
@@ -842,7 +919,7 @@ mod tests {
     #[test]
     fn test_d_triggers_confirm_delete() {
         let mut d = Dashboard::default();
-        d.update_entries(vec![entry(42, 10, 20, Some(2.0), false)]);
+        d.update_entries(vec![entry(42, 10, 20, Some(2.0), false)], 0);
         d.table_state.select(Some(0));
         let actions = d.handle_key(&key_press(KeyCode::Char('d')));
         assert!(matches!(
@@ -861,7 +938,7 @@ mod tests {
     #[test]
     fn test_enter_on_running_opens_edit() {
         let mut d = Dashboard::default();
-        d.update_entries(vec![entry(1, 10, 20, None, true)]);
+        d.update_entries(vec![entry(1, 10, 20, None, true)], 0);
         let actions = d.handle_key(&key_press(KeyCode::Enter));
         assert!(matches!(
             actions[0],
@@ -876,7 +953,7 @@ mod tests {
     #[test]
     fn test_enter_on_running_passes_is_running_true() {
         let mut d = Dashboard::default();
-        d.update_entries(vec![entry(1, 10, 20, None, true)]);
+        d.update_entries(vec![entry(1, 10, 20, None, true)], 0);
         let actions = d.handle_key(&key_press(KeyCode::Enter));
         assert!(matches!(
             actions[0],
@@ -890,7 +967,7 @@ mod tests {
     #[test]
     fn test_e_on_stopped_passes_is_running_false() {
         let mut d = Dashboard::default();
-        d.update_entries(vec![entry(1, 10, 20, Some(2.0), false)]);
+        d.update_entries(vec![entry(1, 10, 20, Some(2.0), false)], 0);
         d.table_state.select(Some(0));
         let actions = d.handle_key(&key_press(KeyCode::Char('e')));
         assert!(matches!(

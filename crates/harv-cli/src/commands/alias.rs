@@ -8,7 +8,7 @@ use harv_sdk::{Alias, HarvClient, HarvConfig};
 
 pub async fn create_execute(client: &HarvClient, name: &str) -> color_eyre::eyre::Result<()> {
     let pb = spinner::new_spinner("Loading project assignments...");
-    let assignments = client.projects().my_assignments(false).await?;
+    let (assignments, _) = client.projects().my_assignments(false).await?;
     pb.finish_and_clear();
 
     let choices = prompts::build_project_choices(&assignments, None);
@@ -51,13 +51,13 @@ pub async fn list_execute(
     client: &HarvClient,
     format: &OutputFormat,
 ) -> color_eyre::eyre::Result<()> {
-    let config = HarvConfig::load().await?;
+    let config = client.config();
     if config.aliases.is_empty() {
         println!("No aliases defined.\nUse `harv alias create` to create one.");
         return Ok(());
     }
 
-    let assignments = client.projects().my_assignments(false).await?;
+    let (assignments, _) = client.projects().my_assignments(false).await?;
 
     let mut project_names: HashMap<u64, String> = HashMap::new();
     let mut task_names: HashMap<u64, String> = HashMap::new();

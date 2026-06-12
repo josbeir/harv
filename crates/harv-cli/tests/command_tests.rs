@@ -1,5 +1,5 @@
 use harv_cli::commands;
-use harv_sdk::{HarvClient, HarvConfig};
+use harv_sdk::{Alias, HarvClient, HarvConfig};
 use serde_json::json;
 use std::collections::HashMap;
 use tokio::sync::Mutex;
@@ -671,26 +671,18 @@ account_id = "1"
 #[tokio::test]
 async fn test_alias_list_with_data() {
     ensure_locale();
-    let _guard = ENV_MUTEX.lock().await;
-    let tmp = tempfile::tempdir().unwrap();
-    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
-    unsafe { std::env::set_var("HOME", tmp.path()) };
-    let harv_dir = tmp.path().join(".config").join("harv");
-    std::fs::create_dir_all(&harv_dir).unwrap();
-    std::fs::write(
-        harv_dir.join("config.toml"),
-        r#"access_token = "t"
-account_id = "1"
-
-[aliases.dev]
-project_id = 100
-task_id = 200
-"#,
-    )
-    .unwrap();
-
     let server = MockServer::start().await;
-    let c = client(&server.uri());
+    let mut config = test_config();
+    config.aliases.insert(
+        "dev".into(),
+        Alias {
+            project_id: 100,
+            task_id: 200,
+        },
+    );
+    let c = HarvClient::new(config)
+        .unwrap()
+        .with_base_url(&server.uri());
     mock_assignments_and_projects(&server).await;
 
     commands::alias::list_execute(&c, &harv_cli::OutputFormat::Table)
@@ -701,26 +693,18 @@ task_id = 200
 #[tokio::test]
 async fn test_alias_list_stale() {
     ensure_locale();
-    let _guard = ENV_MUTEX.lock().await;
-    let tmp = tempfile::tempdir().unwrap();
-    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
-    unsafe { std::env::set_var("HOME", tmp.path()) };
-    let harv_dir = tmp.path().join(".config").join("harv");
-    std::fs::create_dir_all(&harv_dir).unwrap();
-    std::fs::write(
-        harv_dir.join("config.toml"),
-        r#"access_token = "t"
-account_id = "1"
-
-[aliases.old]
-project_id = 999
-task_id = 888
-"#,
-    )
-    .unwrap();
-
     let server = MockServer::start().await;
-    let c = client(&server.uri());
+    let mut config = test_config();
+    config.aliases.insert(
+        "old".into(),
+        Alias {
+            project_id: 999,
+            task_id: 888,
+        },
+    );
+    let c = HarvClient::new(config)
+        .unwrap()
+        .with_base_url(&server.uri());
     mock_assignments_and_projects(&server).await;
 
     commands::alias::list_execute(&c, &harv_cli::OutputFormat::Table)
@@ -731,28 +715,25 @@ task_id = 888
 #[tokio::test]
 async fn test_alias_list_api_error() {
     ensure_locale();
-    let _guard = ENV_MUTEX.lock().await;
-    let tmp = tempfile::tempdir().unwrap();
-    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
-    unsafe { std::env::set_var("HOME", tmp.path()) };
-    let harv_dir = tmp.path().join(".config").join("harv");
-    std::fs::create_dir_all(&harv_dir).unwrap();
-    std::fs::write(
-        harv_dir.join("config.toml"),
-        r#"access_token = "t"
-account_id = "1"
-
-[aliases.dev]
-project_id = 100
-task_id = 200
-"#,
-    )
-    .unwrap();
-
     let server = MockServer::start().await;
-    let c = client(&server.uri());
+    let mut config = test_config();
+    config.aliases.insert(
+        "dev".into(),
+        Alias {
+            project_id: 100,
+            task_id: 200,
+        },
+    );
+    let c = HarvClient::new(config)
+        .unwrap()
+        .with_base_url(&server.uri());
     Mock::given(method("GET"))
         .and(path("/users/me/project_assignments"))
+        .respond_with(ResponseTemplate::new(500))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/projects"))
         .respond_with(ResponseTemplate::new(500))
         .mount(&server)
         .await;
