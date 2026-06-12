@@ -452,10 +452,25 @@ async fn test_projects_my_assignments() {
         })))
         .mount(&server)
         .await;
+    Mock::given(method("GET"))
+        .and(path("/projects"))
+        .respond_with(json_response(json!({
+            "projects": [{
+                "id": 100, "name": "Test Project", "code": "TEST",
+                "client": {"id": 50, "name": "Test Client"},
+                "is_active": true, "notes": null,
+                "starts_on": null, "ends_on": null,
+                "created_at": null, "updated_at": null
+            }],
+            "total_pages": 1, "page": 1, "total_entries": 1, "per_page": 100
+        })))
+        .mount(&server)
+        .await;
 
     let assignments = client.projects().my_assignments(false).await.unwrap();
     assert_eq!(assignments.len(), 1);
     assert_eq!(assignments[0].project.name, "Test Project");
+    assert_eq!(assignments[0].project_code.as_deref(), Some("TEST"));
     assert_eq!(assignments[0].task_assignments.len(), 1);
 }
 

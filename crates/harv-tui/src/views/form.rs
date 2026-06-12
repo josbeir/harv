@@ -152,8 +152,16 @@ impl TimeEntryForm {
                 .iter()
                 .enumerate()
                 .filter_map(|(i, a)| {
-                    let score = harv_core::text::fuzzy_score(&q, &a.project.name);
-                    if score >= 0 { Some((i, score)) } else { None }
+                    let name_score = harv_core::text::fuzzy_score(&q, &a.project.name);
+                    let code_score = a
+                        .project_code
+                        .as_deref()
+                        .and_then(|c| {
+                            let s = harv_core::text::fuzzy_score(&q, c);
+                            if s >= 0 { Some(s) } else { None }
+                        });
+                    let score = code_score.or(Some(name_score)).filter(|&s| s >= 0);
+                    score.map(|s| (i, s))
                 })
                 .collect();
             scored.sort_by_key(|(_, s)| -s);
@@ -454,7 +462,11 @@ impl TimeEntryForm {
                         .as_ref()
                         .map(|c| format!("{} · ", c.name))
                         .unwrap_or_default();
-                    let text = format!("{} {}", a.project.name, client);
+                    let text = format!(
+                        "{} {}",
+                        harv_core::text::format_project_display(&a.project.name, a.project_code.as_deref()),
+                        client
+                    );
                     if active {
                         Line::from(Span::styled(text, Style::new().fg(theme.fg)))
                     } else {
@@ -792,6 +804,7 @@ mod tests {
                 id,
                 name: name.into(),
             },
+            project_code: None,
             client: None,
             task_assignments: vec![],
             is_active: true,

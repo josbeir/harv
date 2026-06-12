@@ -159,7 +159,14 @@ impl Dashboard {
                     Style::new().fg(color).add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(
-                    format!(" {} · {} ", entry.project.name, entry.task.name),
+                    format!(
+                        " {} · {} ",
+                        harv_core::text::format_project_display(
+                            &entry.project.name,
+                            entry.project_code.as_deref()
+                        ),
+                        entry.task.name
+                    ),
                     Style::new().fg(theme.fg),
                 ),
             ])
@@ -358,7 +365,14 @@ impl Dashboard {
             }
             KeyCode::Char('s') => {
                 if let Some(ref entry) = self.running_entry {
-                    let desc = format!("{} · {}", entry.project.name, entry.task.name);
+                    let desc = format!(
+                        "{} · {}",
+                        harv_core::text::format_project_display(
+                            &entry.project.name,
+                            entry.project_code.as_deref()
+                        ),
+                        entry.task.name
+                    );
                     vec![Action::ConfirmStopAndStart {
                         entry_id: entry.id,
                         entry_desc: desc,
@@ -388,7 +402,10 @@ impl Dashboard {
                 if let Some(entry) = self.selected_entry() {
                     let entry_desc = format!(
                         "{} · {} ({})",
-                        entry.project.name,
+                        harv_core::text::format_project_display(
+                            &entry.project.name,
+                            entry.project_code.as_deref()
+                        ),
                         entry.task.name,
                         if entry.is_running {
                             harv_core::t("tui-dash-desc-running")
@@ -451,8 +468,10 @@ impl Dashboard {
 }
 
 fn truncate_client_project(entry: &TimeEntry, max_w: usize) -> String {
+    let display_name =
+        harv_core::text::format_project_display(&entry.project.name, entry.project_code.as_deref());
     if max_w < 4 {
-        return harv_core::text::truncate(&entry.project.name, max_w);
+        return harv_core::text::truncate(&display_name, max_w);
     }
     match &entry.client {
         Some(client) => {
@@ -461,10 +480,10 @@ fn truncate_client_project(entry: &TimeEntry, max_w: usize) -> String {
             format!(
                 "{} · {}",
                 harv_core::text::truncate(&client.name, client_w),
-                harv_core::text::truncate(&entry.project.name, proj_w),
+                harv_core::text::truncate(&display_name, proj_w),
             )
         }
-        None => harv_core::text::truncate(&entry.project.name, max_w),
+        None => harv_core::text::truncate(&display_name, max_w),
     }
 }
 
@@ -636,6 +655,7 @@ mod tests {
             client: None,
             is_billed: false,
             billable: true,
+            project_code: None,
             billable_rate: None,
             cost_rate: None,
             created_at: None,

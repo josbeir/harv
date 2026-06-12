@@ -30,6 +30,7 @@ fn entry(id: u64, proj: u64, task: u64, hours: Option<f64>, running: bool) -> Ti
         client: None,
         is_billed: false,
         billable: true,
+        project_code: None,
         billable_rate: None,
         cost_rate: None,
         created_at: None,

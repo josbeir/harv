@@ -24,6 +24,15 @@ pub fn append_notes(existing: &str, new: &str) -> String {
     format!("{}\n\n{}", existing, new)
 }
 
+/// Format a project name for display: `"[CODE] Name"`.
+/// If code is absent or empty, just returns the raw name.
+pub fn format_project_display(name: &str, code: Option<&str>) -> String {
+    match code {
+        Some(c) if !c.is_empty() => format!("[{}] {}", c, name),
+        _ => name.to_string(),
+    }
+}
+
 /// Format a `TimeEntry` as a one-line summary suitable for selection lists.
 pub fn format_timer_line(entry: &TimeEntry) -> String {
     format!(
@@ -227,6 +236,7 @@ mod tests {
             }),
             is_billed: false,
             billable: true,
+            project_code: None,
             billable_rate: None,
             cost_rate: None,
             created_at: None,
@@ -331,5 +341,29 @@ mod tests {
     fn test_fuzzy_score_unicode_safe() {
         assert!(fuzzy_score("brûlée", "crème brûlée") > 0);
         assert_eq!(fuzzy_score("xyz", "crème brûlée"), -1);
+    }
+
+    #[test]
+    fn test_format_project_display_with_code() {
+        assert_eq!(
+            format_project_display("SEA Units 3 maand boost", Some("16928")),
+            "[16928] SEA Units 3 maand boost"
+        );
+    }
+
+    #[test]
+    fn test_format_project_display_no_code() {
+        assert_eq!(
+            format_project_display("Some Project", None),
+            "Some Project"
+        );
+    }
+
+    #[test]
+    fn test_format_project_display_empty_code() {
+        assert_eq!(
+            format_project_display("Some Project", Some("")),
+            "Some Project"
+        );
     }
 }
