@@ -30,25 +30,20 @@ impl<'c> ProjectsApi<'c> {
         let account_id = self.client.config().account_id.clone();
         let ttl = self.client.config().cache_ttl_hours;
         crate::cache::get_cached_assignments(&account_id, ttl, force, async {
-            let mut assignments: Vec<ProjectAssignment> =
-                crate::pagination::fetch_all_pages(
-                    self.client,
-                    "/users/me/project_assignments",
-                    &[],
-                    "project_assignments",
-                )
-                .await?;
+            let mut assignments: Vec<ProjectAssignment> = crate::pagination::fetch_all_pages(
+                self.client,
+                "/users/me/project_assignments",
+                &[],
+                "project_assignments",
+            )
+            .await?;
 
             let projects: Vec<Project> = self.list().await?;
-            let code_map: std::collections::HashMap<u64, Option<String>> = projects
-                .into_iter()
-                .map(|p| (p.id, p.code))
-                .collect();
+            let code_map: std::collections::HashMap<u64, Option<String>> =
+                projects.into_iter().map(|p| (p.id, p.code)).collect();
 
             for a in &mut assignments {
-                a.project_code = code_map
-                    .get(&a.project.id)
-                    .and_then(|c| c.clone());
+                a.project_code = code_map.get(&a.project.id).and_then(|c| c.clone());
             }
 
             Ok(assignments)

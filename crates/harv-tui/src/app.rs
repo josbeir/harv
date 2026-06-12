@@ -556,14 +556,11 @@ impl App {
                         let code_map: std::collections::HashMap<u64, &str> = assignments
                             .iter()
                             .filter_map(|a| {
-                                a.project_code
-                                    .as_ref()
-                                    .map(|c| (a.project.id, c.as_str()))
+                                a.project_code.as_ref().map(|c| (a.project.id, c.as_str()))
                             })
                             .collect();
                         for e in &mut entries {
-                            e.project_code =
-                                code_map.get(&e.project.id).map(|&c| c.to_string());
+                            e.project_code = code_map.get(&e.project.id).map(|&c| c.to_string());
                         }
                     }
                     let total: f64 = entries.iter().filter_map(|e| e.hours).sum();

@@ -353,10 +353,7 @@ mod tests {
 
     #[test]
     fn test_format_project_display_no_code() {
-        assert_eq!(
-            format_project_display("Some Project", None),
-            "Some Project"
-        );
+        assert_eq!(format_project_display("Some Project", None), "Some Project");
     }
 
     #[test]
