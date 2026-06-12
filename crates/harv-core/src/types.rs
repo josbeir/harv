@@ -31,6 +31,8 @@ pub struct TimeEntry {
     pub is_billed: bool,
     #[serde(default)]
     pub billable: bool,
+    #[serde(default)]
+    pub project_code: Option<String>,
     pub billable_rate: Option<f64>,
     pub cost_rate: Option<f64>,
     pub created_at: Option<DateTime<Utc>>,
@@ -149,6 +151,8 @@ pub struct Company {
 pub struct ProjectAssignment {
     pub id: u64,
     pub project: Reference,
+    #[serde(default)]
+    pub project_code: Option<String>,
     pub client: Option<Reference>,
     pub task_assignments: Vec<TaskAssignment>,
     #[serde(default)]

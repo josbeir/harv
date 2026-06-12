@@ -1,6 +1,7 @@
 use crate::OutputFormat;
 use crate::output;
 use crate::spinner;
+use harv_core::text::format_project_display;
 use harv_sdk::HarvClient;
 
 pub async fn execute(
@@ -19,6 +20,10 @@ pub async fn execute(
             .into_iter()
             .filter(|a| {
                 a.project.name.to_lowercase().contains(&q)
+                    || a.project_code
+                        .as_deref()
+                        .map(|c| c.to_lowercase().contains(&q))
+                        .unwrap_or(false)
                     || a.client
                         .as_ref()
                         .map(|c| c.name.to_lowercase().contains(&q))
@@ -46,7 +51,7 @@ pub async fn execute(
                     .as_ref()
                     .map(|c| c.name.clone())
                     .unwrap_or_default(),
-                a.project.name.clone(),
+                format_project_display(&a.project.name, a.project_code.as_deref()),
                 a.task_assignments.len().to_string(),
                 a.project.id.to_string(),
             ]

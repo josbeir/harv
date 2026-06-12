@@ -41,6 +41,23 @@ fn json_response(body: serde_json::Value) -> ResponseTemplate {
         .insert_header("Content-Type", "application/json")
 }
 
+fn projects_json(projects: Vec<serde_json::Value>) -> serde_json::Value {
+    json!({
+        "projects": projects,
+        "total_pages": 1, "page": 1, "total_entries": projects.len(), "per_page": 100
+    })
+}
+
+fn test_project_value() -> serde_json::Value {
+    json!({
+        "id": 100, "name": "Test Project", "code": "TEST",
+        "client": {"id": 1, "name": "Test Client"},
+        "is_active": true, "notes": null,
+        "starts_on": null, "ends_on": null,
+        "created_at": null, "updated_at": null
+    })
+}
+
 fn project_assignments_json() -> serde_json::Value {
     json!({
         "project_assignments": [{
@@ -56,6 +73,19 @@ fn project_assignments_json() -> serde_json::Value {
     })
 }
 
+async fn mock_assignments_and_projects(server: &MockServer) {
+    Mock::given(method("GET"))
+        .and(path("/users/me/project_assignments"))
+        .respond_with(json_response(project_assignments_json()))
+        .mount(server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/projects"))
+        .respond_with(json_response(projects_json(vec![test_project_value()])))
+        .mount(server)
+        .await;
+}
+
 fn user_json() -> serde_json::Value {
     json!({"id": 1, "first_name": "Test", "last_name": "User", "email": "test@test.com", "is_active": true, "created_at": null, "updated_at": null, "access_roles": ["member"]})
 }
@@ -67,11 +97,7 @@ async fn test_projects_execute() {
     ensure_locale();
     let server = MockServer::start().await;
     let c = client(&server.uri());
-    Mock::given(method("GET"))
-        .and(path("/users/me/project_assignments"))
-        .respond_with(json_response(project_assignments_json()))
-        .mount(&server)
-        .await;
+    mock_assignments_and_projects(&server).await;
 
     commands::projects::execute(&c, None, false, &harv_cli::OutputFormat::Table)
         .await
@@ -83,11 +109,7 @@ async fn test_projects_with_search() {
     ensure_locale();
     let server = MockServer::start().await;
     let c = client(&server.uri());
-    Mock::given(method("GET"))
-        .and(path("/users/me/project_assignments"))
-        .respond_with(json_response(project_assignments_json()))
-        .mount(&server)
-        .await;
+    mock_assignments_and_projects(&server).await;
 
     commands::projects::execute(
         &c,
@@ -410,11 +432,7 @@ async fn test_track_with_ids() {
     let server = MockServer::start().await;
     let c = client(&server.uri());
 
-    Mock::given(method("GET"))
-        .and(path("/users/me/project_assignments"))
-        .respond_with(json_response(project_assignments_json()))
-        .mount(&server)
-        .await;
+    mock_assignments_and_projects(&server).await;
     Mock::given(method("POST")).and(path("/time_entries"))
         .respond_with(json_response(json!({
             "id": 99, "spent_date": "2026-06-08", "hours": 2.0, "notes": null,
@@ -454,11 +472,7 @@ async fn test_track_with_last_used_auto_task() {
     let server = MockServer::start().await;
     let c = client_with_last_used(&server.uri(), 100, 200);
 
-    Mock::given(method("GET"))
-        .and(path("/users/me/project_assignments"))
-        .respond_with(json_response(project_assignments_json()))
-        .mount(&server)
-        .await;
+    mock_assignments_and_projects(&server).await;
     Mock::given(method("POST")).and(path("/time_entries"))
         .respond_with(json_response(json!({
             "id": 99, "spent_date": "2026-06-08", "hours": 2.0, "notes": "test",
@@ -512,6 +526,11 @@ account_id = "1"
         })))
         .mount(&server)
         .await;
+    Mock::given(method("GET"))
+        .and(path("/projects"))
+        .respond_with(json_response(projects_json(vec![])))
+        .mount(&server)
+        .await;
 
     let result =
         commands::track::execute(&c, None, None, None, None, false, None, false, None, false).await;
@@ -540,6 +559,11 @@ account_id = "1"
     Mock::given(method("GET"))
         .and(path("/users/me/project_assignments"))
         .respond_with(json_response(project_assignments_json()))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/projects"))
+        .respond_with(json_response(projects_json(vec![test_project_value()])))
         .mount(&server)
         .await;
 
@@ -667,11 +691,7 @@ task_id = 200
 
     let server = MockServer::start().await;
     let c = client(&server.uri());
-    Mock::given(method("GET"))
-        .and(path("/users/me/project_assignments"))
-        .respond_with(json_response(project_assignments_json()))
-        .mount(&server)
-        .await;
+    mock_assignments_and_projects(&server).await;
 
     commands::alias::list_execute(&c, &harv_cli::OutputFormat::Table)
         .await
@@ -701,11 +721,7 @@ task_id = 888
 
     let server = MockServer::start().await;
     let c = client(&server.uri());
-    Mock::given(method("GET"))
-        .and(path("/users/me/project_assignments"))
-        .respond_with(json_response(project_assignments_json()))
-        .mount(&server)
-        .await;
+    mock_assignments_and_projects(&server).await;
 
     commands::alias::list_execute(&c, &harv_cli::OutputFormat::Table)
         .await
@@ -753,11 +769,7 @@ async fn test_start_delegation() {
     let server = MockServer::start().await;
     let c = client(&server.uri());
 
-    Mock::given(method("GET"))
-        .and(path("/users/me/project_assignments"))
-        .respond_with(json_response(project_assignments_json()))
-        .mount(&server)
-        .await;
+    mock_assignments_and_projects(&server).await;
     Mock::given(method("POST")).and(path("/time_entries"))
         .respond_with(json_response(json!({
             "id": 99, "spent_date": "2026-06-08", "hours": null, "notes": "test",

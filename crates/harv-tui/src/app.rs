@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -33,6 +34,7 @@ pub struct App {
     tick: u64,
     pending_confirm: Option<(String, Vec<Action>)>,
     date_picker: Option<DatePicker>,
+    project_codes: HashMap<u64, String>,
 }
 
 impl App {
@@ -48,6 +50,7 @@ impl App {
             tick: 0,
             pending_confirm: None,
             date_picker: None,
+            project_codes: HashMap::new(),
         }
     }
 
@@ -347,11 +350,24 @@ impl App {
                     let _ = tx.send(Action::RefreshEntries);
                 });
             }
-            Action::TimerUpdate(entries) => {
+            Action::TimerUpdate(mut entries) => {
+                for e in &mut entries {
+                    e.project_code = self.project_codes.get(&e.project.id).cloned();
+                }
                 let View::Dashboard(d) = &mut self.current_view;
                 d.update_running(entries);
             }
-            Action::TodayEntriesUpdate(entries, _total) => {
+            Action::TodayEntriesUpdate(mut entries, _total) => {
+                for e in &entries {
+                    if let Some(ref code) = e.project_code {
+                        self.project_codes.insert(e.project.id, code.clone());
+                    }
+                }
+                for e in &mut entries {
+                    if e.project_code.is_none() {
+                        e.project_code = self.project_codes.get(&e.project.id).cloned();
+                    }
+                }
                 let View::Dashboard(d) = &mut self.current_view;
                 d.update_entries(entries);
             }
@@ -532,15 +548,25 @@ impl App {
             };
 
             let time_api = client.time_entries();
-            let (entries_result, _) = tokio::join!(time_api.list(&params), async {
-                match client.projects().my_assignments(force_assignments).await {
-                    Ok(_) => tracing::debug!("project assignments refreshed"),
-                    Err(e) => tracing::warn!("failed to refresh project assignments: {}", e),
-                }
-            });
+            let projects_api = client.projects();
+            let (entries_result, assignments_result) = tokio::join!(
+                time_api.list(&params),
+                projects_api.my_assignments(force_assignments),
+            );
 
             match entries_result {
-                Ok(entries) => {
+                Ok(mut entries) => {
+                    if let Ok(assignments) = &assignments_result {
+                        let code_map: std::collections::HashMap<u64, &str> = assignments
+                            .iter()
+                            .filter_map(|a| {
+                                a.project_code.as_ref().map(|c| (a.project.id, c.as_str()))
+                            })
+                            .collect();
+                        for e in &mut entries {
+                            e.project_code = code_map.get(&e.project.id).map(|&c| c.to_string());
+                        }
+                    }
                     let total: f64 = entries.iter().filter_map(|e| e.hours).sum();
                     let _ = tx.send(Action::TodayEntriesUpdate(entries, total));
                 }

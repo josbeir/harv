@@ -1,4 +1,5 @@
 use chrono::NaiveDate;
+use harv_core::text::format_project_display;
 use harv_core::{ProjectAssignment, Reference, TaskAssignment};
 use harv_sdk::HarvConfig;
 use inquire::{CustomType, Select, Text, validator::Validation};
@@ -47,7 +48,7 @@ pub fn build_project_choices(
                     .as_ref()
                     .map(|c| c.name.as_str())
                     .unwrap_or("No client"),
-                a.project.name
+                format_project_display(&a.project.name, a.project_code.as_deref())
             ),
             project_id: a.project.id,
             task_assignments: a.task_assignments.clone(),
@@ -392,6 +393,7 @@ mod tests {
                     id: 100,
                     name: "Beta".into(),
                 },
+                project_code: None,
                 client: Some(Reference {
                     id: 1,
                     name: "Client".into(),
@@ -415,6 +417,7 @@ mod tests {
                     id: 101,
                     name: "Alpha".into(),
                 },
+                project_code: None,
                 client: Some(Reference {
                     id: 1,
                     name: "Client".into(),
@@ -437,6 +440,7 @@ mod tests {
                     id: 100,
                     name: "Beta".into(),
                 },
+                project_code: None,
                 client: Some(Reference {
                     id: 1,
                     name: "Client".into(),
@@ -460,6 +464,7 @@ mod tests {
                     id: 101,
                     name: "Alpha".into(),
                 },
+                project_code: None,
                 client: None,
                 task_assignments: vec![TaskAssignment {
                     id: 2,
@@ -555,6 +560,7 @@ mod tests {
             }),
             is_billed: false,
             billable: false,
+            project_code: None,
             billable_rate: None,
             cost_rate: None,
             created_at: None,
