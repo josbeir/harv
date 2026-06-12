@@ -157,8 +157,8 @@ impl TimeEntryForm {
                         let s = harv_core::text::fuzzy_score(&q, c);
                         if s >= 0 { Some(s) } else { None }
                     });
-                    let score = code_score.or(Some(name_score)).filter(|&s| s >= 0);
-                    score.map(|s| (i, s))
+                    let score = name_score.max(code_score.unwrap_or(-1));
+                    if score >= 0 { Some((i, score)) } else { None }
                 })
                 .collect();
             scored.sort_by_key(|(_, s)| -s);

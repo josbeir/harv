@@ -357,11 +357,15 @@ impl App {
                 let View::Dashboard(d) = &mut self.current_view;
                 d.update_running(entries);
             }
-            Action::TodayEntriesUpdate(entries, _total) => {
-                self.project_codes.clear();
+            Action::TodayEntriesUpdate(mut entries, _total) => {
                 for e in &entries {
                     if let Some(ref code) = e.project_code {
                         self.project_codes.insert(e.project.id, code.clone());
+                    }
+                }
+                for e in &mut entries {
+                    if e.project_code.is_none() {
+                        e.project_code = self.project_codes.get(&e.project.id).cloned();
                     }
                 }
                 let View::Dashboard(d) = &mut self.current_view;
