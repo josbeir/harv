@@ -1,13 +1,3 @@
-<p align="center">
-  <img src="assets/harv-banner.svg" alt="Harv Banner" width="600" />
-</p>
-
-<p align="center">
-
-`harv` — Because remembering to punch the clock is harder than writing the code. A Rust CLI for [Harvest](https://www.getharvest.com/) that respects your terminal, your config, and your deadline.
-
-</p>
-
 <div align="center">
 
 [![CI](https://github.com/josbeir/harv/actions/workflows/ci.yml/badge.svg)](https://github.com/josbeir/harv/actions/workflows/ci.yml)
@@ -16,6 +6,33 @@
 [![Rust](https://img.shields.io/badge/Rust-1.85%2B-orange.svg)](https://www.rust-lang.org)
 
 </div>
+
+## What is Harv?
+
+Harv is a **command-line time-tracking client** for [Harvest](https://www.getharvest.com/). It lets you log hours, start/stop timers, and review your timesheet — all from your terminal, without touching the browser.
+
+![Harv TUI](assets/tui.png)
+
+### Features
+
+- **Full-screen terminal UI** — browse today's entries, start timers, and edit time with keyboard shortcuts
+- **CLI wizard** — interactive prompts guide you through project selection, task, hours, date, and notes
+- **Running timers** — start, stop, and edit timers in real time, with live elapsed display
+- **Aliases** — create shortcuts for frequently used project/task combinations so you can type `harv start dev` instead of navigating menus
+- **Project config files** — drop a `harv.toml` in your project root to set default project/task, configure note templates with git commit messages and branch names, and define project-specific aliases
+- **Persistent defaults** — your last-used project and task are remembered across sessions and pre-selected for quick entry
+- **Multi-language** — UI, errors, and CLI output in English, Dutch, French, German, Spanish, and Italian (auto-detected or configurable)
+- **Cache** — project assignments are cached locally for instant startup; `--refresh` to force a reload
+- **JSON output** — all list commands support `--output json` for scripting and piping
+
+### Two ways to work
+
+| Style | Command | Best for |
+|-------|---------|----------|
+| **TUI** | `harv` (no subcommand) | Interactive review, browsing entries, editing in-place |
+| **CLI** | `harv track`, `harv start`, `harv stop`, etc. | Quick one-off entries, scripting, muscle memory |
+
+---
 
 ## Installation
 
@@ -29,7 +46,7 @@ Download the latest binary for your platform from the [GitHub Releases](https://
 cargo install --git https://github.com/josbeir/harv harv-cli
 ```
 
-This compiles in release mode and installs `harv` to `~/.cargo/bin/` (which must be in your `$PATH`).
+This compiles in release mode and installs `harv` to `~/.cargo/bin/`.
 
 ### From local source
 
@@ -41,91 +58,65 @@ cargo install --path crates/harv-cli
 
 ### Shell completions
 
-Add to `~/.bashrc` (or the equivalent for your shell):
-
 ```bash
-source <(harv completion bash)
+source <(harv completion bash)   # bash
+source <(harv completion zsh)    # zsh
+harv completion fish | source    # fish
 ```
 
-Other shells: replace `bash` with `zsh`, `fish`, `elvish`, or `powershell`.
+---
 
 ## Quick Start
 
-### 1. Authenticate
+### 1. Connect your Harvest account
 
 ```bash
 harv connect
 ```
 
-Opens your browser to authenticate with Harvest via OAuth2. Credentials are stored at `~/.config/harv/config.toml`.
+Opens your browser to authenticate via OAuth2. Credentials are stored at `~/.config/harv/config.toml`.
 
-### 2. Track time
-
-```bash
-harv         # Full-screen terminal UI (default when no subcommand)
-harv track   # CLI wizard
-```
-
-The terminal UI opens a dashboard showing today's entries with keyboard shortcuts. `s` starts a timer, `n` creates a new entry, `e` edits an existing one. See [Terminal UI](#terminal-ui) below.
-
-The CLI wizard (`harv track`) prompts for:
-
-- **Project** — fuzzy search, pick with arrow keys
-- **Task** — filtered to the selected project
-- **Date** — defaults to today
-- **Hours** — decimal (`1.5`) or HH:MM (`1:30`); enter 0 or leave empty to start a running timer
-- **Notes** — optional
-
-Once you track time, your last-used project and task are remembered — next time you run `harv track`, that project appears at the top with a `●` for a quick Enter skip.
-
-### 3. Quick commands
+### 2. Log your first entry
 
 ```bash
-harv start [alias]       # Start a running timer
-harv stop                # Stop the running timer
-harv track -H 1.5 [alias] # Track 1.5 hours (harv log is an alias)
-harv note                # Edit running timer notes
-harv edit                # Edit an existing time entry
-harv edit 12345678        # Edit entry by ID
-harv status              # Show current timer + today's entries
-harv whoami              # Show authenticated user info
-harv disconnect          # Remove stored credentials
+harv track
 ```
 
-### 4. Aliases
+You'll be prompted for project, task, date, hours, and (optionally) notes. Next time you run it, your last-used project appears at the top marked with `●` — just press Enter to skip.
 
-Create shortcuts for frequently used project/task pairs:
+### 3. Explore the TUI
 
 ```bash
-harv alias create dev    # Interactive: pick project + task
-harv alias list
-harv alias delete dev
+harv
 ```
 
-Use aliases to skip prompts:
+Opens a full-screen dashboard. Use `s` to start a timer, `n` to create an entry, `j`/`k` to navigate, `q` to quit. See [Terminal UI](#terminal-ui) for all shortcuts.
+
+### 4. Speed up with aliases
 
 ```bash
-harv start dev
-harv track -H 1.5 dev
+harv alias create dev         # interactive: pick project + task
+harv start dev                # start a timer with one word
+harv track -H 1.5 dev         # log 1.5 hours directly
 ```
 
-### 5. Project configuration (optional)
+### 5. Set up per-project defaults (optional)
 
 ```bash
-harv init    # Interactive wizard to create harv.toml in the current directory
+harv init                     # interactive wizard, creates harv.toml
 ```
 
-Set default project/task, note templates with git info, and project-specific aliases per directory. See [Project Configuration (harv.toml)](#project-configuration-harvtoml) below.
+Tells Harv which project and task to pre-select when you're in this directory, lets you define note templates with git info, and more. See [Project Configuration](#project-configuration-harvtoml).
+
+---
 
 ## Terminal UI
 
 Running `harv` with no subcommand launches the full-screen terminal interface.
 
-![Harv TUI](assets/tui.png)
-
 ### Dashboard
 
-Shows time entries for the selected date with a live clock for running timers, daily hours total, and quick actions. Top bar shows `HARV v0.1.0  ● Running` or `HARV v0.1.0  ○ Idle` depending on timer state. A date navigation bar above the table lets you browse past days.
+The dashboard shows time entries for the selected date with a live clock for running timers, daily hours total, and quick actions. The top bar displays `HARV v0.1.0  ● Running` or `HARV v0.1.0  ○ Idle`. A date navigation bar above the table lets you browse past days.
 
 | Key | Action |
 |-----|--------|
@@ -140,148 +131,71 @@ Shows time entries for the selected date with a live clock for running timers, d
 | `T` | Go to today |
 | `g` | Open date picker |
 | `r` | Refresh data |
+| `?` | Keyboard shortcuts overlay |
 | `q` / `Ctrl+C` | Quit |
 
 ### Time Entry Dialogs
 
-Pressing `s`, `n`, `t`, or `e` opens a form dialog with:
+Pressing `s`, `n`, `t`, or `e` opens a form dialog:
 
 - **Project** — fuzzy-search list, type to filter
 - **Task** — filtered by selected project, type to filter
-- **Date** — defaults to today (create/edit stopped entries only; hidden for running timers)
-- **Hours** — decimal (`1.5`) or HH:MM (`1:30`), empty = start running timer (hidden for running timers)
+- **Date** — defaults to today (hidden for running timers)
+- **Hours** — decimal (`1.5`) or HH:MM (`1:30`); leave empty to start a timer
 - **Notes** — optional
 
-`Tab` / `Shift+Tab` moves between fields. `j` / `k` navigates within list fields. `Enter` submits. `Esc` cancels. Press `g` on the Date field to open a visual date picker.
-
-When editing a running timer, only Project, Task, and Notes are shown — Date and Hours cannot be changed while a timer is accumulating time.
-
-Last-used project and task IDs are persisted so the form pre-selects them on subsequent opens.
+`Tab` / `Shift+Tab` moves between fields. `j` / `k` navigates lists. `Enter` submits. `Esc` cancels. Press `g` on the Date field to open a visual date picker.
 
 ### Theme
 
 Auto-detects dark/light mode from your OS. Real-time switching via D-Bus on Linux, polling on macOS/Windows.
 
-| Key | Action |
-|-----|--------|
-| `?` | Keyboard shortcuts overlay |
-
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| `harv connect` | Authenticate with Harvest via OAuth2 |
-| `harv disconnect` | Remove stored credentials |
-| `harv config` | Show full configuration |
-| `harv config get <key>` | Get a config value (e.g. `cache-ttl`) |
-| `harv config set <key> <val>` | Set a config value (e.g. `cache-ttl 48`) |
-| `harv track [alias]` | Track time (interactive wizard if no args; `harv log` is an alias) |
-| `harv start [alias]` | Start a running timer |
-| `harv stop` | Stop the current running timer |
-| `harv note` | Edit notes on the running timer |
-| `harv edit [entry-id]` | Edit an existing time entry (interactive picker if no ID) |
-| `harv status` | Show current timer + today's entries |
-| `harv whoami` | Show authenticated user info and login status |
-| `harv projects` | List project assignments |
-| `harv tasks <project-id>` | List tasks for a project |
-| `harv alias create <name>` | Create a project/task alias |
-| `harv alias list` | List all aliases |
-| `harv alias delete <name>` | Delete an alias |
-| `harv init` | Create project config (harv.toml) interactively |
-| `harv completion <shell>` | Generate shell completion script |
-
-### Command Flags
-
-Most time-tracking commands (`track`, `start`) share common flags:
-
-| Flag | Description |
-|------|-------------|
-| `-p, --project-id <id>` | Skip project prompt |
-| `-t, --task-id <id>` | Skip task prompt |
-| `-H, --hours <hours>` | Hours in decimal (`2.5`) or HH:MM (`2:30`) — `track` only |
-| `-d, --date <date>` | Override date (default: today) |
-| `-n, --notes <text>` | Set notes inline |
-| `-e, --editor` | Open `$EDITOR` for notes |
-| `-R, --refresh` | Force-refresh cached project data |
-
-`harv stop` and `harv note` use a subset:
-
-| Flag | Description |
-|------|-------------|
-| `-n, --notes <text>` | Set notes inline |
-| `-e, --editor` | Open `$EDITOR` for notes |
-| `--overwrite` | Replace existing notes instead of appending |
-
-`harv edit`:
-
-| Flag | Description |
-|------|-------------|
-| `-p, --project-id <id>` | New project |
-| `-t, --task-id <id>` | New task |
-| `-H, --hours <hours>` | New hours (stopped entries only) |
-| `-d, --date <date>` | New date (stopped entries only) |
-| `-n, --notes <text>` | Add or update notes |
-| `-e, --editor` | Open `$EDITOR` for notes |
-| `--overwrite` | Replace notes instead of appending |
-| `-R, --refresh` | Force-refresh cached project data |
-
-`harv projects`:
-
-| Flag | Description |
-|------|-------------|
-| `-s, --search <query>` | Filter projects by name |
-| `-R, --refresh` | Force-refresh cached data |
-
-`harv init`:
-
-| Flag | Description |
-|------|-------------|
-| `-p, --project-id <id>` | Default project ID |
-| `-t, --task-id <id>` | Default task ID |
-| `--template <name=pattern>` | Add a note template (repeatable) |
-| `--alias <name=pid:tid>` | Add a project alias (repeatable) |
-| `-f, --force` | Overwrite existing harv.toml |
-
-## Global Options
-
-| Flag | Description |
-|------|-------------|
-| `-o, --output <table\|json>` | Output format for list commands (default: `table`) |
+---
 
 ## Configuration
 
-Config is stored at `~/.config/harv/config.toml`. View with `harv config`, modify with `harv config set`.
+### Global config (`~/.config/harv/config.toml`)
+
+View with `harv config`, modify with `harv config set`.
 
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `cache-ttl` | `24` | Cache lifetime in hours (0 = always fetch) |
-| `locale` | *(auto-detect)* | Display language. Supported: `en`, `nl`, `fr`, `de`, `es`, `it` |
+| `locale` | *(auto-detect)* | Display language: `en`, `nl`, `fr`, `de`, `es`, `it` |
 
-Project assignments are cached with the configured TTL. Subsequent `track`/`start` commands return instantly. Use `--refresh` to bypass the cache.
+#### Localization
 
-### Localization
-
-`harv` auto-detects your system language via the `LANG` environment variable or OS locale. To override, set `locale` in your config:
+`harv` auto-detects your system language via `LANG`. To override:
 
 ```bash
 harv config set locale nl
 ```
 
-This affects all CLI output, error messages, and TUI labels. If a translation is missing for your locale, it falls back to English. Supported: English, Dutch, French, German, Spanish, Italian.
+Affects all CLI output, error messages, and TUI labels. Falls back to English if a translation is missing.
 
-## Project Configuration (harv.toml)
+#### Custom OAuth2 Application
 
-Project-specific settings are stored in a `harv.toml` file, discovered by walking up from the current directory (like `.git`). All fields are optional — an empty `harv.toml` is valid.
-
-### Quick setup
+To use your own Harvest OAuth2 application (registered at [id.getharvest.com/developers](https://id.getharvest.com/developers)), set `HARV_CLIENT_ID` at compile time:
 
 ```bash
-harv init                    # Interactive wizard
-harv init --force             # Overwrite existing harv.toml
-harv init -p 123 -t 456       # Non-interactive (CLI flags only)
+HARV_CLIENT_ID="your-app-id" cargo install --git https://github.com/josbeir/harv harv-cli
 ```
 
-### Example
+Set your redirect URI to `http://localhost:5006`.
+
+### Project config (`harv.toml`)
+
+Placed in a project directory and discovered by walking up from your current location (like `.git`). All fields optional.
+
+#### Quick setup
+
+```bash
+harv init                         # interactive wizard
+harv init -p 123 -t 456           # non-interactive
+harv init --force                 # overwrite existing file
+```
+
+#### Example
 
 ```toml
 default_project_id = 12345
@@ -295,112 +209,95 @@ task_id = 200
 pattern = "Daily standup — {date} — Branch: {branch_name}"
 ```
 
-### Fields
+#### Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `default_project_id` | u64 | Pre-select this project when creating entries |
-| `default_task_id` | u64 | Pre-select this task when creating entries |
-| `[aliases.<name>]` | table | Project-specific aliases (merge with global ones; project wins on name conflict) |
-| `[templates.<name>]` | table | Named note templates with `{variable}` substitution |
+| Field | Description |
+|-------|-------------|
+| `default_project_id` | Pre-select this project when creating entries |
+| `default_task_id` | Pre-select this task when creating entries |
+| `[aliases.<name>]` | Project-specific aliases (merge with global; project wins on conflict) |
+| `[templates.<name>]` | Named note templates with `{variable}` substitution |
 
-### Template Variables
+#### Template Variables
 
-When creating a time entry and a template named `"default"` exists, notes are pre-filled with expanded variables:
+If a template named `"default"` exists, notes are pre-filled with expanded variables:
 
 | Variable | Source | Example |
-|----------|--------|--------|
+|----------|--------|---------|
 | `{date}` | Today's date | `2026-06-13` |
 | `{time}` | Current time | `14:30` |
 | `{hostname}` | System hostname | `my-laptop` |
-| `{commit_message}` | Latest git commit subject | `feat: add harv.toml support` |
-| `{branch_name}` | Current git branch | `feat-project-configs` |
+| `{commit_message}` | Latest git commit subject | `feat: add login page` |
+| `{branch_name}` | Current git branch | `feat-login` |
 | `{project_name}` | Harvest project name | `Website Redesign` |
-| `{task_name}` | Harvest task name | `Frontend Development` |
-| `{user_name}` | Harvest user name | `Jane Doe` |
+| `{task_name}` | Harvest task name | `Frontend` |
+| `{user_name}` | Your Harvest name | `Jane Doe` |
 
-> Git variables (`{commit_message}`, `{branch_name}`) resolve to empty strings if not in a repository. All variables gracefully degrade.
+> Git variables resolve to empty strings when outside a repository.
 
-### Multiple Templates
+---
 
-You can define multiple named templates. The one named `"default"` is auto-used when creating entries:
+## Commands
 
-```toml
-[templates.default]
-pattern = "Daily — {date} — {branch_name}"
+| Command | Description |
+|---------|-------------|
+| `harv` | Open the full-screen terminal UI |
+| `harv connect` | Authenticate with Harvest via OAuth2 |
+| `harv disconnect` | Remove stored credentials |
+| `harv track` | Interactive time-entry wizard (`harv log` also works) |
+| `harv start` | Start a running timer |
+| `harv stop` | Stop the running timer |
+| `harv note` | Edit notes on the running timer |
+| `harv edit [id]` | Edit a time entry (pick interactively if no ID) |
+| `harv status` | Show current timer + today's entries |
+| `harv whoami` | Show authenticated user info |
+| `harv projects` | List your project assignments |
+| `harv tasks <project-id>` | List tasks for a project |
+| `harv config [get\|set]` | View or modify global settings |
+| `harv alias [create\|list\|delete]` | Manage project/task aliases |
+| `harv init` | Create a `harv.toml` project config |
+| `harv completion <shell>` | Generate shell completion script |
 
-[templates.meeting]
-pattern = "Meeting: {project_name} — {date}"
-```
+### Flags
 
-To use a non-default template, reference it via CLI flags (support planned for `--template <name>` in a future release).
+| Flag | Applies to | Description |
+|------|-----------|-------------|
+| `-p, --project-id <id>` | `track`, `start`, `edit`, `init` | Skip project prompt |
+| `-t, --task-id <id>` | `track`, `start`, `edit`, `init` | Skip task prompt |
+| `-H, --hours <h>` | `track`, `edit` | Hours (decimal `2.5` or HH:MM `2:30`) |
+| `-d, --date <date>` | `track`, `start`, `edit` | Override date (YYYY-MM-DD) |
+| `-n, --notes <text>` | `track`, `start`, `stop`, `note`, `edit` | Set notes inline |
+| `-e, --editor` | `track`, `start`, `stop`, `note`, `edit` | Open `$EDITOR` for notes |
+| `--overwrite` | `stop`, `note`, `edit` | Replace notes instead of appending |
+| `--template <name=pattern>` | `init` | Add a note template (repeatable) |
+| `--alias <name=pid:tid>` | `init` | Add a project alias (repeatable) |
+| `-f, --force` | `init` | Overwrite existing harv.toml |
+| `-R, --refresh` | `track`, `start`, `edit`, `projects` | Bypass cache |
+| `-s, --search <query>` | `projects` | Filter projects by name |
+| `-o, --output <table\|json>` | All list commands | Output format |
 
-### Discovery
-
-`harv.toml` is located by walking up from the current working directory to the filesystem root, stopping at the first file found. This matches the behavior of `.git`, `.eslintrc`, and similar tooling — you can place one `harv.toml` at your project root and use it from any subdirectory.
-
-### Alias Merging
-
-Project aliases merge with global aliases from `~/.config/harv/config.toml`. When the same alias name exists in both places, the project-specific definition takes priority:
-
-```bash
-harv alias list
-# Alias    Project    Task    Source
-# dev      My App     Coding  project
-# global   Other App  Admin   global
-```
-
-### Custom OAuth2 Application
-
-By default `harv` ships with a built-in Harvest OAuth2 client ID. To use your own application (registered at [id.getharvest.com/developers](https://id.getharvest.com/developers)), set the `HARV_CLIENT_ID` environment variable at compile time:
-
-```bash
-HARV_CLIENT_ID="your-app-id" cargo install --git https://github.com/josbeir/harv harv-cli
-```
-
-When registering your app, set the redirect URI to `http://localhost:5006`.
+---
 
 ## Development
 
-### Prerequisites
+- **Prerequisites**: Rust 1.85+
+- **Build**: `cargo build --workspace`
+- **Test**: `cargo test --workspace`
+- **Lint**: `cargo clippy --all-targets -- -D warnings && cargo fmt --all -- --check`
+- **Coverage**: `cargo tarpaulin --workspace`
 
-- Rust 1.85+
-
-### Build
-
-```bash
-cargo build --workspace
-```
-
-### Test
-
-```bash
-cargo test --workspace
-```
-
-### Lint
-
-```bash
-cargo clippy --all-targets -- -D warnings
-cargo fmt --all -- --check
-```
-
-### Coverage
-
-```bash
-cargo tarpaulin --workspace
-```
-
-## Architecture
+### Architecture
 
 ```
-harv-core (domain types, errors)
+harv-core (domain types, errors, i18n)
   ↓
-harv-sdk  (Harvest API v2 client)
+harv-sdk  (Harvest API v2 client, auth, cache, pagination, config)
   ↓  ↙
 harv-cli  (CLI binary + TUI launcher)
 harv-tui  (terminal UI library)
 ```
+
+---
 
 ## Disclaimer
 
