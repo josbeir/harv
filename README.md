@@ -109,6 +109,14 @@ harv start dev
 harv track -H 1.5 dev
 ```
 
+### 5. Project configuration (optional)
+
+```bash
+harv init    # Interactive wizard to create harv.toml in the current directory
+```
+
+Set default project/task, note templates with git info, and project-specific aliases per directory. See [Project Configuration (harv.toml)](#project-configuration-harvtoml) below.
+
 ## Terminal UI
 
 Running `harv` with no subcommand launches the full-screen terminal interface.
@@ -179,6 +187,7 @@ Auto-detects dark/light mode from your OS. Real-time switching via D-Bus on Linu
 | `harv alias create <name>` | Create a project/task alias |
 | `harv alias list` | List all aliases |
 | `harv alias delete <name>` | Delete an alias |
+| `harv init` | Create project config (harv.toml) interactively |
 | `harv completion <shell>` | Generate shell completion script |
 
 ### Command Flags
@@ -223,6 +232,16 @@ Most time-tracking commands (`track`, `start`) share common flags:
 | `-s, --search <query>` | Filter projects by name |
 | `-R, --refresh` | Force-refresh cached data |
 
+`harv init`:
+
+| Flag | Description |
+|------|-------------|
+| `-p, --project-id <id>` | Default project ID |
+| `-t, --task-id <id>` | Default task ID |
+| `--template <name=pattern>` | Add a note template (repeatable) |
+| `--alias <name=pid:tid>` | Add a project alias (repeatable) |
+| `-f, --force` | Overwrite existing harv.toml |
+
 ## Global Options
 
 | Flag | Description |
@@ -249,6 +268,87 @@ harv config set locale nl
 ```
 
 This affects all CLI output, error messages, and TUI labels. If a translation is missing for your locale, it falls back to English. Supported: English, Dutch, French, German, Spanish, Italian.
+
+## Project Configuration (harv.toml)
+
+Project-specific settings are stored in a `harv.toml` file, discovered by walking up from the current directory (like `.git`). All fields are optional — an empty `harv.toml` is valid.
+
+### Quick setup
+
+```bash
+harv init                    # Interactive wizard
+harv init --force             # Overwrite existing harv.toml
+harv init -p 123 -t 456       # Non-interactive (CLI flags only)
+```
+
+### Example
+
+```toml
+default_project_id = 12345
+default_task_id = 67890
+
+[aliases.dev]
+project_id = 100
+task_id = 200
+
+[templates.daily]
+pattern = "Daily standup — {date} — Branch: {branch_name}"
+```
+
+### Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `default_project_id` | u64 | Pre-select this project when creating entries |
+| `default_task_id` | u64 | Pre-select this task when creating entries |
+| `[aliases.<name>]` | table | Project-specific aliases (merge with global ones; project wins on name conflict) |
+| `[templates.<name>]` | table | Named note templates with `{variable}` substitution |
+
+### Template Variables
+
+When creating a time entry and a template named `"default"` exists, notes are pre-filled with expanded variables:
+
+| Variable | Source | Example |
+|----------|--------|--------|
+| `{date}` | Today's date | `2026-06-13` |
+| `{time}` | Current time | `14:30` |
+| `{hostname}` | System hostname | `my-laptop` |
+| `{commit_message}` | Latest git commit subject | `feat: add harv.toml support` |
+| `{branch_name}` | Current git branch | `feat-project-configs` |
+| `{project_name}` | Harvest project name | `Website Redesign` |
+| `{task_name}` | Harvest task name | `Frontend Development` |
+| `{user_name}` | Harvest user name | `Jane Doe` |
+
+> Git variables (`{commit_message}`, `{branch_name}`) resolve to empty strings if not in a repository. All variables gracefully degrade.
+
+### Multiple Templates
+
+You can define multiple named templates. The one named `"default"` is auto-used when creating entries:
+
+```toml
+[templates.default]
+pattern = "Daily — {date} — {branch_name}"
+
+[templates.meeting]
+pattern = "Meeting: {project_name} — {date}"
+```
+
+To use a non-default template, reference it via CLI flags (support planned for `--template <name>` in a future release).
+
+### Discovery
+
+`harv.toml` is located by walking up from the current working directory to the filesystem root, stopping at the first file found. This matches the behavior of `.git`, `.eslintrc`, and similar tooling — you can place one `harv.toml` at your project root and use it from any subdirectory.
+
+### Alias Merging
+
+Project aliases merge with global aliases from `~/.config/harv/config.toml`. When the same alias name exists in both places, the project-specific definition takes priority:
+
+```bash
+harv alias list
+# Alias    Project    Task    Source
+# dev      My App     Coding  project
+# global   Other App  Admin   global
+```
 
 ### Custom OAuth2 Application
 
