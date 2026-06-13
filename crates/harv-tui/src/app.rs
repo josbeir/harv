@@ -5,7 +5,7 @@ use std::time::Duration;
 use chrono::NaiveDate;
 use futures_util::StreamExt;
 use harv_core::CreateTimeEntry;
-use harv_sdk::HarvClient;
+use harv_sdk::{HarvClient, ResolvedConfig};
 use ratatui::Frame;
 use ratatui::crossterm::event::{Event, KeyCode, KeyEventKind};
 use ratatui::layout::Alignment;
@@ -35,10 +35,11 @@ pub struct App {
     pending_confirm: Option<(String, Vec<Action>)>,
     date_picker: Option<DatePicker>,
     project_codes: HashMap<u64, String>,
+    resolved_config: ResolvedConfig,
 }
 
 impl App {
-    pub fn new(client: HarvClient, theme: Theme) -> Self {
+    pub fn new(client: HarvClient, theme: Theme, resolved_config: ResolvedConfig) -> Self {
         Self {
             client: Arc::new(client),
             user_id: 0,
@@ -51,13 +52,15 @@ impl App {
             pending_confirm: None,
             date_picker: None,
             project_codes: HashMap::new(),
+            resolved_config,
         }
     }
 
     // Test helpers
     #[doc(hidden)]
     pub fn new_for_testing(client: HarvClient) -> Self {
-        Self::new(client, Theme::default())
+        let resolved = ResolvedConfig::resolve(client.config(), None);
+        Self::new(client, Theme::default(), resolved)
     }
 
     #[doc(hidden)]
@@ -236,8 +239,9 @@ impl App {
                 entry_notes,
                 is_running,
             } => {
-                let pid = last_project_id.or(self.client.config().last_project_id);
-                let tid = last_task_id.or(self.client.config().last_task_id);
+                // Use project-config defaults when no specific override is provided.
+                let pid = last_project_id.or(self.resolved_config.default_project_id);
+                let tid = last_task_id.or(self.resolved_config.default_task_id);
                 let form = TimeEntryForm::new(
                     pid,
                     tid,

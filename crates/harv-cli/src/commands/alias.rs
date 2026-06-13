@@ -51,8 +51,13 @@ pub async fn list_execute(
     client: &HarvClient,
     format: &OutputFormat,
 ) -> color_eyre::eyre::Result<()> {
-    let config = client.config();
-    if config.aliases.is_empty() {
+    let config = client.config().clone();
+
+    // Discover project-level config for merged aliases.
+    let project_config = harv_sdk::ProjectConfig::discover().await?;
+    let resolved = harv_sdk::ResolvedConfig::resolve(&config, project_config.as_ref());
+
+    if resolved.aliases.is_empty() {
         println!("No aliases defined.\nUse `harv alias create` to create one.");
         return Ok(());
     }
@@ -68,11 +73,24 @@ pub async fn list_execute(
         }
     }
 
-    let headers = ["Alias", "Project", "Task"];
-    let rows: Vec<[String; 3]> = config
+    // Build a set of project-config alias names for source indication.
+    let project_alias_names: std::collections::HashSet<&String> = project_config
+        .as_ref()
+        .map(|pc| pc.aliases.keys())
+        .into_iter()
+        .flatten()
+        .collect();
+
+    let headers = ["Alias", "Project", "Task", "Source"];
+    let rows: Vec<[String; 4]> = resolved
         .aliases
         .iter()
         .map(|(n, a)| {
+            let source = if project_alias_names.contains(n) {
+                "project"
+            } else {
+                "global"
+            };
             [
                 n.clone(),
                 project_names
@@ -83,6 +101,7 @@ pub async fn list_execute(
                     .get(&a.task_id)
                     .cloned()
                     .unwrap_or_else(|| "—".into()),
+                source.to_string(),
             ]
         })
         .collect();
