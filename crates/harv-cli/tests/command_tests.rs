@@ -486,7 +486,7 @@ async fn test_track_with_last_used_auto_task() {
     commands::track::execute(
         &c,
         Some(100),
-        None,
+        Some(200),
         Some(2.0),
         Some("test".into()),
         false,

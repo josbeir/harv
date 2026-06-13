@@ -46,21 +46,19 @@ pub async fn execute(
         (project_id, task_id)
     };
 
-    let (p_id, task_assignments, is_last) = if let Some(pid) = resolved_project_id {
+    let (p_id, task_assignments) = if let Some(pid) = resolved_project_id {
         let choice = choices
             .iter()
             .find(|c| c.project_id == pid)
             .ok_or_else(|| {
                 color_eyre::eyre::eyre!("Project ID {} not found in your assignments", pid)
             })?;
-        let is_last = resolved.default_project_id == Some(pid);
-        (choice.project_id, choice.task_assignments.clone(), is_last)
+        (choice.project_id, choice.task_assignments.clone())
     } else {
         let cursor =
             crate::resolution::starting_cursor_for_default(&choices, resolved.default_project_id);
         let choice = prompts::pick_project(&choices, cursor)?;
-        let is_last = resolved.default_project_id == Some(choice.project_id);
-        (choice.project_id, choice.task_assignments.clone(), is_last)
+        (choice.project_id, choice.task_assignments.clone())
     };
 
     let t_id = if let Some(tid) = resolved_task_id {
@@ -71,16 +69,6 @@ pub async fn execute(
             .ok_or_else(|| {
                 color_eyre::eyre::eyre!("Task ID {} not assigned to project {}", tid, p_id)
             })?
-    } else if is_last {
-        let use_last = resolved
-            .default_task_id
-            .is_some_and(|ltid| task_assignments.iter().any(|t| t.task.id == ltid));
-        if use_last {
-            resolved.default_task_id.unwrap()
-        } else {
-            let choice = choices.iter().find(|c| c.project_id == p_id).unwrap();
-            prompts::pick_task(choice)?.task.id
-        }
     } else {
         let choice = choices.iter().find(|c| c.project_id == p_id).unwrap();
         prompts::pick_task(choice)?.task.id
