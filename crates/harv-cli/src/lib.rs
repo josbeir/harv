@@ -1,6 +1,7 @@
 pub mod commands;
 pub(crate) mod output;
 pub(crate) mod prompts;
+pub(crate) mod resolution;
 pub(crate) mod spinner;
 
 use clap::{Parser, Subcommand};
@@ -53,6 +54,8 @@ pub enum Commands {
     /// Manage project/task aliases
     #[command(subcommand)]
     Alias(AliasCommand),
+    /// Initialize a project config file (harv.toml) in the current directory
+    Init(InitArgs),
     /// Generate shell completion script
     Completion(CompletionArgs),
 }
@@ -176,6 +179,29 @@ pub enum AliasCommand {
         /// Alias name to delete
         name: String,
     },
+}
+
+#[derive(clap::Args, Clone, Debug)]
+pub struct InitArgs {
+    /// Default project ID for this project config
+    #[arg(short = 'p', long)]
+    pub project_id: Option<u64>,
+
+    /// Default task ID for this project config
+    #[arg(short = 't', long)]
+    pub task_id: Option<u64>,
+
+    /// Add a note template in name=pattern format (repeatable)
+    #[arg(long = "template", value_name = "NAME=PATTERN")]
+    pub template: Vec<String>,
+
+    /// Add a project alias in name=project_id:task_id format (repeatable)
+    #[arg(long = "alias", value_name = "NAME=PID:TID")]
+    pub alias: Vec<String>,
+
+    /// Overwrite existing harv.toml without confirmation
+    #[arg(short = 'f', long)]
+    pub force: bool,
 }
 
 #[derive(clap::Args, Clone, Debug)]

@@ -187,6 +187,17 @@ pub fn ask_notes(use_editor: bool) -> color_eyre::eyre::Result<Option<String>> {
     Ok(notes)
 }
 
+/// Prompt for notes with a default value pre-filled (from a template).
+/// Returns None if the user clears the input. Returns the default if
+/// the user accepts without changes.
+pub fn ask_notes_with_default(default: &str) -> color_eyre::eyre::Result<Option<String>> {
+    let notes = Text::new("Notes (template expanded, edit or press enter to accept):")
+        .with_default(default)
+        .prompt_skippable()?
+        .filter(|s| !s.trim().is_empty());
+    Ok(notes)
+}
+
 /// Interactive prompt to select a project, pre-selecting a default.
 /// Returns (project_id, task_assignments).
 pub fn pick_project_with_default(

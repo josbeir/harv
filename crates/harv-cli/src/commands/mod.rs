@@ -3,6 +3,7 @@ pub mod config_cmd;
 pub mod connect;
 pub mod disconnect;
 pub mod edit;
+pub mod init;
 pub mod note;
 pub mod projects;
 pub mod start;

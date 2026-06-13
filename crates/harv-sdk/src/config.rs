@@ -26,7 +26,7 @@ fn default_cache_ttl() -> u64 {
 }
 
 /// A named shortcut mapping an alias to a project + task pair.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Alias {
     pub project_id: u64,
     pub task_id: u64,

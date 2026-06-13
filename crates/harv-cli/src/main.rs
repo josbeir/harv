@@ -91,6 +91,7 @@ fn main() -> color_eyre::eyre::Result<()> {
                         AliasCommand::List => commands::alias::list(&cli.output).await?,
                         AliasCommand::Delete { name } => commands::alias::delete(name).await?,
                     },
+                    Commands::Init(args) => commands::init::run(&args).await?,
                     Commands::Completion(args) => {
                         let mut cmd = Cli::command();
                         let name = cmd.get_name().to_string();
