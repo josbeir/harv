@@ -58,7 +58,7 @@ pub async fn run(args: &crate::InitArgs) -> color_eyre::eyre::Result<()> {
         )
     };
 
-    // Step 2: Pick default task (pre-select last used if valid)
+    // Step 2: Pick default task (always prompt — this is a setup wizard)
     let task_id = if let Some(tid) = args.task_id {
         if !task_assignments.iter().any(|t| t.task.id == tid) {
             return Err(color_eyre::eyre::eyre!(
@@ -68,12 +68,6 @@ pub async fn run(args: &crate::InitArgs) -> color_eyre::eyre::Result<()> {
             ));
         }
         tid
-    } else if config
-        .last_task_id
-        .is_some_and(|ltid| task_assignments.iter().any(|t| t.task.id == ltid))
-    {
-        // Auto-use last task if it's valid for the selected project
-        config.last_task_id.unwrap()
     } else {
         println!("\nSelect the default task for this project:");
         let temp_choice = prompts::ProjectChoice {
