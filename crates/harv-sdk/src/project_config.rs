@@ -46,10 +46,7 @@ pub const PROJECT_CONFIG_FILENAME: &str = "harv.toml";
 impl ProjectConfig {
     /// Load a project config from a specific file path.
     pub async fn load_from(path: &Path) -> Result<Self, HarvError> {
-        let contents = fs::read_to_string(path).await.map_err(|e| match e.kind() {
-            std::io::ErrorKind::NotFound => HarvError::ConfigNotFound(path.to_path_buf()),
-            _ => HarvError::Io(e),
-        })?;
+        let contents = fs::read_to_string(path).await.map_err(HarvError::Io)?;
         toml::from_str(&contents).map_err(|e| HarvError::ConfigMalformed(e.to_string()))
     }
 
@@ -349,16 +346,28 @@ pattern = "Daily standup — {date} — Branch: {branch_name}"
 
     // --- Discovery tests ---
 
+    /// Run a test with a temporary CWD. Restores the original CWD
+    /// when the closure returns or panics.
+    async fn with_temp_cwd(dir: &TempDir, f: impl std::future::Future<Output = ()>) {
+        let original = std::env::current_dir().ok();
+        set_cwd(dir);
+        f.await;
+        if let Some(cwd) = original {
+            let _ = std::env::set_current_dir(cwd);
+        }
+    }
+
     #[tokio::test]
     async fn test_discover_finds_in_cwd() {
         let _guard = ENV_MUTEX.lock().await;
         let dir = tempfile::tempdir().unwrap();
         write_harv_toml(&dir, "default_project_id = 7\n").await;
-        set_cwd(&dir);
-
-        let found = ProjectConfig::discover().await.unwrap();
-        assert!(found.is_some());
-        assert_eq!(found.unwrap().default_project_id, Some(7));
+        with_temp_cwd(&dir, async {
+            let found = ProjectConfig::discover().await.unwrap();
+            assert!(found.is_some());
+            assert_eq!(found.unwrap().default_project_id, Some(7));
+        })
+        .await;
     }
 
     #[tokio::test]
@@ -369,8 +378,7 @@ pattern = "Daily standup — {date} — Branch: {branch_name}"
 
         let subdir = dir.path().join("sub");
         std::fs::create_dir(&subdir).unwrap();
-        set_cwd(&tempfile::tempdir().unwrap()); // dummy, we'll use discover_from
-        // Use discover_from to test walking up from subdir
+        // No CWD change needed — we use discover_from with an explicit path.
         let found = ProjectConfig::discover_from(&subdir).await.unwrap();
         assert!(found.is_some());
         assert_eq!(found.unwrap().default_project_id, Some(7));
@@ -380,10 +388,11 @@ pattern = "Daily standup — {date} — Branch: {branch_name}"
     async fn test_discover_returns_none_when_not_found() {
         let _guard = ENV_MUTEX.lock().await;
         let dir = tempfile::tempdir().unwrap();
-        set_cwd(&dir);
-
-        let found = ProjectConfig::discover().await.unwrap();
-        assert!(found.is_none());
+        with_temp_cwd(&dir, async {
+            let found = ProjectConfig::discover().await.unwrap();
+            assert!(found.is_none());
+        })
+        .await;
     }
 
     #[tokio::test]

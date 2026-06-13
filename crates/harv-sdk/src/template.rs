@@ -6,11 +6,14 @@ use harv_core::HarvError;
 use crate::project_config::NoteTemplate;
 
 impl NoteTemplate {
-    /// Expand template variables in the pattern string.
+    /// Expand template variables in the pattern string using a single-pass
+    /// parser.
     ///
-    /// Replaces `{variable_name}` placeholders with values from the
-    /// provided map. Unknown variables are left unchanged so that
-    /// forward-compatible templates don't break.
+    /// Scans the pattern left-to-right for `{variable_name}` placeholders
+    /// and replaces them with values from the provided map. Unknown
+    /// variables are left unchanged so that forward-compatible templates
+    /// don't break. A single pass avoids order-dependent behaviour that
+    /// could arise when a variable value contains another placeholder.
     ///
     /// # Example
     ///
@@ -26,13 +29,38 @@ impl NoteTemplate {
     /// assert_eq!(tpl.expand(&vars), "Worked on Development at 14:30");
     /// ```
     pub fn expand(&self, vars: &HashMap<&str, String>) -> String {
-        let mut result = self.pattern.clone();
+        let mut result = String::with_capacity(self.pattern.len());
+        let mut rest = self.pattern.as_str();
 
-        for (key, value) in vars {
-            let placeholder = format!("{{{}}}", key);
-            result = result.replace(&placeholder, value);
+        while let Some(start) = rest.find('{') {
+            // Append everything before the placeholder.
+            result.push_str(&rest[..start]);
+            rest = &rest[start + 1..];
+
+            if let Some(end) = rest.find('}') {
+                let key = &rest[..end];
+                rest = &rest[end + 1..];
+
+                match vars.get(key) {
+                    Some(value) => result.push_str(value),
+                    None => {
+                        // Unknown variable — keep the placeholder as-is.
+                        result.push('{');
+                        result.push_str(key);
+                        result.push('}');
+                    }
+                }
+            } else {
+                // Unclosed `{` — keep the rest including the opening brace
+                // and stop processing.
+                result.push('{');
+                result.push_str(rest);
+                return result;
+            }
         }
 
+        // Append any remaining text after the last placeholder.
+        result.push_str(rest);
         result
     }
 }
@@ -199,6 +227,35 @@ mod tests {
     // --- TemplateContext tests ---
 
     #[test]
+    fn test_expand_order_independent() {
+        // Single-pass parser: expansion should not depend on HashMap iteration
+        // order. Even if one variable value looks like another placeholder,
+        // the parser only expands top-level {var} patterns.
+        let tpl = NoteTemplate {
+            pattern: "{a} and {b}".into(),
+        };
+        let mut vars = HashMap::new();
+        vars.insert("a", "{b}".to_string());
+        vars.insert("b", "B".to_string());
+
+        // The single-pass parser should not recursively expand.
+        assert_eq!(tpl.expand(&vars), "{b} and B");
+    }
+
+    #[test]
+    fn test_expand_unclosed_brace() {
+        let tpl = NoteTemplate {
+            pattern: "Hello {name".into(),
+        };
+        let mut vars = HashMap::new();
+        vars.insert("name", "World".to_string());
+
+        assert_eq!(tpl.expand(&vars), "Hello {name");
+    }
+
+    // --- TemplateContext tests ---
+
+    #[test]
     fn test_context_includes_date_and_time() {
         let vars = TemplateContext::gather().unwrap();
         assert!(vars.contains_key("date"));
@@ -227,33 +284,76 @@ mod tests {
     fn test_git_branch_in_temp_repo() {
         use std::process::Command;
 
-        // Create a temp directory and init a git repo.
         let dir = tempfile::tempdir().unwrap();
         let repo_path = dir.path();
 
-        // Initialize git repo
-        let output = Command::new("git")
+        // Initialize git repo — skip if git is not available.
+        let init = Command::new("git")
             .args(["init", "-b", "main"])
             .current_dir(repo_path)
             .output();
-        // Skip test if git is not available
-        if output.is_err() || !output.as_ref().unwrap().status.success() {
-            return;
+        match init {
+            Ok(ref o) if o.status.success() => {}
+            _ => return,
         }
 
-        // Run git branch in the repo dir to verify
+        // Configure user so commits work (needed in CI).
         Command::new("git")
-            .args(["branch", "--show-current"])
+            .args(["config", "user.email", "test@test.com"])
+            .current_dir(repo_path)
+            .output()
+            .ok();
+        Command::new("git")
+            .args(["config", "user.name", "Test"])
+            .current_dir(repo_path)
+            .output()
+            .ok();
+
+        // Write a file and commit.
+        std::fs::write(repo_path.join("file.txt"), b"hello").unwrap();
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(repo_path)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-m", "feat: initial commit"])
             .current_dir(repo_path)
             .output()
             .unwrap();
 
-        // branch_name is gathered from CWD, not from a specific dir,
-        // so we can't directly test with a specific repo dir via the
-        // public API. But we can verify run_git works.
-        let branch = TemplateContext::run_git(&["branch", "--show-current"]);
-        // CWD may or may not be in a git repo — just check it doesn't panic.
-        let _ = branch;
+        // Use --git-dir and --work-tree so we don't need CWD manipulation.
+        let branch_out = Command::new("git")
+            .args([
+                format!("--git-dir={}/.git", repo_path.display()),
+                format!("--work-tree={}", repo_path.display()),
+                "branch".to_string(),
+                "--show-current".to_string(),
+            ])
+            .output()
+            .unwrap();
+        let branch = String::from_utf8_lossy(&branch_out.stdout)
+            .trim()
+            .to_string();
+        assert_eq!(branch, "main", "should detect branch in temp repo");
+
+        let commit_out = Command::new("git")
+            .args([
+                format!("--git-dir={}/.git", repo_path.display()),
+                format!("--work-tree={}", repo_path.display()),
+                "log".to_string(),
+                "-1".to_string(),
+                "--format=%s".to_string(),
+            ])
+            .output()
+            .unwrap();
+        let commit = String::from_utf8_lossy(&commit_out.stdout)
+            .trim()
+            .to_string();
+        assert_eq!(
+            commit, "feat: initial commit",
+            "should detect commit message"
+        );
     }
 
     #[test]

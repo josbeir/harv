@@ -59,7 +59,8 @@ impl App {
     // Test helpers
     #[doc(hidden)]
     pub fn new_for_testing(client: HarvClient) -> Self {
-        Self::new(client, Theme::default(), ResolvedConfig::default())
+        let resolved = ResolvedConfig::resolve(client.config(), None);
+        Self::new(client, Theme::default(), resolved)
     }
 
     #[doc(hidden)]

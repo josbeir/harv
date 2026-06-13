@@ -47,10 +47,8 @@ pub async fn run(args: &crate::InitArgs) -> color_eyre::eyre::Result<()> {
             })?;
         (pid, choice.display.clone(), choice.task_assignments.clone())
     } else {
-        let cursor = crate::resolution::starting_cursor_for_default(
-            &choices,
-            config.last_project_id,
-        );
+        let cursor =
+            crate::resolution::starting_cursor_for_default(&choices, config.last_project_id);
         println!("\nSelect the default project for this directory:");
         let choice = prompts::pick_project(&choices, cursor)?;
         (
@@ -89,11 +87,9 @@ pub async fn run(args: &crate::InitArgs) -> color_eyre::eyre::Result<()> {
     // Step 3: Set up templates
     let mut templates = std::collections::HashMap::new();
     if !args.template.is_empty() {
-        // Parse --template flags
         for tpl_str in &args.template {
-            if let Some((name, tpl)) = parse_template_arg(tpl_str) {
-                templates.insert(name, tpl);
-            }
+            let (name, tpl) = parse_template_arg(tpl_str)?;
+            templates.insert(name, tpl);
         }
     } else {
         // Interactive: ask if user wants templates
@@ -138,11 +134,9 @@ pub async fn run(args: &crate::InitArgs) -> color_eyre::eyre::Result<()> {
     // Step 4: Set up aliases
     let mut aliases = std::collections::HashMap::new();
     if !args.alias.is_empty() {
-        // Parse --alias flags
         for alias_str in &args.alias {
-            if let Some((name, alias)) = parse_alias_arg(alias_str) {
-                aliases.insert(name, alias);
-            }
+            let (name, alias) = parse_alias_arg(alias_str)?;
+            aliases.insert(name, alias);
         }
     } else {
         // Interactive: ask if user wants project aliases
@@ -217,15 +211,13 @@ async fn create_non_interactive(
     };
 
     for tpl_str in &args.template {
-        if let Some((name, tpl)) = parse_template_arg(tpl_str) {
-            config.templates.insert(name, tpl);
-        }
+        let (name, tpl) = parse_template_arg(tpl_str)?;
+        config.templates.insert(name, tpl);
     }
 
     for alias_str in &args.alias {
-        if let Some((name, alias)) = parse_alias_arg(alias_str) {
-            config.aliases.insert(name, alias);
-        }
+        let (name, alias) = parse_alias_arg(alias_str)?;
+        config.aliases.insert(name, alias);
     }
 
     config.save_to(target_path).await?;
@@ -237,12 +229,26 @@ async fn create_non_interactive(
 }
 
 /// Parse a `--template name=pattern` argument.
-fn parse_template_arg(input: &str) -> Option<(String, NoteTemplate)> {
-    let (name, pattern) = input.split_once('=')?;
-    if name.is_empty() || pattern.is_empty() {
-        return None;
+fn parse_template_arg(input: &str) -> color_eyre::eyre::Result<(String, NoteTemplate)> {
+    let (name, pattern) = input.split_once('=').ok_or_else(|| {
+        color_eyre::eyre::eyre!(
+            "Invalid template format: '{}'. Expected NAME=PATTERN (e.g. daily=Daily: {{date}})",
+            input
+        )
+    })?;
+    if name.is_empty() {
+        return Err(color_eyre::eyre::eyre!(
+            "Template name cannot be empty in '{}'. Use NAME=PATTERN format.",
+            input
+        ));
     }
-    Some((
+    if pattern.is_empty() {
+        return Err(color_eyre::eyre::eyre!(
+            "Template pattern cannot be empty in '{}'. Use NAME=PATTERN format.",
+            input
+        ));
+    }
+    Ok((
         name.to_string(),
         NoteTemplate {
             pattern: pattern.to_string(),
@@ -251,15 +257,40 @@ fn parse_template_arg(input: &str) -> Option<(String, NoteTemplate)> {
 }
 
 /// Parse a `--alias name=project_id:task_id` argument.
-fn parse_alias_arg(input: &str) -> Option<(String, Alias)> {
-    let (name, ids) = input.split_once('=')?;
-    let (pid_str, tid_str) = ids.split_once(':')?;
-    let project_id: u64 = pid_str.parse().ok()?;
-    let task_id: u64 = tid_str.parse().ok()?;
+fn parse_alias_arg(input: &str) -> color_eyre::eyre::Result<(String, Alias)> {
+    let (name, ids) = input.split_once('=').ok_or_else(|| {
+        color_eyre::eyre::eyre!(
+            "Invalid alias format: '{}'. Expected NAME=PID:TID (e.g. dev=123:456)",
+            input
+        )
+    })?;
     if name.is_empty() {
-        return None;
+        return Err(color_eyre::eyre::eyre!(
+            "Alias name cannot be empty in '{}'. Use NAME=PID:TID format.",
+            input
+        ));
     }
-    Some((
+    let (pid_str, tid_str) = ids
+        .split_once(':')
+        .ok_or_else(|| color_eyre::eyre::eyre!(
+            "Invalid alias format: '{}'. Expected NAME=PID:TID (e.g. dev=123:456), but got '{}' after =",
+            input, ids
+        ))?;
+    let project_id: u64 = pid_str.parse().map_err(|_| {
+        color_eyre::eyre::eyre!(
+            "Invalid project ID '{}' in alias '{}'. Expected a number.",
+            pid_str,
+            input
+        )
+    })?;
+    let task_id: u64 = tid_str.parse().map_err(|_| {
+        color_eyre::eyre::eyre!(
+            "Invalid task ID '{}' in alias '{}'. Expected a number.",
+            tid_str,
+            input
+        )
+    })?;
+    Ok((
         name.to_string(),
         Alias {
             project_id,
@@ -274,33 +305,32 @@ mod tests {
 
     #[test]
     fn test_parse_template_arg_valid() {
-        let result = parse_template_arg("daily=Hello {date}");
-        assert!(result.is_some());
-        let (name, tpl) = result.unwrap();
+        let (name, tpl) = parse_template_arg("daily=Hello {date}").unwrap();
         assert_eq!(name, "daily");
         assert_eq!(tpl.pattern, "Hello {date}");
     }
 
     #[test]
     fn test_parse_template_arg_no_equals() {
-        assert!(parse_template_arg("dailypattern").is_none());
+        let err = parse_template_arg("dailypattern").unwrap_err();
+        assert!(err.to_string().contains("NAME=PATTERN"));
     }
 
     #[test]
     fn test_parse_template_arg_empty_name() {
-        assert!(parse_template_arg("=pattern").is_none());
+        let err = parse_template_arg("=pattern").unwrap_err();
+        assert!(err.to_string().contains("name cannot be empty"));
     }
 
     #[test]
     fn test_parse_template_arg_empty_pattern() {
-        assert!(parse_template_arg("name=").is_none());
+        let err = parse_template_arg("name=").unwrap_err();
+        assert!(err.to_string().contains("pattern cannot be empty"));
     }
 
     #[test]
     fn test_parse_alias_arg_valid() {
-        let result = parse_alias_arg("dev=100:200");
-        assert!(result.is_some());
-        let (name, alias) = result.unwrap();
+        let (name, alias) = parse_alias_arg("dev=100:200").unwrap();
         assert_eq!(name, "dev");
         assert_eq!(alias.project_id, 100);
         assert_eq!(alias.task_id, 200);
@@ -308,21 +338,25 @@ mod tests {
 
     #[test]
     fn test_parse_alias_arg_no_equals() {
-        assert!(parse_alias_arg("dev100:200").is_none());
+        let err = parse_alias_arg("dev100:200").unwrap_err();
+        assert!(err.to_string().contains("NAME=PID:TID"));
     }
 
     #[test]
     fn test_parse_alias_arg_invalid_ids() {
-        assert!(parse_alias_arg("dev=abc:200").is_none());
+        let err = parse_alias_arg("dev=abc:200").unwrap_err();
+        assert!(err.to_string().contains("Invalid project ID"));
     }
 
     #[test]
     fn test_parse_alias_arg_missing_colon() {
-        assert!(parse_alias_arg("dev=100").is_none());
+        let err = parse_alias_arg("dev=100").unwrap_err();
+        assert!(err.to_string().contains("NAME=PID:TID"));
     }
 
     #[test]
     fn test_parse_alias_arg_empty_name() {
-        assert!(parse_alias_arg("=100:200").is_none());
+        let err = parse_alias_arg("=100:200").unwrap_err();
+        assert!(err.to_string().contains("name cannot be empty"));
     }
 }
