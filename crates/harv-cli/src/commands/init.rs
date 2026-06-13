@@ -25,18 +25,19 @@ pub async fn run(args: &crate::InitArgs) -> color_eyre::eyre::Result<()> {
 
     // Interactive wizard
     let client = HarvClient::from_config_file().await?;
+    let config = client.config().clone();
 
     let pb = spinner::new_spinner("Loading project assignments...");
     let (assignments, _) = client.projects().my_assignments(false).await?;
     pb.finish_and_clear();
 
-    let choices = prompts::build_project_choices(&assignments, None);
+    let choices = prompts::build_project_choices(&assignments, config.last_project_id);
     if choices.is_empty() {
         println!("No project assignments found.");
         return Ok(());
     }
 
-    // Step 1: Pick default project
+    // Step 1: Pick default project (pre-select last used if available)
     let (project_id, project_name, task_assignments) = if let Some(pid) = args.project_id {
         let choice = choices
             .iter()
@@ -46,8 +47,12 @@ pub async fn run(args: &crate::InitArgs) -> color_eyre::eyre::Result<()> {
             })?;
         (pid, choice.display.clone(), choice.task_assignments.clone())
     } else {
+        let cursor = crate::resolution::starting_cursor_for_default(
+            &choices,
+            config.last_project_id,
+        );
         println!("\nSelect the default project for this directory:");
-        let choice = prompts::pick_project(&choices, 0)?;
+        let choice = prompts::pick_project(&choices, cursor)?;
         (
             choice.project_id,
             choice.display.clone(),
@@ -55,7 +60,7 @@ pub async fn run(args: &crate::InitArgs) -> color_eyre::eyre::Result<()> {
         )
     };
 
-    // Step 2: Pick default task
+    // Step 2: Pick default task (pre-select last used if valid)
     let task_id = if let Some(tid) = args.task_id {
         if !task_assignments.iter().any(|t| t.task.id == tid) {
             return Err(color_eyre::eyre::eyre!(
@@ -65,9 +70,14 @@ pub async fn run(args: &crate::InitArgs) -> color_eyre::eyre::Result<()> {
             ));
         }
         tid
+    } else if config
+        .last_task_id
+        .is_some_and(|ltid| task_assignments.iter().any(|t| t.task.id == ltid))
+    {
+        // Auto-use last task if it's valid for the selected project
+        config.last_task_id.unwrap()
     } else {
         println!("\nSelect the default task for this project:");
-        // Build a temporary ProjectChoice for task selection
         let temp_choice = prompts::ProjectChoice {
             display: project_name,
             project_id,
