@@ -54,32 +54,41 @@ pub async fn start() -> String {
         .await;
 
     // GET /projects/{id}
-    Mock::given(method("GET"))
-        .and(path("/projects/100"))
-        .respond_with(json_response(mock_data::project_alpha_json()))
-        .mount(&server)
-        .await;
-    Mock::given(method("GET"))
-        .and(path("/projects/101"))
-        .respond_with(json_response(mock_data::project_beta_json()))
-        .mount(&server)
-        .await;
-    Mock::given(method("GET"))
-        .and(path("/projects/102"))
-        .respond_with(json_response(mock_data::project_gamma_json()))
-        .mount(&server)
-        .await;
+    for (id, project_fn) in [
+        (100, mock_data::project_alpha_json as fn() -> _),
+        (101, mock_data::project_beta_json),
+        (102, mock_data::project_gamma_json),
+        (103, mock_data::project_delta_json),
+        (104, mock_data::project_epsilon_json),
+        (105, mock_data::project_zeta_json),
+        (106, mock_data::project_eta_json),
+    ] {
+        Mock::given(method("GET"))
+            .and(path(format!("/projects/{}", id)))
+            .respond_with(json_response(project_fn()))
+            .mount(&server)
+            .await;
+    }
 
     // ── Task assignments (per project) ─────────────────────────
+    let ta = |tasks: &[(u64, u64, &str)]| -> Vec<serde_json::Value> {
+        tasks
+            .iter()
+            .map(|(aid, tid, name)| {
+                serde_json::json!({"id": aid, "task": {"id": tid, "name": name}})
+            })
+            .collect()
+    };
     Mock::given(method("GET"))
         .and(path("/projects/100/task_assignments"))
         .respond_with(json_response(mock_data::paginated(
             "task_assignments",
-            vec![
-                serde_json::json!({"id": 10, "task": {"id": 200, "name": "Development"}}),
-                serde_json::json!({"id": 11, "task": {"id": 201, "name": "Design"}}),
-                serde_json::json!({"id": 12, "task": {"id": 203, "name": "Code Review"}}),
-            ],
+            ta(&[
+                (10, 200, "Stone Cutting"),
+                (11, 201, "Mosaic Design"),
+                (12, 203, "Inscription Review"),
+                (13, 204, "Siege Testing"),
+            ]),
         )))
         .mount(&server)
         .await;
@@ -87,10 +96,11 @@ pub async fn start() -> String {
         .and(path("/projects/101/task_assignments"))
         .respond_with(json_response(mock_data::paginated(
             "task_assignments",
-            vec![
-                serde_json::json!({"id": 20, "task": {"id": 200, "name": "Development"}}),
-                serde_json::json!({"id": 21, "task": {"id": 201, "name": "Design"}}),
-            ],
+            ta(&[
+                (20, 200, "Stone Cutting"),
+                (21, 201, "Mosaic Design"),
+                (22, 204, "Siege Testing"),
+            ]),
         )))
         .mount(&server)
         .await;
@@ -98,10 +108,52 @@ pub async fn start() -> String {
         .and(path("/projects/102/task_assignments"))
         .respond_with(json_response(mock_data::paginated(
             "task_assignments",
-            vec![
-                serde_json::json!({"id": 30, "task": {"id": 200, "name": "Development"}}),
-                serde_json::json!({"id": 31, "task": {"id": 202, "name": "Meetings"}}),
-            ],
+            ta(&[(30, 200, "Stone Cutting"), (31, 202, "Senate Hearings")]),
+        )))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/projects/103/task_assignments"))
+        .respond_with(json_response(mock_data::paginated(
+            "task_assignments",
+            ta(&[
+                (40, 200, "Stone Cutting"),
+                (41, 203, "Inscription Review"),
+                (42, 204, "Siege Testing"),
+                (43, 206, "Scroll Writing"),
+            ]),
+        )))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/projects/104/task_assignments"))
+        .respond_with(json_response(mock_data::paginated(
+            "task_assignments",
+            ta(&[
+                (50, 200, "Stone Cutting"),
+                (51, 205, "Triumphal Parade"),
+                (52, 206, "Scroll Writing"),
+            ]),
+        )))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/projects/105/task_assignments"))
+        .respond_with(json_response(mock_data::paginated(
+            "task_assignments",
+            ta(&[
+                (60, 200, "Stone Cutting"),
+                (61, 201, "Mosaic Design"),
+                (62, 207, "Augury & Omens"),
+            ]),
+        )))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/projects/106/task_assignments"))
+        .respond_with(json_response(mock_data::paginated(
+            "task_assignments",
+            ta(&[(70, 202, "Senate Hearings"), (71, 206, "Scroll Writing")]),
         )))
         .mount(&server)
         .await;
@@ -111,12 +163,7 @@ pub async fn start() -> String {
         .and(path("/tasks"))
         .respond_with(json_response(mock_data::paginated(
             "tasks",
-            vec![
-                serde_json::json!({"id": 200, "name": "Development", "billable_by_default": true, "default_hourly_rate": null, "is_default": false, "is_active": true, "created_at": null, "updated_at": null}),
-                serde_json::json!({"id": 201, "name": "Design", "billable_by_default": true, "default_hourly_rate": null, "is_default": false, "is_active": true, "created_at": null, "updated_at": null}),
-                serde_json::json!({"id": 202, "name": "Meetings", "billable_by_default": true, "default_hourly_rate": null, "is_default": false, "is_active": true, "created_at": null, "updated_at": null}),
-                serde_json::json!({"id": 203, "name": "Code Review", "billable_by_default": true, "default_hourly_rate": null, "is_default": false, "is_active": true, "created_at": null, "updated_at": null}),
-            ],
+            mock_data::all_tasks_json(),
         )))
         .mount(&server)
         .await;
@@ -159,9 +206,9 @@ pub async fn start() -> String {
                     "timer_started_at": null,
                     "started_time": null,
                     "ended_time": null,
-                    "project": {"id": 100, "name": "Website Redesign"},
-                    "task": {"id": 200, "name": "Development"},
-                    "user": {"id": 1, "name": "Test User"},
+                    "project": {"id": 100, "name": "Aqueduct Restoration"},
+                    "task": {"id": 200, "name": "Stone Cutting"},
+                    "user": {"id": 1, "name": "Marcus Aurelius"},
                     "client": mock_data::client_a_json(),
                     "is_billed": false,
                     "billable": true,
@@ -185,9 +232,9 @@ pub async fn start() -> String {
             "notes": "Updated notes",
             "is_running": false,
             "timer_started_at": null,
-            "project": {"id": 100, "name": "Website Redesign"},
-            "task": {"id": 200, "name": "Development"},
-            "user": {"id": 1, "name": "Test User"},
+            "project": {"id": 100, "name": "Aqueduct Restoration"},
+            "task": {"id": 200, "name": "Stone Cutting"},
+            "user": {"id": 1, "name": "Marcus Aurelius"},
             "client": mock_data::client_a_json(),
             "is_billed": false,
             "billable": true,
@@ -213,9 +260,9 @@ pub async fn start() -> String {
             "id": 5001,
             "is_running": false,
             "hours": 2.0,
-            "project": {"id": 100, "name": "Website Redesign"},
-            "task": {"id": 200, "name": "Development"},
-            "user": {"id": 1, "name": "Test User"},
+            "project": {"id": 100, "name": "Aqueduct Restoration"},
+            "task": {"id": 200, "name": "Stone Cutting"},
+            "user": {"id": 1, "name": "Marcus Aurelius"},
             "client": mock_data::client_a_json(),
             "is_billed": false,
             "billable": true,
@@ -237,7 +284,12 @@ pub async fn start() -> String {
         .and(path("/clients"))
         .respond_with(json_response(mock_data::paginated(
             "clients",
-            vec![mock_data::client_a_json(), mock_data::client_b_json()],
+            vec![
+                mock_data::client_a_json(),
+                mock_data::client_b_json(),
+                mock_data::client_c_json(),
+                mock_data::client_d_json(),
+            ],
         )))
         .mount(&server)
         .await;
