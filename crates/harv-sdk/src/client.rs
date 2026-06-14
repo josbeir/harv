@@ -53,7 +53,7 @@ impl HarvClient {
     /// Only available when the `mock-mode` feature is enabled.
     #[cfg(feature = "mock-mode")]
     pub async fn from_config_or_mock() -> Result<Self, HarvError> {
-        if std::env::var("HARV_MOCK").is_ok() {
+        if std::env::var("HARV_MOCK").as_deref() == Ok("1") {
             let mock_url = crate::mock_server::start().await;
             let config = crate::mock_data::test_config();
             return Ok(Self::new(config)?.with_base_url(&mock_url));

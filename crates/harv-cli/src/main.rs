@@ -13,7 +13,7 @@ fn main() -> color_eyre::eyre::Result<()> {
     // Mock mode: write a minimal config so the auth check passes.
     // The actual mock client is created inside `from_config_or_mock()`.
     #[cfg(feature = "mock-mode")]
-    if std::env::var("HARV_MOCK").is_ok() {
+    if std::env::var("HARV_MOCK").as_deref() == Ok("1") {
         harv_cli::ensure_mock_config()?;
     }
 

@@ -13,7 +13,7 @@
 use std::time::Duration;
 
 use crate::mock_data;
-use wiremock::matchers::{method, path};
+use wiremock::matchers::{method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 fn delay() -> Duration {
@@ -39,6 +39,7 @@ fn json_response(body: serde_json::Value) -> ResponseTemplate {
 /// time entries (including a running timer), and CRUD operations.
 pub async fn start() -> String {
     let server = MockServer::start().await;
+    let uri = server.uri();
 
     // ── Users ──────────────────────────────────────────────────
     Mock::given(method("GET"))
@@ -198,9 +199,10 @@ pub async fn start() -> String {
         .mount(&server)
         .await;
 
-    // Running time entries (for the timer check)
+    // Running time entries only (queried with ?is_running=true)
     Mock::given(method("GET"))
         .and(path("/time_entries"))
+        .and(query_param("is_running", "true"))
         .respond_with(json_response(mock_data::paginated(
             "time_entries",
             vec![mock_data::running_timer_json()],
@@ -318,5 +320,10 @@ pub async fn start() -> String {
         eprintln!("🐢 HARV_MOCK delay: {} ms", d.as_millis());
     }
 
-    server.uri()
+    // Leak the server so it stays alive for the duration of the
+    // program. The mock server runs in-process and must not be
+    // dropped while the client is using it.
+    std::mem::forget(server);
+
+    uri
 }
