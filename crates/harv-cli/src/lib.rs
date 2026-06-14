@@ -218,6 +218,19 @@ pub fn setup_tracing() {
         .init();
 }
 
+/// In mock mode: write a minimal config.toml so the auth check
+/// passes. The actual mock client is created via
+/// `HarvClient::from_config_or_mock()` inside each command.
+#[cfg(feature = "mock-mode")]
+pub fn ensure_mock_config() -> color_eyre::eyre::Result<()> {
+    if !harv_sdk::HarvConfig::path().exists() {
+        let cfg = harv_sdk::mock_data::test_config();
+        let rt = tokio::runtime::Runtime::new()?;
+        rt.block_on(async { cfg.save().await })?;
+    }
+    Ok(())
+}
+
 /// Custom clap value parser for hours. Accepts decimal (1.5) or HH:MM (1:30).
 fn parse_hours_arg(s: &str) -> Result<f64, String> {
     harv_core::datetime::parse_hours(s)

@@ -1,7 +1,7 @@
 use harv_cli::commands;
+use harv_sdk::mock_data;
 use harv_sdk::{Alias, HarvClient, HarvConfig};
 use serde_json::json;
-use std::collections::HashMap;
 use tokio::sync::Mutex;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -13,15 +13,7 @@ fn ensure_locale() {
 }
 
 fn test_config() -> HarvConfig {
-    HarvConfig {
-        access_token: "t".into(),
-        account_id: "1".into(),
-        cache_ttl_hours: 24,
-        last_project_id: None,
-        last_task_id: None,
-        locale: None,
-        aliases: HashMap::new(),
-    }
+    mock_data::test_config()
 }
 
 fn client(uri: &str) -> HarvClient {
@@ -29,10 +21,9 @@ fn client(uri: &str) -> HarvClient {
 }
 
 fn client_with_last_used(uri: &str, pid: u64, tid: u64) -> HarvClient {
-    let mut config = test_config();
-    config.last_project_id = Some(pid);
-    config.last_task_id = Some(tid);
-    HarvClient::new(config).unwrap().with_base_url(uri)
+    HarvClient::new(mock_data::config_with_last_used(pid, tid))
+        .unwrap()
+        .with_base_url(uri)
 }
 
 fn json_response(body: serde_json::Value) -> ResponseTemplate {
@@ -41,53 +32,24 @@ fn json_response(body: serde_json::Value) -> ResponseTemplate {
         .insert_header("Content-Type", "application/json")
 }
 
-fn projects_json(projects: Vec<serde_json::Value>) -> serde_json::Value {
-    json!({
-        "projects": projects,
-        "total_pages": 1, "page": 1, "total_entries": projects.len(), "per_page": 100
-    })
-}
-
-fn test_project_value() -> serde_json::Value {
-    json!({
-        "id": 100, "name": "Test Project", "code": "TEST",
-        "client": {"id": 1, "name": "Test Client"},
-        "is_active": true, "notes": null,
-        "starts_on": null, "ends_on": null,
-        "created_at": null, "updated_at": null
-    })
-}
-
-fn project_assignments_json() -> serde_json::Value {
-    json!({
-        "project_assignments": [{
-            "id": 1, "project": {"id": 100, "name": "Test Project"},
-            "client": {"id": 1, "name": "Test Client"},
-            "task_assignments": [
-                {"id": 10, "task": {"id": 200, "name": "Development"}},
-                {"id": 11, "task": {"id": 201, "name": "Design"}}
-            ],
-            "is_active": true
-        }],
-        "total_pages": 1, "page": 1, "total_entries": 1, "per_page": 100
-    })
-}
-
 async fn mock_assignments_and_projects(server: &MockServer) {
     Mock::given(method("GET"))
         .and(path("/users/me/project_assignments"))
-        .respond_with(json_response(project_assignments_json()))
+        .respond_with(json_response(mock_data::project_assignments_minimal_json()))
         .mount(server)
         .await;
     Mock::given(method("GET"))
         .and(path("/projects"))
-        .respond_with(json_response(projects_json(vec![test_project_value()])))
+        .respond_with(json_response(mock_data::paginated(
+            "projects",
+            vec![mock_data::project_minimal_json()],
+        )))
         .mount(server)
         .await;
 }
 
 fn user_json() -> serde_json::Value {
-    json!({"id": 1, "first_name": "Test", "last_name": "User", "email": "test@test.com", "is_active": true, "created_at": null, "updated_at": null, "access_roles": ["member"]})
+    mock_data::user_json()
 }
 
 // --- Projects command ---
@@ -528,7 +490,7 @@ account_id = "1"
         .await;
     Mock::given(method("GET"))
         .and(path("/projects"))
-        .respond_with(json_response(projects_json(vec![])))
+        .respond_with(json_response(mock_data::paginated("projects", vec![])))
         .mount(&server)
         .await;
 
@@ -558,12 +520,15 @@ account_id = "1"
     let c = client(&server.uri());
     Mock::given(method("GET"))
         .and(path("/users/me/project_assignments"))
-        .respond_with(json_response(project_assignments_json()))
+        .respond_with(json_response(mock_data::project_assignments_minimal_json()))
         .mount(&server)
         .await;
     Mock::given(method("GET"))
         .and(path("/projects"))
-        .respond_with(json_response(projects_json(vec![test_project_value()])))
+        .respond_with(json_response(mock_data::paginated(
+            "projects",
+            vec![mock_data::project_minimal_json()],
+        )))
         .mount(&server)
         .await;
 

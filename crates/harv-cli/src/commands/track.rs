@@ -185,7 +185,7 @@ pub async fn run(
     refresh: bool,
     alias: Option<String>,
 ) -> color_eyre::eyre::Result<()> {
-    let client = HarvClient::from_config_file().await?;
+    let client = HarvClient::from_config_or_mock().await?;
     execute(
         &client, project_id, task_id, hours, notes, editor, date, refresh, alias, false,
     )

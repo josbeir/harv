@@ -11,7 +11,12 @@
 
 Harv is a **command-line time-tracking client** for [Harvest](https://www.getharvest.com/). It lets you log hours, start/stop timers, and review your timesheet — all from your terminal, without touching the browser.
 
-![Harv TUI](assets/tui.png)
+![Loading](assets/loading.png)
+
+| | |
+|:---:|:---:|
+| ![Dashboard](assets/entries.png) | ![New entry](assets/new.png) |
+| *Dashboard & timer* | *Time entry dialog* |
 
 ### Features
 
@@ -296,6 +301,23 @@ harv-sdk  (Harvest API v2 client, auth, cache, pagination, config)
 harv-cli  (CLI binary + TUI launcher)
 harv-tui  (terminal UI library)
 ```
+
+### Mock Mode
+
+Run the full TUI and CLI against a local mock server with realistic data — no Harvest account needed.
+
+```bash
+# Enable mock mode (requires the mock-mode feature)
+HARV_MOCK=1 cargo run --features mock-mode
+
+# CLI wizard with mock data
+HARV_MOCK=1 cargo run --features mock-mode -- track
+
+# Simulate network latency (default: 0ms)
+HARV_MOCK_DELAY_MS=200 HARV_MOCK=1 cargo run --features mock-mode
+```
+
+The mock server provides 7 projects, 4 clients, 8 tasks, and sample time entries so you can explore every feature without hitting the real API.
 
 ---
 

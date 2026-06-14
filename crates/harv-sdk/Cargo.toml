@@ -20,6 +20,10 @@ tracing = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 open = "5"
 hostname = "0.4"
+wiremock = { version = "0.6", optional = true }
+
+[features]
+mock-mode = ["dep:wiremock"]
 
 [dev-dependencies]
 wiremock = "0.6"

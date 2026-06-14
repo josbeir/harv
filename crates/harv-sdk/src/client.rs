@@ -48,6 +48,25 @@ impl HarvClient {
         Self::new(config)
     }
 
+    /// Like `from_config_file`, but in mock mode (`HARV_MOCK=1`) uses
+    /// a local wiremock server with fake data instead of the real API.
+    /// Only available when the `mock-mode` feature is enabled.
+    #[cfg(feature = "mock-mode")]
+    pub async fn from_config_or_mock() -> Result<Self, HarvError> {
+        if std::env::var("HARV_MOCK").as_deref() == Ok("1") {
+            let mock_url = crate::mock_server::start().await;
+            let config = crate::mock_data::test_config();
+            return Ok(Self::new(config)?.with_base_url(&mock_url));
+        }
+        Self::from_config_file().await
+    }
+
+    /// Fallback when `mock-mode` is not enabled: just calls `from_config_file`.
+    #[cfg(not(feature = "mock-mode"))]
+    pub async fn from_config_or_mock() -> Result<Self, HarvError> {
+        Self::from_config_file().await
+    }
+
     /// Returns a reference to the underlying config.
     pub fn config(&self) -> &HarvConfig {
         &self.config
