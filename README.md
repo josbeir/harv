@@ -11,10 +11,12 @@
 
 Harv is a **command-line time-tracking client** for [Harvest](https://www.getharvest.com/). It lets you log hours, start/stop timers, and review your timesheet — all from your terminal, without touching the browser.
 
-| | | |
-|:---:|:---:|:---:|
-| ![Dashboard](assets/entries.png) | ![New entry](assets/new.png) | ![Loading](assets/loading.png) |
-| *Dashboard & timer* | *Time entry dialog* | *Startup* |
+![Loading](assets/loading.png)
+
+| | |
+|:---:|:---:|
+| ![Dashboard](assets/entries.png) | ![New entry](assets/new.png) |
+| *Dashboard & timer* | *Time entry dialog* |
 
 ### Features
 
