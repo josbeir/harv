@@ -3,13 +3,31 @@
 //! Only compiled when the `mock-mode` feature is enabled.
 //! Uses `wiremock` to serve realistic but hardcoded responses for all
 //! API endpoints needed by the CLI and TUI.
+//!
+//! ## Configuration
+//!
+//! | Env var | Default | Description |
+//! |---------|---------|-------------|
+//! | `HARV_MOCK_DELAY_MS` | `0` | Simulated API latency in milliseconds |
+
+use std::time::Duration;
 
 use crate::mock_data;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
+fn delay() -> Duration {
+    Duration::from_millis(
+        std::env::var("HARV_MOCK_DELAY_MS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0),
+    )
+}
+
 fn json_response(body: serde_json::Value) -> ResponseTemplate {
     ResponseTemplate::new(200)
+        .set_delay(delay())
         .set_body_json(body)
         .insert_header("Content-Type", "application/json")
 }
@@ -197,6 +215,7 @@ pub async fn start() -> String {
         .respond_with(move |_req: &wiremock::Request| {
             let id = next_id.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             ResponseTemplate::new(200)
+                .set_delay(delay())
                 .set_body_json(serde_json::json!({
                     "id": id,
                     "spent_date": "2026-06-14",
@@ -293,6 +312,11 @@ pub async fn start() -> String {
         )))
         .mount(&server)
         .await;
+
+    let d = delay();
+    if d.as_millis() > 0 {
+        eprintln!("🐢 HARV_MOCK delay: {} ms", d.as_millis());
+    }
 
     server.uri()
 }
