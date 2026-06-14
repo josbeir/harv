@@ -12,7 +12,7 @@ use harv_sdk::{HarvClient, ProjectConfig, ResolvedConfig};
 pub async fn run() -> eyre::Result<()> {
     harv_core::init_locale(None);
 
-    let client = HarvClient::from_config_file()
+    let client = HarvClient::from_config_or_mock()
         .await
         .map_err(|e| eyre::eyre!("{}", e.user_message()))?;
 

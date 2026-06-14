@@ -1,20 +1,11 @@
 use harv_sdk::HarvClient;
-use harv_sdk::HarvConfig;
+use harv_sdk::mock_data;
 use serde_json::json;
-use std::collections::HashMap;
 use wiremock::matchers::{method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-fn test_config() -> HarvConfig {
-    HarvConfig {
-        access_token: "test-token".into(),
-        account_id: "1234567".into(),
-        cache_ttl_hours: 24,
-        last_project_id: None,
-        last_task_id: None,
-        locale: None,
-        aliases: HashMap::new(),
-    }
+fn test_config() -> harv_sdk::HarvConfig {
+    mock_data::test_config()
 }
 
 fn json_response(body: serde_json::Value) -> ResponseTemplate {
