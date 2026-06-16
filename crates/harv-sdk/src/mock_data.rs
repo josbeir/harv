@@ -416,3 +416,175 @@ pub fn project_minimal_json() -> serde_json::Value {
         "created_at": null, "updated_at": null
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_test_config() {
+        let cfg = test_config();
+        assert_eq!(cfg.access_token, "t");
+        assert_eq!(cfg.account_id, "1");
+        assert_eq!(cfg.cache_ttl_hours, 0);
+        assert!(cfg.last_project_id.is_none());
+        assert!(cfg.last_task_id.is_none());
+        assert!(cfg.aliases.is_empty());
+    }
+
+    #[test]
+    fn test_config_with_last_used() {
+        let cfg = config_with_last_used(42, 7);
+        assert_eq!(cfg.last_project_id, Some(42));
+        assert_eq!(cfg.last_task_id, Some(7));
+    }
+
+    #[test]
+    fn test_paginated() {
+        let items = vec![json!({"id": 1}), json!({"id": 2}), json!({"id": 3})];
+        let result = paginated("items", items);
+        assert_eq!(result["page"], json!(1));
+        assert_eq!(result["total_pages"], json!(1));
+        assert_eq!(result["total_entries"], json!(3));
+        assert_eq!(result["per_page"], json!(100));
+        assert_eq!(result["items"].as_array().unwrap().len(), 3);
+    }
+
+    #[test]
+    fn test_user_json() {
+        let user = user_json();
+        assert_eq!(user["id"], json!(1));
+        assert_eq!(user["first_name"], json!("Marcus"));
+        assert_eq!(user["last_name"], json!("Aurelius"));
+        assert_eq!(user["email"], json!("marcus@rome.emp"));
+    }
+
+    #[test]
+    fn test_company_json() {
+        let company = company_json();
+        assert_eq!(company["name"], json!("Senatus Populusque Romanus"));
+        assert_eq!(company["base_uri"], json!("https://spqr.harvestapp.com"));
+    }
+
+    #[test]
+    fn test_client_a_json() {
+        let c = client_a_json();
+        assert_eq!(c["id"], json!(1));
+        assert_eq!(c["name"], json!("Legio X Fretensis"));
+    }
+
+    #[test]
+    fn test_client_b_json() {
+        let c = client_b_json();
+        assert_eq!(c["name"], json!("Collegium Fabrorum"));
+    }
+
+    #[test]
+    fn test_client_c_json() {
+        let c = client_c_json();
+        assert_eq!(c["name"], json!("Templum Iovis"));
+    }
+
+    #[test]
+    fn test_client_d_json() {
+        let c = client_d_json();
+        assert_eq!(c["name"], json!("Via Appia Consortium"));
+    }
+
+    #[test]
+    fn test_project_alpha_json() {
+        let p = project_alpha_json();
+        assert_eq!(p["id"], json!(100));
+        assert_eq!(p["name"], json!("Aqueduct Restoration"));
+        assert_eq!(p["code"], json!("AQV"));
+    }
+
+    #[test]
+    fn test_project_beta_json() {
+        let p = project_beta_json();
+        assert_eq!(p["name"], json!("Colosseum Upgrades"));
+        assert_eq!(p["code"], json!("COL"));
+    }
+
+    #[test]
+    fn test_project_gamma_json() {
+        let p = project_gamma_json();
+        assert_eq!(p["name"], json!("Senate Records"));
+        assert_eq!(p["code"], json!(null));
+    }
+
+    #[test]
+    fn test_project_delta_json() {
+        let p = project_delta_json();
+        assert_eq!(p["name"], json!("Triumphal Arch"));
+    }
+
+    #[test]
+    fn test_project_epsilon_json() {
+        let p = project_epsilon_json();
+        assert_eq!(p["name"], json!("Gladius Forge"));
+    }
+
+    #[test]
+    fn test_project_zeta_json() {
+        let p = project_zeta_json();
+        assert_eq!(p["name"], json!("Campus Martius"));
+    }
+
+    #[test]
+    fn test_project_eta_json() {
+        let p = project_eta_json();
+        assert_eq!(p["name"], json!("Castra Praetoria"));
+    }
+
+    #[test]
+    fn test_all_projects_json() {
+        let projects = all_projects_json();
+        assert_eq!(projects.len(), 7);
+    }
+
+    #[test]
+    fn test_all_tasks_json() {
+        let tasks = all_tasks_json();
+        assert_eq!(tasks.len(), 8);
+        assert_eq!(tasks[0]["name"], json!("Stone Cutting"));
+        assert!(tasks[0]["billable_by_default"] == json!(true));
+    }
+
+    #[test]
+    fn test_project_assignments_json() {
+        let result = project_assignments_json();
+        let pas = result["project_assignments"].as_array().unwrap();
+        assert_eq!(pas.len(), 7);
+    }
+
+    #[test]
+    fn test_running_timer_json() {
+        let t = running_timer_json();
+        assert_eq!(t["id"], json!(5001));
+        assert_eq!(t["is_running"], json!(true));
+        assert!(t["timer_started_at"].is_string());
+    }
+
+    #[test]
+    fn test_today_entries_json() {
+        let entries = today_entries_json();
+        assert_eq!(entries.len(), 8);
+        assert_eq!(entries[0]["id"], json!(5002));
+    }
+
+    #[test]
+    fn test_project_assignments_minimal_json() {
+        let result = project_assignments_minimal_json();
+        let pas = result["project_assignments"].as_array().unwrap();
+        assert_eq!(pas.len(), 1);
+        assert_eq!(pas[0]["project"]["name"], json!("Test Project"));
+    }
+
+    #[test]
+    fn test_project_minimal_json() {
+        let p = project_minimal_json();
+        assert_eq!(p["id"], json!(100));
+        assert_eq!(p["code"], json!("TEST"));
+    }
+}

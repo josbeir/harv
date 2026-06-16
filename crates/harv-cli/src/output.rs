@@ -106,4 +106,13 @@ mod tests {
         assert!(output.contains("\"key\""));
         assert!(output.contains("\"value\""));
     }
+
+    #[test]
+    fn test_render_kv_table() {
+        let entries = [("Setting", "Value"), ("Locale", "en")];
+        let output = render_kv(&entries, &OutputFormat::Table);
+        assert!(output.contains("Setting"));
+        assert!(output.contains("Value"));
+        assert!(output.contains("Locale"));
+    }
 }

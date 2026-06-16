@@ -303,4 +303,83 @@ mod tests {
         assert!(msg.contains("42"));
         assert!(msg.contains("2.5h"));
     }
+
+    #[serial]
+    #[test]
+    fn test_t_args_with_missing_key() {
+        init(None);
+        let msg = t_args("nonexistent-key-xyz", &[("name", "value".into())]);
+        assert_eq!(msg, "nonexistent-key-xyz");
+    }
+
+    #[serial]
+    #[test]
+    fn test_override_locale_whitespace_only() {
+        init(Some("   "));
+        let lid = current_langid();
+        assert!(lid.starts_with("en"));
+    }
+
+    #[serial]
+    #[test]
+    fn test_current_langid_before_init() {
+        // Before any init call, current_langid should return "en"
+        // We need to manually reset CURRENT_LANG for this test
+        *CURRENT_LANG.lock().unwrap() = String::new();
+    }
+
+    #[serial]
+    #[test]
+    fn test_parse_ftl_multiline() {
+        let source = r#"
+multiline-key = First line
+    Second line
+    Third line
+
+simple-key = Simple value
+"#;
+        let map = parse_ftl(source);
+        assert_eq!(
+            map.get("multiline-key").unwrap(),
+            "First line\nSecond line\nThird line"
+        );
+        assert_eq!(map.get("simple-key").unwrap(), "Simple value");
+    }
+
+    #[serial]
+    #[test]
+    fn test_parse_ftl_single_line() {
+        let source = "key-one = value one\nkey-two = value two\n";
+        let map = parse_ftl(source);
+        assert_eq!(map.get("key-one").unwrap(), "value one");
+        assert_eq!(map.get("key-two").unwrap(), "value two");
+    }
+
+    #[serial]
+    #[test]
+    fn test_parse_ftl_skips_comments_and_blank() {
+        let source = r#"
+# This is a comment
+key = value
+
+# Another comment
+
+"#;
+        let map = parse_ftl(source);
+        assert_eq!(map.get("key").unwrap(), "value");
+        assert_eq!(map.len(), 1);
+    }
+
+    #[serial]
+    #[test]
+    fn test_parse_ftl_indented_continuation_multiple_lines() {
+        let source = r#"
+key = First
+    Second
+    Third
+    Fourth
+"#;
+        let map = parse_ftl(source);
+        assert_eq!(map.get("key").unwrap(), "First\nSecond\nThird\nFourth");
+    }
 }

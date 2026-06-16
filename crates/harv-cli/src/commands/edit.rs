@@ -366,3 +366,73 @@ pub async fn run(
     )
     .await
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use harv_core::Reference;
+
+    fn make_entry(id: u64, hours: Option<f64>, running: bool) -> harv_core::TimeEntry {
+        harv_core::TimeEntry {
+            id,
+            spent_date: None,
+            hours,
+            notes: None,
+            is_running: running,
+            timer_started_at: None,
+            started_time: None,
+            ended_time: None,
+            project: Reference {
+                id: 100,
+                name: "Project".into(),
+            },
+            task: Reference {
+                id: 200,
+                name: "Task".into(),
+            },
+            user: Reference {
+                id: 1,
+                name: "User".into(),
+            },
+            client: None,
+            is_billed: false,
+            billable: true,
+            project_code: None,
+            billable_rate: None,
+            cost_rate: None,
+            created_at: None,
+            updated_at: None,
+        }
+    }
+
+    #[test]
+    fn test_format_entry_line_with_hours() {
+        let entry = make_entry(1, Some(1.5), false);
+        let line = format_entry_line(&entry);
+        assert!(line.starts_with("#1"));
+        assert!(line.contains("1.50h"));
+        assert!(line.contains("Project"));
+        assert!(line.contains("Task"));
+    }
+
+    #[test]
+    fn test_format_entry_line_running() {
+        let entry = make_entry(2, None, true);
+        let line = format_entry_line(&entry);
+        assert!(line.contains("Running"));
+    }
+
+    #[test]
+    fn test_format_entry_line_no_hours_not_running() {
+        let entry = make_entry(3, None, false);
+        let line = format_entry_line(&entry);
+        assert!(line.contains("—"));
+    }
+
+    #[test]
+    fn test_pick_entry_id_single_entry() {
+        let entries = vec![make_entry(42, Some(1.0), false)];
+        let id = pick_entry_id(&entries, "Prompt").unwrap();
+        assert_eq!(id, 42);
+    }
+}
