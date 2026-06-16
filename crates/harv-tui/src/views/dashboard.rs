@@ -372,9 +372,8 @@ impl Dashboard {
         let inner = block.inner(padded);
 
         let hours = format!(
-            "{:.2}{} {}",
-            self.daily_total.abs(),
-            harv_core::t("datetime-hours-suffix"),
+            "{} {}",
+            harv_core::text::decimal_hours_to_hhmm(self.daily_total),
             harv_core::t("tui-dash-stats-total"),
         );
         let projects = format!(
@@ -549,8 +548,8 @@ fn format_hours_cell(entry: &TimeEntry) -> String {
         format_timer_elapsed(entry)
     } else {
         entry.hours.map_or_else(
-            || format!("0.00{}", harv_core::t("datetime-hours-suffix")),
-            |h| format!("{:.2}{}", h, harv_core::t("datetime-hours-suffix")),
+            || "0:00".to_string(),
+            harv_core::text::decimal_hours_to_hhmm,
         )
     }
 }

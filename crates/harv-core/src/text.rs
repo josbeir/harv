@@ -19,6 +19,21 @@ pub fn format_hours(hours: f64) -> String {
     format!("{:.2}h", hours)
 }
 
+/// Format decimal hours as `HH:MM`, e.g. 2.5 → `"2:30"`.
+///
+/// Rounds to the nearest minute. Non-negative output for negative input
+/// (sign is handled by the caller if needed).
+pub fn decimal_hours_to_hhmm(hours: f64) -> String {
+    let total_mins = (hours.abs() * 60.0).round() as u64;
+    let h = total_mins / 60;
+    let m = total_mins % 60;
+    if hours < 0.0 {
+        format!("-{}:{:02}", h, m)
+    } else {
+        format!("{}:{:02}", h, m)
+    }
+}
+
 /// Append a new note to existing notes, separated by a blank line.
 pub fn append_notes(existing: &str, new: &str) -> String {
     format!("{}\n\n{}", existing, new)
@@ -170,6 +185,17 @@ mod tests {
     fn test_format_hours() {
         assert_eq!(format_hours(2.5), "2.50h");
         assert_eq!(format_hours(0.0), "0.00h");
+    }
+
+    #[test]
+    fn test_decimal_hours_to_hhmm() {
+        assert_eq!(decimal_hours_to_hhmm(2.5), "2:30");
+        assert_eq!(decimal_hours_to_hhmm(0.0), "0:00");
+        assert_eq!(decimal_hours_to_hhmm(1.75), "1:45");
+        assert_eq!(decimal_hours_to_hhmm(8.0), "8:00");
+        assert_eq!(decimal_hours_to_hhmm(0.0083), "0:00");
+        assert_eq!(decimal_hours_to_hhmm(0.0167), "0:01");
+        assert_eq!(decimal_hours_to_hhmm(-1.5), "-1:30");
     }
 
     #[test]
