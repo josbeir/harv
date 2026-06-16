@@ -323,9 +323,9 @@ mod tests {
     #[serial]
     #[test]
     fn test_current_langid_before_init() {
-        // Before any init call, current_langid should return "en"
-        // We need to manually reset CURRENT_LANG for this test
         *CURRENT_LANG.lock().unwrap() = String::new();
+        assert_eq!(current_langid(), "en");
+        init(None);
     }
 
     #[serial]
