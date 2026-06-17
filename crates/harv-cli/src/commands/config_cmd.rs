@@ -188,3 +188,31 @@ fn redact_token(token: &str) -> String {
         .collect();
     format!("{}...{}", prefix, suffix)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_redact_token_long() {
+        harv_core::init_locale(Some("en"));
+        let result = redact_token("abcdefghijklmnop");
+        assert!(result.starts_with("abcd"));
+        assert!(result.ends_with("mnop"));
+        assert!(result.contains("..."));
+    }
+
+    #[test]
+    fn test_redact_token_short() {
+        harv_core::init_locale(Some("en"));
+        let result = redact_token("short");
+        assert!(!result.contains("..."));
+    }
+
+    #[test]
+    fn test_redact_token_exactly_8() {
+        harv_core::init_locale(Some("en"));
+        let result = redact_token("12345678");
+        assert!(!result.contains("..."));
+    }
+}

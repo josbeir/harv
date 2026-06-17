@@ -835,3 +835,423 @@ async fn watch_theme_changes(tx: tokio::sync::mpsc::UnboundedSender<Action>) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::action::FormMode;
+    use chrono::NaiveDate;
+    use harv_core::TimeEntry;
+    use harv_sdk::mock_data;
+    use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
+    use tokio::sync::mpsc;
+
+    fn make_client() -> HarvClient {
+        HarvClient::new(mock_data::test_config()).unwrap()
+    }
+
+    fn make_app() -> App {
+        App::new_for_testing(make_client())
+    }
+
+    fn make_channel() -> (
+        mpsc::UnboundedSender<Action>,
+        mpsc::UnboundedReceiver<Action>,
+    ) {
+        mpsc::unbounded_channel()
+    }
+
+    #[test]
+    fn test_new_initial_state() {
+        let client = make_client();
+        let resolved = ResolvedConfig::resolve(client.config(), None);
+        let app = App::new(client, Theme::default(), resolved);
+        assert_eq!(app.user_id, 0);
+        assert!(app.user_name.is_none());
+        assert!(app.form.is_none());
+        assert!(app.date_picker.is_none());
+        assert!(app.pending_confirm.is_none());
+        assert_eq!(app.tick, 0);
+    }
+
+    #[test]
+    fn test_new_for_testing_initial_state() {
+        let app = make_app();
+        assert_eq!(app.user_id, 0);
+        assert!(app.user_name.is_none());
+        assert!(!app.has_form());
+    }
+
+    #[test]
+    fn test_user_id_getter_setter() {
+        let mut app = make_app();
+        assert_eq!(app.user_id(), 0);
+        app.set_user_id(42);
+        assert_eq!(app.user_id(), 42);
+    }
+
+    #[test]
+    fn test_dispatch_tick_increments() {
+        let mut app = make_app();
+        let (tx, _rx) = make_channel();
+        assert_eq!(app.tick, 0);
+        app.dispatch(Action::Tick, &tx);
+        assert_eq!(app.tick, 1);
+        app.dispatch(Action::Tick, &tx);
+        assert_eq!(app.tick, 2);
+    }
+
+    #[test]
+    fn test_dispatch_toggle_help() {
+        let mut app = make_app();
+        let (tx, _rx) = make_channel();
+        assert!(!app.help.is_visible());
+        app.dispatch(Action::ToggleHelp, &tx);
+        assert!(app.help.is_visible());
+        app.dispatch(Action::ToggleHelp, &tx);
+        assert!(!app.help.is_visible());
+    }
+
+    #[test]
+    fn test_dispatch_theme_changed() {
+        let mut app = make_app();
+        let (tx, _rx) = make_channel();
+        let dark_bg = app.theme.bg;
+        app.dispatch(Action::ThemeChanged(ThemeMode::Light), &tx);
+        assert_ne!(app.theme.bg, dark_bg);
+        app.dispatch(Action::ThemeChanged(ThemeMode::Dark), &tx);
+        assert_eq!(app.theme.bg, dark_bg);
+    }
+
+    #[test]
+    fn test_dispatch_open_date_picker() {
+        let mut app = make_app();
+        let (tx, _rx) = make_channel();
+        assert!(app.date_picker.is_none());
+        app.dispatch(Action::OpenDatePicker, &tx);
+        assert!(app.date_picker.is_some());
+    }
+
+    #[test]
+    fn test_dispatch_close_date_picker() {
+        let mut app = make_app();
+        let (tx, _rx) = make_channel();
+        app.dispatch(Action::OpenDatePicker, &tx);
+        assert!(app.date_picker.is_some());
+        app.dispatch(Action::CloseDatePicker, &tx);
+        assert!(app.date_picker.is_none());
+    }
+
+    #[test]
+    fn test_dispatch_confirm_delete_sets_pending() {
+        harv_core::init_locale(Some("en"));
+        let mut app = make_app();
+        let (tx, _rx) = make_channel();
+        assert!(app.pending_confirm.is_none());
+        app.dispatch(
+            Action::ConfirmDelete {
+                entry_id: 1,
+                entry_desc: "Test entry".into(),
+            },
+            &tx,
+        );
+        assert!(app.pending_confirm.is_some());
+        let (_msg, actions) = app.pending_confirm.as_ref().unwrap();
+        assert_eq!(actions.len(), 1);
+    }
+
+    #[test]
+    fn test_dispatch_confirm_stop_and_start() {
+        harv_core::init_locale(Some("en"));
+        let mut app = make_app();
+        let (tx, _rx) = make_channel();
+        app.dispatch(
+            Action::ConfirmStopAndStart {
+                entry_id: 7,
+                entry_desc: "Running task".into(),
+            },
+            &tx,
+        );
+        assert!(app.pending_confirm.is_some());
+        let (_msg, actions) = app.pending_confirm.as_ref().unwrap();
+        assert_eq!(actions.len(), 1);
+    }
+
+    #[test]
+    fn test_dispatch_set_loading_message() {
+        let mut app = make_app();
+        let (_tx, _rx) = make_channel();
+        app.dispatch(Action::SetLoadingMessage("syncing".into()), &_tx);
+    }
+
+    #[test]
+    fn test_dispatch_form_assignments_update_no_form() {
+        let mut app = make_app();
+        let (tx, _rx) = make_channel();
+        let assignments = vec![];
+        app.dispatch(Action::FormAssignmentsUpdate(assignments), &tx);
+    }
+
+    #[test]
+    fn test_dispatch_timer_update() {
+        let mut app = make_app();
+        let (tx, _rx) = make_channel();
+        let entry = TimeEntry {
+            id: 1,
+            spent_date: None,
+            hours: None,
+            notes: None,
+            is_running: true,
+            timer_started_at: Some(chrono::Utc::now()),
+            started_time: None,
+            ended_time: None,
+            project: harv_core::Reference {
+                id: 10,
+                name: "Test".into(),
+            },
+            task: harv_core::Reference {
+                id: 20,
+                name: "Dev".into(),
+            },
+            user: harv_core::Reference {
+                id: 1,
+                name: "User".into(),
+            },
+            client: None,
+            is_billed: false,
+            billable: true,
+            project_code: None,
+            billable_rate: None,
+            cost_rate: None,
+            created_at: None,
+            updated_at: None,
+        };
+        app.dispatch(Action::TimerUpdate(vec![entry]), &tx);
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_open_form() {
+        let mut app = make_app();
+        let (tx, _rx) = make_channel();
+        app.dispatch(
+            Action::OpenForm {
+                last_project_id: Some(100),
+                last_task_id: Some(200),
+                project_name: Some("Aqueduct".into()),
+                mode: FormMode::Create,
+                entry_id: None,
+                entry_date: None,
+                entry_hours: None,
+                entry_notes: None,
+                is_running: false,
+            },
+            &tx,
+        );
+        assert!(app.has_form());
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_error() {
+        let mut app = make_app();
+        let (tx, _rx) = make_channel();
+        app.dispatch(Action::Error("test error".into()), &tx);
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_navigate_day_prev() {
+        let mut app = make_app();
+        let (tx, _rx) = make_channel();
+        let before = app.dashboard().selected_date();
+        app.dispatch(Action::NavigateDayPrev, &tx);
+        let after = app.dashboard().selected_date();
+        assert!(after < before);
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_navigate_day_next() {
+        let mut app = make_app();
+        let (tx, _rx) = make_channel();
+        let before = app.dashboard().selected_date();
+        app.dispatch(Action::NavigateDayNext, &tx);
+        let after = app.dashboard().selected_date();
+        assert!(after > before);
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_navigate_day_today() {
+        let mut app = make_app();
+        let (tx, _rx) = make_channel();
+        let today = harv_core::datetime::today();
+        app.dispatch(Action::NavigateDayPrev, &tx);
+        assert_ne!(app.dashboard().selected_date(), today);
+        app.dispatch(Action::NavigateDayToday, &tx);
+        assert_eq!(app.dashboard().selected_date(), today);
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_refresh() {
+        let mut app = make_app();
+        let (tx, _rx) = make_channel();
+        app.dispatch(Action::Refresh, &tx);
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_refresh_entries() {
+        let mut app = make_app();
+        let (tx, _rx) = make_channel();
+        app.dispatch(Action::RefreshEntries, &tx);
+    }
+
+    #[test]
+    fn test_dispatch_select_date_without_form() {
+        let mut app = make_app();
+        let (tx, _rx) = make_channel();
+        let target = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
+        app.dispatch(Action::SelectDate(target), &tx);
+        assert_eq!(app.dashboard().selected_date(), target);
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_select_date_and_close_picker() {
+        let mut app = make_app();
+        let (tx, _rx) = make_channel();
+        app.dispatch(Action::OpenDatePicker, &tx);
+        assert!(app.date_picker.is_some());
+        let target = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
+        app.dispatch(Action::SelectDate(target), &tx);
+        assert!(app.date_picker.is_none());
+    }
+
+    #[test]
+    fn test_handle_event_quit_key() {
+        let mut app = make_app();
+        let event =
+            ratatui::crossterm::event::Event::Key(ratatui::crossterm::event::KeyEvent::new(
+                ratatui::crossterm::event::KeyCode::Char('q'),
+                ratatui::crossterm::event::KeyModifiers::NONE,
+            ));
+        let actions = app.handle_event(event);
+        assert_eq!(actions.len(), 1);
+        assert!(matches!(actions[0], Action::Quit));
+    }
+
+    #[test]
+    fn test_handle_event_help_key() {
+        let mut app = make_app();
+        let event =
+            ratatui::crossterm::event::Event::Key(ratatui::crossterm::event::KeyEvent::new(
+                ratatui::crossterm::event::KeyCode::Char('?'),
+                ratatui::crossterm::event::KeyModifiers::NONE,
+            ));
+        let actions = app.handle_event(event);
+        assert_eq!(actions.len(), 1);
+        assert!(matches!(actions[0], Action::ToggleHelp));
+    }
+
+    #[test]
+    fn test_handle_event_ctrl_c() {
+        let mut app = make_app();
+        let event =
+            ratatui::crossterm::event::Event::Key(ratatui::crossterm::event::KeyEvent::new(
+                ratatui::crossterm::event::KeyCode::Char('c'),
+                ratatui::crossterm::event::KeyModifiers::CONTROL,
+            ));
+        let actions = app.handle_event(event);
+        assert_eq!(actions.len(), 1);
+        assert!(matches!(actions[0], Action::Quit));
+    }
+
+    #[test]
+    fn test_handle_event_non_key_ignored() {
+        let mut app = make_app();
+        let event = ratatui::crossterm::event::Event::Resize(80, 24);
+        let actions = app.handle_event(event);
+        assert!(actions.is_empty());
+    }
+
+    #[test]
+    fn test_handle_event_pending_confirm_accept() {
+        let mut app = make_app();
+        let (tx, _rx) = make_channel();
+        app.dispatch(
+            Action::ConfirmDelete {
+                entry_id: 1,
+                entry_desc: "test".into(),
+            },
+            &tx,
+        );
+        let event =
+            ratatui::crossterm::event::Event::Key(ratatui::crossterm::event::KeyEvent::new(
+                ratatui::crossterm::event::KeyCode::Char('y'),
+                ratatui::crossterm::event::KeyModifiers::NONE,
+            ));
+        let actions = app.handle_event(event);
+        assert_eq!(actions.len(), 1);
+        assert!(matches!(actions[0], Action::DeleteEntry { entry_id: 1 }));
+        assert!(app.pending_confirm.is_none());
+    }
+
+    #[test]
+    fn test_handle_event_pending_confirm_reject() {
+        let mut app = make_app();
+        let (tx, _rx) = make_channel();
+        app.dispatch(
+            Action::ConfirmDelete {
+                entry_id: 1,
+                entry_desc: "test".into(),
+            },
+            &tx,
+        );
+        let event =
+            ratatui::crossterm::event::Event::Key(ratatui::crossterm::event::KeyEvent::new(
+                ratatui::crossterm::event::KeyCode::Char('n'),
+                ratatui::crossterm::event::KeyModifiers::NONE,
+            ));
+        let actions = app.handle_event(event);
+        assert!(actions.is_empty());
+        assert!(app.pending_confirm.is_none());
+    }
+
+    #[test]
+    fn test_handle_event_with_date_picker_delegates() {
+        let mut app = make_app();
+        let (tx, _rx) = make_channel();
+        app.dispatch(Action::OpenDatePicker, &tx);
+        assert!(app.date_picker.is_some());
+        let event =
+            ratatui::crossterm::event::Event::Key(ratatui::crossterm::event::KeyEvent::new(
+                ratatui::crossterm::event::KeyCode::Enter,
+                ratatui::crossterm::event::KeyModifiers::NONE,
+            ));
+        let actions = app.handle_event(event);
+        assert!(!actions.is_empty());
+        assert!(matches!(actions[0], Action::SelectDate(_)));
+    }
+
+    #[test]
+    fn test_handle_event_with_help_open() {
+        let mut app = make_app();
+        app.help.toggle();
+        assert!(app.help.is_visible());
+        let event =
+            ratatui::crossterm::event::Event::Key(ratatui::crossterm::event::KeyEvent::new(
+                ratatui::crossterm::event::KeyCode::Char('?'),
+                ratatui::crossterm::event::KeyModifiers::NONE,
+            ));
+        let _actions = app.handle_event(event);
+        assert!(!app.help.is_visible());
+    }
+
+    #[test]
+    fn test_render_confirm_dialog() {
+        harv_core::init_locale(Some("en"));
+        let backend = TestBackend::new(80, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        terminal
+            .draw(|f| {
+                render_confirm_dialog(f.area(), f, "Delete entry \"Test item\"?", &Theme::dark());
+            })
+            .unwrap();
+    }
+}

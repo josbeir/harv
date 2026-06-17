@@ -287,6 +287,44 @@ mod tests {
     }
 
     #[test]
+    fn test_format_date_header_invalid_locale_fallback() {
+        let d = NaiveDate::from_ymd_opt(2026, 6, 11).unwrap();
+        let s = format_date_header(d, "");
+        assert!(s.contains("2026"));
+        assert!(s.contains("Jun") || s.contains("11"));
+    }
+
+    #[test]
+    fn test_format_date_short_invalid_locale_fallback() {
+        let d = NaiveDate::from_ymd_opt(2026, 6, 11).unwrap();
+        let s = format_date_short(d, "");
+        assert!(s.contains("2026"));
+        assert!(s.contains("Jun") || s.contains("11"));
+    }
+
+    #[test]
+    fn test_format_date_month_year_invalid_locale_fallback() {
+        let d = NaiveDate::from_ymd_opt(2026, 6, 1).unwrap();
+        let s = format_date_month_year(d, "");
+        assert!(s.contains("2026"));
+    }
+
+    #[test]
+    fn test_parse_hours_negative_decimal() {
+        assert!(parse_hours("-1.5").is_err());
+    }
+
+    #[test]
+    fn test_parse_hours_invalid_hh_mm_hours() {
+        assert!(parse_hours("abc:30").is_err());
+    }
+
+    #[test]
+    fn test_parse_hours_invalid_hh_mm_minutes() {
+        assert!(parse_hours("1:abc").is_err());
+    }
+
+    #[test]
     fn test_icu4x_formatters_output_localized() {
         use icu::datetime::DateTimeFormatter;
         use icu::datetime::fieldsets;

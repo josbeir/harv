@@ -1246,8 +1246,199 @@ async fn test_edit_confirmation_falls_back_to_submitted_hours() {
     .unwrap();
 }
 
+// --- Config locale get/set ---
+
 #[tokio::test]
-async fn test_edit_entry_not_found() {
+async fn test_config_get_locale() {
+    ensure_locale();
+    let _guard = ENV_MUTEX.lock().await;
+    let tmp = tempfile::tempdir().unwrap();
+    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
+    unsafe { std::env::set_var("HOME", tmp.path()) };
+    let harv_dir = tmp.path().join(".config").join("harv");
+    std::fs::create_dir_all(&harv_dir).unwrap();
+    std::fs::write(
+        harv_dir.join("config.toml"),
+        r#"access_token = "tok"
+account_id = "1"
+locale = "nl"
+"#,
+    )
+    .unwrap();
+    commands::config_cmd::execute(&harv_cli::ConfigArgs {
+        action: Some(harv_cli::ConfigAction::Get {
+            setting: "locale".into(),
+        }),
+    })
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn test_config_get_account_id() {
+    ensure_locale();
+    let _guard = ENV_MUTEX.lock().await;
+    let tmp = tempfile::tempdir().unwrap();
+    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
+    unsafe { std::env::set_var("HOME", tmp.path()) };
+    let harv_dir = tmp.path().join(".config").join("harv");
+    std::fs::create_dir_all(&harv_dir).unwrap();
+    std::fs::write(
+        harv_dir.join("config.toml"),
+        r#"access_token = "tok"
+account_id = "1"
+"#,
+    )
+    .unwrap();
+    commands::config_cmd::execute(&harv_cli::ConfigArgs {
+        action: Some(harv_cli::ConfigAction::Get {
+            setting: "account-id".into(),
+        }),
+    })
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn test_config_get_aliases_empty() {
+    ensure_locale();
+    let _guard = ENV_MUTEX.lock().await;
+    let tmp = tempfile::tempdir().unwrap();
+    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
+    unsafe { std::env::set_var("HOME", tmp.path()) };
+    let harv_dir = tmp.path().join(".config").join("harv");
+    std::fs::create_dir_all(&harv_dir).unwrap();
+    std::fs::write(
+        harv_dir.join("config.toml"),
+        r#"access_token = "tok"
+account_id = "1"
+"#,
+    )
+    .unwrap();
+    commands::config_cmd::execute(&harv_cli::ConfigArgs {
+        action: Some(harv_cli::ConfigAction::Get {
+            setting: "aliases".into(),
+        }),
+    })
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn test_config_set_locale_valid() {
+    ensure_locale();
+    let _guard = ENV_MUTEX.lock().await;
+    let tmp = tempfile::tempdir().unwrap();
+    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
+    unsafe { std::env::set_var("HOME", tmp.path()) };
+    let harv_dir = tmp.path().join(".config").join("harv");
+    std::fs::create_dir_all(&harv_dir).unwrap();
+    std::fs::write(
+        harv_dir.join("config.toml"),
+        r#"access_token = "tok"
+account_id = "1"
+"#,
+    )
+    .unwrap();
+    commands::config_cmd::execute(&harv_cli::ConfigArgs {
+        action: Some(harv_cli::ConfigAction::Set {
+            setting: "locale".into(),
+            value: "fr".into(),
+        }),
+    })
+    .await
+    .unwrap();
+
+    let config = HarvConfig::load().await.unwrap();
+    assert_eq!(config.locale.as_deref(), Some("fr"));
+}
+
+#[tokio::test]
+async fn test_config_set_locale_auto() {
+    ensure_locale();
+    let _guard = ENV_MUTEX.lock().await;
+    let tmp = tempfile::tempdir().unwrap();
+    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
+    unsafe { std::env::set_var("HOME", tmp.path()) };
+    let harv_dir = tmp.path().join(".config").join("harv");
+    std::fs::create_dir_all(&harv_dir).unwrap();
+    std::fs::write(
+        harv_dir.join("config.toml"),
+        r#"access_token = "tok"
+account_id = "1"
+locale = "nl"
+"#,
+    )
+    .unwrap();
+    commands::config_cmd::execute(&harv_cli::ConfigArgs {
+        action: Some(harv_cli::ConfigAction::Set {
+            setting: "locale".into(),
+            value: "auto".into(),
+        }),
+    })
+    .await
+    .unwrap();
+
+    let config = HarvConfig::load().await.unwrap();
+    assert!(config.locale.is_none());
+}
+
+#[tokio::test]
+async fn test_config_set_locale_invalid() {
+    ensure_locale();
+    let _guard = ENV_MUTEX.lock().await;
+    let tmp = tempfile::tempdir().unwrap();
+    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
+    unsafe { std::env::set_var("HOME", tmp.path()) };
+    let harv_dir = tmp.path().join(".config").join("harv");
+    std::fs::create_dir_all(&harv_dir).unwrap();
+    std::fs::write(
+        harv_dir.join("config.toml"),
+        r#"access_token = "tok"
+account_id = "1"
+"#,
+    )
+    .unwrap();
+    let result = commands::config_cmd::execute(&harv_cli::ConfigArgs {
+        action: Some(harv_cli::ConfigAction::Set {
+            setting: "locale".into(),
+            value: "jp".into(),
+        }),
+    })
+    .await;
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_config_set_cache_ttl_invalid() {
+    ensure_locale();
+    let _guard = ENV_MUTEX.lock().await;
+    let tmp = tempfile::tempdir().unwrap();
+    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
+    unsafe { std::env::set_var("HOME", tmp.path()) };
+    let harv_dir = tmp.path().join(".config").join("harv");
+    std::fs::create_dir_all(&harv_dir).unwrap();
+    std::fs::write(
+        harv_dir.join("config.toml"),
+        r#"access_token = "tok"
+account_id = "1"
+"#,
+    )
+    .unwrap();
+    let result = commands::config_cmd::execute(&harv_cli::ConfigArgs {
+        action: Some(harv_cli::ConfigAction::Set {
+            setting: "cache-ttl".into(),
+            value: "not-a-number".into(),
+        }),
+    })
+    .await;
+    assert!(result.is_err());
+}
+
+// --- Edit non-interactive with date ---
+
+#[tokio::test]
+async fn test_edit_non_interactive_with_date() {
     ensure_locale();
     let server = MockServer::start().await;
     let c = client(&server.uri());
@@ -1258,23 +1449,63 @@ async fn test_edit_entry_not_found() {
         .mount(&server)
         .await;
     Mock::given(method("GET"))
-        .and(path("/time_entries/999"))
-        .respond_with(ResponseTemplate::new(404).set_body_string("Not Found"))
+        .and(path("/time_entries/1"))
+        .respond_with(json_response(stopped_entry_json(1, 1.0)))
+        .mount(&server)
+        .await;
+    Mock::given(method("PATCH"))
+        .and(path("/time_entries/1"))
+        .respond_with(json_response(stopped_entry_json(1, 1.0)))
         .mount(&server)
         .await;
 
-    let result = commands::edit::execute(
+    commands::edit::execute(
         &c,
-        Some(999),
+        Some(1),
         None,
         None,
         None,
         None,
         false,
+        false,
+        Some("2026-06-08".into()),
+        false,
+    )
+    .await
+    .unwrap();
+}
+
+// --- Track with date ---
+
+#[tokio::test]
+async fn test_track_with_date() {
+    ensure_locale();
+    let server = MockServer::start().await;
+    let c = client(&server.uri());
+
+    mock_assignments_and_projects(&server).await;
+    Mock::given(method("POST")).and(path("/time_entries"))
+        .respond_with(json_response(json!({
+            "id": 99, "spent_date": "2026-06-01", "hours": 2.0, "notes": "notes",
+            "is_running": false, "timer_started_at": null, "started_time": null, "ended_time": null,
+            "project": {"id": 100, "name": "Test Project"}, "task": {"id": 200, "name": "Development"},
+            "user": {"id": 1, "name": "Test User"}, "client": null,
+            "is_billed": false, "billable": true, "billable_rate": null, "cost_rate": null,
+            "created_at": null, "updated_at": null
+        }))).mount(&server).await;
+
+    commands::track::execute(
+        &c,
+        Some(100),
+        Some(200),
+        Some(2.0),
+        Some("notes".into()),
+        false,
+        Some("2026-06-01".into()),
         false,
         None,
         false,
     )
-    .await;
-    assert!(result.is_err());
+    .await
+    .unwrap();
 }
