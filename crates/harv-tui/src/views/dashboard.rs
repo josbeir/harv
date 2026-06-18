@@ -241,7 +241,7 @@ impl Dashboard {
             .padding(Padding::horizontal(1));
 
         let inner = block.inner(padded_area);
-        let content_width = inner.width.saturating_sub(2);
+        let content_width = inner.width;
 
         let border_style = Style::new().fg(theme.border);
         let muted_style = Style::new().fg(theme.muted);
