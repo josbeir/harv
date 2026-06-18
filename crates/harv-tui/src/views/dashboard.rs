@@ -311,9 +311,7 @@ impl Dashboard {
             Span::styled(projects, Style::new().fg(theme.muted)),
         ]);
 
-        let paragraph = Paragraph::new(line)
-            .alignment(Alignment::Center)
-            .style(Style::new().bg(theme.bg));
+        let paragraph = Paragraph::new(line).alignment(Alignment::Center);
 
         f.render_widget(block, area);
         if inner.height > 0 {
