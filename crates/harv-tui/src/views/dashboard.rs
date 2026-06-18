@@ -313,7 +313,7 @@ impl Dashboard {
                 };
 
                 let project_cell = match &entry.client {
-                    Some(client) => {
+                    Some(client) if avail >= 10 => {
                         let client_text = client.name.as_str();
                         let tree_prefix = " | ";
                         let client_w = (avail / 3).min(client_text.chars().count()).max(1);
@@ -323,10 +323,7 @@ impl Dashboard {
                         let proj_trunc = harv_core::text::truncate(&display_name, proj_w.max(1));
                         let client_trunc = harv_core::text::truncate(client_text, client_w);
                         let line = Line::from(vec![
-                            Span::styled(
-                                format!("{}{}", prefix, proj_trunc),
-                                Style::new().fg(theme.fg),
-                            ),
+                            Span::styled(format!("{}{}", prefix, proj_trunc), row_style),
                             Span::styled(
                                 format!("{}{}", tree_prefix, client_trunc),
                                 Style::new().fg(theme.muted),
@@ -334,7 +331,7 @@ impl Dashboard {
                         ]);
                         Cell::from(line)
                     }
-                    None => {
+                    _ => {
                         let project = format!(
                             "{}{}",
                             prefix,

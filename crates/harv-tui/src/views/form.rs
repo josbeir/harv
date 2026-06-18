@@ -465,7 +465,7 @@ impl TimeEntryForm {
                         a.project_code.as_deref(),
                     );
                     let text = match &a.client {
-                        Some(client) => format!("{}  ({})", proj_display, client.name),
+                        Some(client) => format!("{} ({})", proj_display, client.name),
                         None => proj_display,
                     };
                     if active {
