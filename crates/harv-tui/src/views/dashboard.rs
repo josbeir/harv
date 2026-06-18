@@ -373,11 +373,12 @@ fn format_timer_compact(entry: &TimeEntry) -> String {
         let h = secs / 3600;
         let m = (secs % 3600) / 60;
         let s = secs % 60;
-        if h > 0 {
-            format!("{:>4}:{:02}", h, m)
+        let s = if h > 0 {
+            format!("{}:{:02}", h, m)
         } else {
-            format!("{:>4}:{:02}", m, s)
-        }
+            format!("{}:{:02}", m, s)
+        };
+        format!("{:>5}", s)
     } else {
         "--:--".to_string()
     }
