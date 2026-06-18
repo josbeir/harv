@@ -301,8 +301,10 @@ impl Dashboard {
                 };
                 let avail = proj_max.saturating_sub(prefix.chars().count());
 
-                let project = format!("{}{}", prefix, truncate_client_project(entry, avail));
-                let hours = format_hours_cell(entry);
+                let display_name = harv_core::text::format_project_display(
+                    &entry.project.name,
+                    entry.project_code.as_deref(),
+                );
 
                 let row_style = if is_running {
                     Style::new().fg(theme.success)
@@ -310,8 +312,39 @@ impl Dashboard {
                     Style::new().fg(theme.fg)
                 };
 
+                let project_cell = match &entry.client {
+                    Some(client) if avail >= 10 => {
+                        let client_text = client.name.as_str();
+                        let tree_prefix = " | ";
+                        let client_w = (avail / 3).min(client_text.chars().count()).max(1);
+                        let proj_w = avail
+                            .saturating_sub(client_w)
+                            .saturating_sub(tree_prefix.chars().count());
+                        let proj_trunc = harv_core::text::truncate(&display_name, proj_w.max(1));
+                        let client_trunc = harv_core::text::truncate(client_text, client_w);
+                        let line = Line::from(vec![
+                            Span::styled(format!("{}{}", prefix, proj_trunc), row_style),
+                            Span::styled(
+                                format!("{}{}", tree_prefix, client_trunc),
+                                Style::new().fg(theme.muted),
+                            ),
+                        ]);
+                        Cell::from(line)
+                    }
+                    _ => {
+                        let project = format!(
+                            "{}{}",
+                            prefix,
+                            harv_core::text::truncate(&display_name, avail)
+                        );
+                        Cell::from(project)
+                    }
+                };
+
+                let hours = format_hours_cell(entry);
+
                 let mut cells: Vec<Cell> = Vec::new();
-                cells.push(Cell::from(project));
+                cells.push(project_cell);
                 if show_task {
                     cells.push(Cell::from(harv_core::text::truncate(
                         &entry.task.name,
@@ -520,26 +553,6 @@ impl Dashboard {
             KeyCode::Char('g') => vec![Action::OpenDatePicker],
             _ => vec![],
         }
-    }
-}
-
-fn truncate_client_project(entry: &TimeEntry, max_w: usize) -> String {
-    let display_name =
-        harv_core::text::format_project_display(&entry.project.name, entry.project_code.as_deref());
-    if max_w < 4 {
-        return harv_core::text::truncate(&display_name, max_w);
-    }
-    match &entry.client {
-        Some(client) => {
-            let client_w = (max_w / 3).min(client.name.chars().count()).max(1);
-            let proj_w = max_w.saturating_sub(client_w).saturating_sub(3); // " · "
-            format!(
-                "{} · {}",
-                harv_core::text::truncate(&client.name, client_w),
-                harv_core::text::truncate(&display_name, proj_w),
-            )
-        }
-        None => harv_core::text::truncate(&display_name, max_w),
     }
 }
 
