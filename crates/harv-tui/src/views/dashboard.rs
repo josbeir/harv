@@ -4,27 +4,19 @@ use chrono::NaiveDate;
 use harv_core::TimeEntry;
 use ratatui::Frame;
 use ratatui::crossterm::event::KeyCode;
-use ratatui::layout::{Alignment, Constraint, Layout, Rect};
+use ratatui::layout::{Alignment, Constraint, Layout, Rect, Spacing};
 use ratatui::style::{Color, Modifier, Style};
+use ratatui::symbols::merge::MergeStrategy;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{
-    Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
-};
+use ratatui::widgets::{Block, Borders, Paragraph};
 
 const HOURS_COL_WIDTH: usize = 5;
-
-fn entry_block_height(entry: &TimeEntry, is_first: bool) -> usize {
-    let has_notes = entry.notes.as_deref().is_some_and(|n| !n.is_empty());
-    let base = if has_notes { 4 } else { 3 }; // content + bottom border
-    if is_first { base + 1 } else { base } // +1 for top border
-}
 
 pub struct Dashboard {
     entries: Vec<TimeEntry>,
     running_entry: Option<TimeEntry>,
     daily_total: f64,
     selected_index: usize,
-    scroll_offset: usize,
     loaded: bool,
     loading_msg: String,
     selected_date: NaiveDate,
@@ -38,7 +30,6 @@ impl Default for Dashboard {
             running_entry: None,
             daily_total: 0.0,
             selected_index: 0,
-            scroll_offset: 0,
             loaded: false,
             loading_msg: harv_core::t("tui-app-loading-generic"),
             selected_date: harv_core::datetime::today(),
@@ -105,62 +96,40 @@ impl Dashboard {
     pub fn render(&mut self, area: Rect, f: &mut Frame, theme: &Theme, tick: u64) {
         let layout = Layout::vertical([
             Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
             Constraint::Min(0),
             Constraint::Length(3),
         ])
         .split(area);
 
-        self.render_date_nav(layout[1], f, theme);
-
         if !self.loaded {
-            crate::loading::render_harv_loading(layout[3], f, tick, &self.loading_msg, theme);
+            crate::loading::render_harv_loading(layout[1], f, tick, &self.loading_msg, theme);
             return;
         }
 
         if self.entries.is_empty() {
-            render_harv_header(layout[3], f, theme, self.selected_date);
-            self.render_stats_footer(layout[4], f, theme);
+            render_harv_header(layout[1], f, theme, self.selected_date);
+            self.render_stats_footer(layout[2], f, theme);
             return;
         }
 
-        let header_rows = if self.running_entry.is_some() { 2 } else { 0 };
-        let body = Layout::vertical([Constraint::Length(header_rows), Constraint::Min(0)])
-            .split(layout[3]);
+        let timer_rows = if self.running_entry.is_some() {
+            2u16
+        } else {
+            0
+        };
+        let body = Layout::vertical([
+            Constraint::Length(timer_rows),
+            Constraint::Min(0),
+            Constraint::Length(3),
+        ])
+        .spacing(Spacing::Overlap(1))
+        .split(layout[1]);
 
         if self.running_entry.is_some() {
             self.render_timer_header(body[0], f, theme);
         }
         self.render_entry_list(body[1], f, theme);
-        self.render_stats_footer(layout[4], f, theme);
-    }
-
-    fn render_date_nav(&self, area: Rect, f: &mut Frame, theme: &Theme) {
-        let is_today = self.selected_date == harv_core::datetime::today();
-        let date_formatted = harv_core::datetime::format_date_header(
-            self.selected_date,
-            &harv_core::current_langid(),
-        );
-
-        let mut spans = vec![
-            Span::styled(" < ", Style::new().fg(theme.muted)),
-            Span::styled(
-                date_formatted,
-                Style::new().fg(theme.fg).add_modifier(Modifier::BOLD),
-            ),
-        ];
-        if is_today {
-            spans.push(Span::styled(
-                format!(" {} ", harv_core::t("tui-dash-today")),
-                Style::new().fg(theme.muted),
-            ));
-        }
-        spans.push(Span::styled(" > ", Style::new().fg(theme.muted)));
-
-        let line = Line::from(spans);
-        let paragraph = Paragraph::new(line).alignment(Alignment::Center);
-        f.render_widget(paragraph, area);
+        self.render_stats_footer(body[2], f, theme);
     }
 
     fn render_timer_header(&self, area: Rect, f: &mut Frame, theme: &Theme) {
@@ -209,110 +178,42 @@ impl Dashboard {
 
         let block = Block::new()
             .borders(Borders::BOTTOM)
-            .border_style(Style::new().fg(theme.border));
+            .border_style(Style::new().fg(theme.border))
+            .merge_borders(MergeStrategy::Exact);
 
-        let paragraph = Paragraph::new(line)
-            .block(block)
-            .style(Style::new().bg(theme.bg));
-        f.render_widget(paragraph, area);
+        let inner = block.inner(area);
+        let paragraph = Paragraph::new(line).style(Style::new().bg(theme.bg));
+        f.render_widget(block, area);
+        f.render_widget(paragraph, inner);
     }
 
     fn render_entry_list(&mut self, area: Rect, f: &mut Frame, theme: &Theme) {
-        let hmargin = 2u16;
-        let padded_area = Rect {
-            x: area.x + hmargin,
-            y: area.y,
-            width: area.width.saturating_sub(hmargin * 2),
-            height: area.height,
-        };
-
-        // Compute total content lines
-        let total_lines: usize = self
-            .entries
-            .iter()
-            .enumerate()
-            .map(|(i, e)| entry_block_height(e, i == 0))
-            .sum();
-
-        let needs_scrollbar = total_lines > padded_area.height as usize;
-        let layout = if needs_scrollbar {
-            Layout::horizontal([Constraint::Min(0), Constraint::Length(1)])
-        } else {
-            Layout::horizontal([Constraint::Min(0), Constraint::Length(0)])
-        };
-        let cols = layout.split(padded_area);
-        let entries_area = cols[0];
-        let scrollbar_area = cols[1];
-
-        let muted_style = Style::new().fg(theme.muted);
         let border_style = Style::new().fg(theme.border);
+        let muted_style = Style::new().fg(theme.muted);
         let col_pad = " ".repeat(HOURS_COL_WIDTH + 2);
 
-        let viewport_h = entries_area.height as usize;
-        let sel_y: usize = self
-            .entries
-            .iter()
-            .enumerate()
-            .take(self.selected_index)
-            .map(|(i, e)| entry_block_height(e, i == 0))
-            .sum();
-
-        let sel_h: usize = self
-            .entries
-            .get(self.selected_index)
-            .map(|e| entry_block_height(e, self.selected_index == 0))
-            .unwrap_or(0);
-
-        if self.scroll_offset + viewport_h < sel_y + sel_h {
-            self.scroll_offset = sel_y + sel_h - viewport_h;
-        }
-        if sel_y < self.scroll_offset {
-            self.scroll_offset = sel_y;
-        }
-        self.scroll_offset = self
-            .scroll_offset
-            .min(total_lines.saturating_sub(viewport_h));
-
-        // Render visible entries
-        let mut y = entries_area.y as i32 - self.scroll_offset as i32;
-        let mut current_line: usize = 0;
-
+        let mut y: u16 = 0;
         for (i, entry) in self.entries.iter().enumerate() {
             let has_notes = entry.notes.as_deref().is_some_and(|n| !n.is_empty());
-            let block_h = entry_block_height(entry, i == 0) as u16;
-            let entry_end = current_line + block_h as usize;
+            let content_lines: u16 = if has_notes { 3 } else { 2 };
+            let block_h = content_lines + 1; // +1 for bottom border
 
-            if entry_end <= self.scroll_offset {
-                current_line = entry_end;
-                continue;
-            }
-            let visible_start = (current_line as i32).max(self.scroll_offset as i32);
-            let visible_end = (entry_end as i32).min(self.scroll_offset as i32 + viewport_h as i32);
-            if visible_start >= visible_end {
+            if y + block_h > area.height {
                 break;
             }
 
-            let clip_top = (visible_start - current_line as i32) as u16;
-            let clip_bot = (entry_end as i32 - visible_end) as u16;
-            let visible_h = block_h.saturating_sub(clip_top).saturating_sub(clip_bot);
-
             let entry_rect = Rect {
-                x: entries_area.x,
-                y: y.max(entries_area.y as i32) as u16,
-                width: entries_area.width,
-                height: visible_h,
+                x: area.x,
+                y: area.y + y,
+                width: area.width,
+                height: block_h,
             };
-
-            let mut borders = Borders::LEFT | Borders::BOTTOM;
-            if i == 0 {
-                borders |= Borders::TOP;
-            }
 
             let is_selected = i == self.selected_index;
             let bg = if is_selected { theme.surface } else { theme.bg };
 
             let block = Block::new()
-                .borders(borders)
+                .borders(Borders::LEFT | Borders::BOTTOM)
                 .border_style(border_style)
                 .style(Style::new().bg(bg));
             let inner = block.inner(entry_rect);
@@ -365,53 +266,23 @@ impl Dashboard {
                 entry_lines.push(Line::from(line3_spans));
             }
 
-            // Adjust for clipping (partial visibility at top/bottom)
-            let visible_lines: Vec<Line> = entry_lines
-                .into_iter()
-                .skip(clip_top as usize)
-                .take(inner.height as usize)
-                .collect();
-
             f.render_widget(block, entry_rect);
-            if inner.height > 0 && !visible_lines.is_empty() {
-                f.render_widget(
-                    Paragraph::new(visible_lines).style(Style::new().bg(bg)),
-                    inner,
-                );
-            }
+            f.render_widget(
+                Paragraph::new(entry_lines).style(Style::new().bg(bg)),
+                inner,
+            );
 
-            y += block_h as i32;
-            current_line = entry_end;
-        }
-
-        // Render scrollbar
-        if needs_scrollbar {
-            let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
-                .begin_symbol(None)
-                .end_symbol(None)
-                .track_style(Style::new().fg(theme.border))
-                .thumb_style(Style::new().fg(theme.muted));
-            let mut sb_state = ScrollbarState::new(total_lines)
-                .position(self.scroll_offset)
-                .viewport_content_length(viewport_h);
-            f.render_stateful_widget(scrollbar, scrollbar_area, &mut sb_state);
+            y += block_h;
         }
     }
 
     fn render_stats_footer(&self, area: Rect, f: &mut Frame, theme: &Theme) {
-        let hmargin = 2u16;
-        let padded = Rect {
-            x: area.x + hmargin,
-            y: area.y,
-            width: area.width.saturating_sub(hmargin * 2),
-            height: area.height,
-        };
-
         let block = Block::new()
-            .borders(Borders::ALL)
+            .borders(Borders::TOP)
             .border_style(Style::new().fg(theme.border))
-            .style(Style::new().bg(theme.bg));
-        let inner = block.inner(padded);
+            .style(Style::new().bg(theme.bg))
+            .merge_borders(MergeStrategy::Exact);
+        let inner = block.inner(area);
 
         let hours = format!(
             "{} {}",
@@ -437,7 +308,7 @@ impl Dashboard {
             .alignment(Alignment::Center)
             .style(Style::new().bg(theme.bg));
 
-        f.render_widget(block, padded);
+        f.render_widget(block, area);
         if inner.height > 0 {
             f.render_widget(paragraph, inner);
         }

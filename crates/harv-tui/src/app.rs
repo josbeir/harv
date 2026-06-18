@@ -659,7 +659,11 @@ impl App {
     fn render_top_bar(&self, area: Rect, f: &mut Frame) {
         let layout = Layout::horizontal([Constraint::Min(0), Constraint::Length(12)]).split(area);
 
-        let version = env!("CARGO_PKG_VERSION");
+        let date = self.current_view.selected_date();
+        let is_today = date == harv_core::datetime::today();
+        let date_formatted =
+            harv_core::datetime::format_date_header(date, &harv_core::current_langid());
+
         let mut spans = vec![Span::styled(
             format!(" {} ", harv_core::t("tui-app-title")),
             Style::new()
@@ -667,17 +671,19 @@ impl App {
                 .add_modifier(Modifier::BOLD),
         )];
 
-        if let Some(ref name) = self.user_name {
-            spans.push(Span::styled(
-                format!("{} ", name),
-                Style::new().fg(self.theme.fg),
-            ));
-        }
+        spans.push(Span::styled(" │ ", Style::new().fg(self.theme.muted)));
 
         spans.push(Span::styled(
-            format!("v{} ", version),
-            Style::new().fg(self.theme.muted),
+            format!(" {} ", date_formatted),
+            Style::new().fg(self.theme.fg).add_modifier(Modifier::BOLD),
         ));
+
+        if is_today {
+            spans.push(Span::styled(
+                format!("{} ", harv_core::t("tui-dash-today")),
+                Style::new().fg(self.theme.muted),
+            ));
+        }
 
         let left = Line::from(spans);
 

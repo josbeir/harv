@@ -281,7 +281,7 @@ fn test_form_render_edit_running_mode() {
     );
 }
 #[test]
-fn test_date_nav_bar_renders_with_today() {
+fn test_dashboard_entries_render() {
     harv_core::init_locale(Some("en"));
     let mut d = Dashboard::default();
     d.update_entries(vec![entry(1, 10, 20, Some(2.0), false)], 0);
@@ -299,12 +299,12 @@ fn test_date_nav_bar_renders_with_today() {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        buffer_str.contains("(Today)"),
-        "Date nav bar should show (Today) indicator"
+        buffer_str.contains("Project"),
+        "Dashboard should render project name"
     );
 }
 #[test]
-fn test_date_nav_bar_on_past_date_no_today() {
+fn test_dashboard_past_date_renders() {
     harv_core::init_locale(Some("en"));
     let mut d = Dashboard::default();
     d.update_entries(vec![entry(1, 10, 20, Some(2.0), false)], 0);
@@ -324,12 +324,12 @@ fn test_date_nav_bar_on_past_date_no_today() {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        !buffer_str.contains("(Today)"),
-        "Past date nav bar should NOT show (Today)"
+        buffer_str.contains("Project"),
+        "Dashboard should render entries on past dates"
     );
 }
 #[test]
-fn test_table_title_shows_date_when_not_today() {
+fn test_stats_footer_shows_project_count() {
     harv_core::init_locale(Some("en"));
     let mut d = Dashboard::default();
     d.update_entries(vec![entry(1, 10, 20, Some(2.0), false)], 0);
@@ -351,11 +351,6 @@ fn test_table_title_shows_date_when_not_today() {
     assert!(
         buffer_str.contains("0 projects") || buffer_str.contains("projecten"),
         "Stats footer should render with project count"
-    );
-    let expected_date = harv_core::datetime::format_date_short(past, &harv_core::current_langid());
-    assert!(
-        buffer_str.contains(&expected_date),
-        "Table title should show past date '{expected_date}', got buffer:\n{buffer_str}"
     );
 }
 #[test]
