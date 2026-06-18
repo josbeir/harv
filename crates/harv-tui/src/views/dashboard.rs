@@ -110,79 +110,12 @@ impl Dashboard {
             return;
         }
 
-        let timer_rows = if self.running_entry.is_some() {
-            2u16
-        } else {
-            0
-        };
-        let body = Layout::vertical([
-            Constraint::Length(timer_rows),
-            Constraint::Min(0),
-            Constraint::Length(3),
-        ])
-        .spacing(Spacing::Overlap(1))
-        .split(layout[1]);
+        let body = Layout::vertical([Constraint::Min(0), Constraint::Length(3)])
+            .spacing(Spacing::Overlap(1))
+            .split(layout[1]);
 
-        if self.running_entry.is_some() {
-            self.render_timer_header(body[0], f, theme);
-        }
-        self.render_entry_list(body[1], f, theme);
-        self.render_stats_footer(body[2], f, theme);
-    }
-
-    fn render_timer_header(&self, area: Rect, f: &mut Frame, theme: &Theme) {
-        let (indicator, status_text, elapsed) = if let Some(ref entry) = self.running_entry {
-            let elapsed_str = format_timer_elapsed(entry);
-            let status = harv_core::t_args("tui-dash-running-header", &[("elapsed", elapsed_str)]);
-            (harv_core::t("tui-dash-running-prefix"), status, true)
-        } else {
-            ("○".to_string(), harv_core::t("tui-dash-idle-header"), false)
-        };
-
-        let color = if elapsed { theme.success } else { theme.muted };
-
-        let line = if let Some(ref entry) = self.running_entry {
-            Line::from(vec![
-                Span::styled(
-                    format!(" {} ", indicator),
-                    Style::new().fg(color).add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(
-                    format!(" {} ", status_text),
-                    Style::new().fg(color).add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(
-                    format!(
-                        " {} · {} ",
-                        harv_core::text::format_project_display(
-                            &entry.project.name,
-                            entry.project_code.as_deref()
-                        ),
-                        entry.task.name
-                    ),
-                    Style::new().fg(theme.fg),
-                ),
-            ])
-        } else {
-            Line::from(vec![
-                Span::styled(format!(" {} ", indicator), Style::new().fg(color)),
-                Span::styled(format!(" {} ", status_text), Style::new().fg(color)),
-                Span::styled(
-                    format!(" {} ", harv_core::t("tui-dash-no-timer")),
-                    Style::new().fg(theme.muted),
-                ),
-            ])
-        };
-
-        let block = Block::new()
-            .borders(Borders::BOTTOM)
-            .border_style(Style::new().fg(theme.border))
-            .merge_borders(MergeStrategy::Exact);
-
-        let inner = block.inner(area);
-        let paragraph = Paragraph::new(line).style(Style::new().bg(theme.bg));
-        f.render_widget(block, area);
-        f.render_widget(paragraph, inner);
+        self.render_entry_list(body[0], f, theme);
+        self.render_stats_footer(body[1], f, theme);
     }
 
     fn render_entry_list(&mut self, area: Rect, f: &mut Frame, theme: &Theme) {
@@ -228,7 +161,7 @@ impl Dashboard {
 
             let running = entry.is_running;
             let hours_display = if running {
-                format!("{:>4} ", harv_core::t("tui-dash-running-prefix"))
+                format_timer_compact(entry)
             } else {
                 let s = entry.hours.map_or_else(
                     || "0:00".to_string(),
@@ -434,12 +367,19 @@ impl Dashboard {
     }
 }
 
-fn format_timer_elapsed(entry: &TimeEntry) -> String {
+fn format_timer_compact(entry: &TimeEntry) -> String {
     if let Some(started) = entry.timer_started_at {
-        let elapsed = chrono::Utc::now() - started;
-        harv_core::text::format_elapsed_hms(elapsed.num_seconds())
+        let secs = (chrono::Utc::now() - started).num_seconds().max(0);
+        let h = secs / 3600;
+        let m = (secs % 3600) / 60;
+        let s = secs % 60;
+        if h > 0 {
+            format!("{:>4}:{:02}", h, m)
+        } else {
+            format!("{:>4}:{:02}", m, s)
+        }
     } else {
-        String::from("--:--:--")
+        "--:--".to_string()
     }
 }
 
