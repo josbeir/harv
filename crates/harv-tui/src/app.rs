@@ -699,6 +699,12 @@ impl App {
             )
         };
 
+        // Fill entire bar area with background
+        f.render_widget(
+            Paragraph::new("").style(Style::new().bg(self.theme.bg)),
+            area,
+        );
+
         let center = Layout::vertical([
             Constraint::Length(1),
             Constraint::Length(1),
