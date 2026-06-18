@@ -239,7 +239,7 @@ impl Dashboard {
 
         let border_style = Style::new().fg(theme.border);
         let muted_style = Style::new().fg(theme.muted);
-        let sep_prefix = "─".repeat(HOURS_COL_WIDTH);
+        let sep_prefix = format!("{} ", "─".repeat(HOURS_COL_WIDTH));
         let padding = " ".repeat(HOURS_COL_WIDTH);
 
         let mut items: Vec<ListItem> = Vec::new();
@@ -270,7 +270,7 @@ impl Dashboard {
 
             let mut line1_spans = vec![
                 Span::styled(hours_display, hours_style),
-                Span::styled("│ ", border_style),
+                Span::styled(" │ ", border_style),
                 Span::styled(display_name, Style::new().fg(theme.fg)),
             ];
             if let Some(ref client) = entry.client {
@@ -279,7 +279,7 @@ impl Dashboard {
 
             let line2_spans = vec![
                 Span::raw(&padding),
-                Span::styled("│ ", border_style),
+                Span::styled(" │ ", border_style),
                 Span::styled(format!(" └─ {}", entry.task.name), muted_style),
             ];
 
@@ -289,7 +289,7 @@ impl Dashboard {
             if has_notes {
                 let line3_spans = vec![
                     Span::raw(&padding),
-                    Span::styled("│ ", border_style),
+                    Span::styled(" │ ", border_style),
                     Span::styled(
                         format!(" └─ {}", entry.notes.as_deref().unwrap()),
                         muted_style,
@@ -302,7 +302,7 @@ impl Dashboard {
             heights.push(if has_notes { 3 } else { 2 });
 
             if i < self.entries.len() - 1 {
-                let sep_width = content_width.saturating_sub(HOURS_COL_WIDTH as u16 + 1);
+                let sep_width = content_width.saturating_sub(HOURS_COL_WIDTH as u16 + 2);
                 let sep_line = format!("{}┼{}", sep_prefix, "─".repeat(sep_width as usize),);
                 items.push(ListItem::new(Text::from(Line::from(Span::styled(
                     sep_line,
