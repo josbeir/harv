@@ -220,18 +220,7 @@ impl Dashboard {
             height: area.height,
         };
 
-        let cols =
-            Layout::horizontal([Constraint::Min(0), Constraint::Length(1)]).split(padded_area);
-        let entries_area = cols[0];
-        let scrollbar_area = cols[1];
-
-        let muted_style = Style::new().fg(theme.muted);
-        let border_style = Style::new().fg(theme.border);
-        let col_pad = " ".repeat(HOURS_COL_WIDTH + 2);
-
-        let viewport_h = entries_area.height as usize;
-
-        // Compute total content lines for scrollbar
+        // Compute total content lines
         let total_lines: usize = self
             .entries
             .iter()
@@ -241,7 +230,21 @@ impl Dashboard {
             })
             .sum();
 
-        // Ensure selected entry is visible
+        let needs_scrollbar = total_lines > padded_area.height as usize;
+        let layout = if needs_scrollbar {
+            Layout::horizontal([Constraint::Min(0), Constraint::Length(1)])
+        } else {
+            Layout::horizontal([Constraint::Min(0), Constraint::Length(0)])
+        };
+        let cols = layout.split(padded_area);
+        let entries_area = cols[0];
+        let scrollbar_area = cols[1];
+
+        let muted_style = Style::new().fg(theme.muted);
+        let border_style = Style::new().fg(theme.border);
+        let col_pad = " ".repeat(HOURS_COL_WIDTH + 2);
+
+        let viewport_h = entries_area.height as usize;
         let sel_y: usize = self
             .entries
             .iter()
@@ -384,15 +387,17 @@ impl Dashboard {
         }
 
         // Render scrollbar
-        let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
-            .begin_symbol(None)
-            .end_symbol(None)
-            .track_style(Style::new().fg(theme.border))
-            .thumb_style(Style::new().fg(theme.muted));
-        let mut sb_state = ScrollbarState::new(total_lines)
-            .position(self.scroll_offset)
-            .viewport_content_length(viewport_h);
-        f.render_stateful_widget(scrollbar, scrollbar_area, &mut sb_state);
+        if needs_scrollbar {
+            let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+                .begin_symbol(None)
+                .end_symbol(None)
+                .track_style(Style::new().fg(theme.border))
+                .thumb_style(Style::new().fg(theme.muted));
+            let mut sb_state = ScrollbarState::new(total_lines)
+                .position(self.scroll_offset)
+                .viewport_content_length(viewport_h);
+            f.render_stateful_widget(scrollbar, scrollbar_area, &mut sb_state);
+        }
     }
 
     fn render_stats_footer(&self, area: Rect, f: &mut Frame, theme: &Theme) {
