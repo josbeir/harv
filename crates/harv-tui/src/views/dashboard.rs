@@ -56,6 +56,8 @@ impl Dashboard {
             .filter(|e| !e.is_running)
             .filter_map(|e| e.hours)
             .sum();
+        let mut entries = entries;
+        entries.sort_by_key(|e| std::cmp::Reverse(e.created_at));
         self.entries = entries;
         self.project_count = project_count;
         self.selected_index = 0;
