@@ -631,7 +631,7 @@ impl App {
         let area = f.area();
 
         let layout = Layout::vertical([
-            Constraint::Length(1),
+            Constraint::Length(3),
             Constraint::Min(0),
             Constraint::Length(2),
         ])
@@ -659,8 +659,6 @@ impl App {
     }
 
     fn render_top_bar(&self, area: Rect, f: &mut Frame) {
-        let layout = Layout::horizontal([Constraint::Min(0), Constraint::Length(12)]).split(area);
-
         let date = self.current_view.selected_date();
         let is_today = date == harv_core::datetime::today();
         let date_formatted =
@@ -701,14 +699,25 @@ impl App {
             )
         };
 
+        let center = Layout::vertical([
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
+        ])
+        .split(area);
+        let content_row = center[1];
+
+        let inner =
+            Layout::horizontal([Constraint::Min(0), Constraint::Length(12)]).split(content_row);
+
         f.render_widget(
             Paragraph::new(left).style(Style::new().bg(self.theme.bg)),
-            layout[0],
+            inner[0],
         );
 
         f.render_widget(
             Paragraph::new(Line::from(status)).style(Style::new().bg(self.theme.bg)),
-            layout[1],
+            inner[1],
         );
     }
 
