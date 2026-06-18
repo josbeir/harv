@@ -192,31 +192,41 @@ impl Dashboard {
         let muted_style = Style::new().fg(theme.muted);
         let col_pad = " ".repeat(HOURS_COL_WIDTH + 2);
 
-        let mut y: u16 = 0;
-        for (i, entry) in self.entries.iter().enumerate() {
+        let constraints: Vec<Constraint> = self
+            .entries
+            .iter()
+            .map(|e| {
+                let has_notes = e.notes.as_deref().is_some_and(|n| !n.is_empty());
+                let lines: u16 = if has_notes { 3 } else { 2 };
+                Constraint::Length(lines + 2) // +2 for TOP + BOTTOM borders
+            })
+            .collect();
+
+        if constraints.is_empty() {
+            return;
+        }
+
+        let entry_areas = Layout::vertical(constraints)
+            .spacing(Spacing::Overlap(1))
+            .split(area);
+
+        for (i, (entry, entry_area)) in self.entries.iter().zip(entry_areas.iter()).enumerate() {
             let has_notes = entry.notes.as_deref().is_some_and(|n| !n.is_empty());
-            let content_lines: u16 = if has_notes { 3 } else { 2 };
-            let block_h = content_lines + 1; // +1 for bottom border
-
-            if y + block_h > area.height {
-                break;
-            }
-
-            let entry_rect = Rect {
-                x: area.x,
-                y: area.y + y,
-                width: area.width,
-                height: block_h,
-            };
-
             let is_selected = i == self.selected_index;
-            let bg = if is_selected { theme.surface } else { theme.bg };
 
-            let block = Block::new()
-                .borders(Borders::LEFT | Borders::BOTTOM)
-                .border_style(border_style)
-                .style(Style::new().bg(bg));
-            let inner = block.inner(entry_rect);
+            let block = if is_selected {
+                Block::new()
+                    .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM)
+                    .border_style(border_style)
+                    .merge_borders(MergeStrategy::Exact)
+                    .style(Style::new().bg(theme.surface))
+            } else {
+                Block::new()
+                    .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM)
+                    .border_style(border_style)
+                    .merge_borders(MergeStrategy::Exact)
+            };
+            let inner = block.inner(*entry_area);
 
             let running = entry.is_running;
             let hours_display = if running {
@@ -266,13 +276,13 @@ impl Dashboard {
                 entry_lines.push(Line::from(line3_spans));
             }
 
-            f.render_widget(block, entry_rect);
-            f.render_widget(
-                Paragraph::new(entry_lines).style(Style::new().bg(bg)),
-                inner,
-            );
-
-            y += block_h;
+            f.render_widget(block, *entry_area);
+            let para_style = if is_selected {
+                Style::new().bg(theme.surface)
+            } else {
+                Style::default()
+            };
+            f.render_widget(Paragraph::new(entry_lines).style(para_style), inner);
         }
     }
 
