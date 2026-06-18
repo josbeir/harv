@@ -228,13 +228,7 @@ impl Dashboard {
             height: area.height,
         };
 
-        let block_title = if self.selected_date == harv_core::datetime::today() {
-            harv_core::t("tui-dash-block-today")
-        } else {
-            harv_core::datetime::format_date_short(self.selected_date, &harv_core::current_langid())
-        };
         let block = Block::new()
-            .title(block_title)
             .borders(Borders::ALL)
             .border_style(Style::new().fg(theme.border))
             .style(Style::new().bg(theme.bg))
