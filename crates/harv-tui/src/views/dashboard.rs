@@ -13,6 +13,12 @@ use ratatui::widgets::{
 
 const HOURS_COL_WIDTH: usize = 5;
 
+fn entry_block_height(entry: &TimeEntry, is_first: bool) -> usize {
+    let has_notes = entry.notes.as_deref().is_some_and(|n| !n.is_empty());
+    let base = if has_notes { 4 } else { 3 }; // content + bottom border
+    if is_first { base + 1 } else { base } // +1 for top border
+}
+
 pub struct Dashboard {
     entries: Vec<TimeEntry>,
     running_entry: Option<TimeEntry>,
@@ -224,10 +230,8 @@ impl Dashboard {
         let total_lines: usize = self
             .entries
             .iter()
-            .map(|e| {
-                let has_notes = e.notes.as_deref().is_some_and(|n| !n.is_empty());
-                if has_notes { 4 } else { 3 }
-            })
+            .enumerate()
+            .map(|(i, e)| entry_block_height(e, i == 0))
             .sum();
 
         let needs_scrollbar = total_lines > padded_area.height as usize;
@@ -248,20 +252,15 @@ impl Dashboard {
         let sel_y: usize = self
             .entries
             .iter()
+            .enumerate()
             .take(self.selected_index)
-            .map(|e| {
-                let has_notes = e.notes.as_deref().is_some_and(|n| !n.is_empty());
-                if has_notes { 4usize } else { 3 }
-            })
+            .map(|(i, e)| entry_block_height(e, i == 0))
             .sum();
 
         let sel_h: usize = self
             .entries
             .get(self.selected_index)
-            .map(|e| {
-                let has_notes = e.notes.as_deref().is_some_and(|n| !n.is_empty());
-                if has_notes { 4 } else { 3 }
-            })
+            .map(|e| entry_block_height(e, self.selected_index == 0))
             .unwrap_or(0);
 
         if self.scroll_offset + viewport_h < sel_y + sel_h {
@@ -280,8 +279,7 @@ impl Dashboard {
 
         for (i, entry) in self.entries.iter().enumerate() {
             let has_notes = entry.notes.as_deref().is_some_and(|n| !n.is_empty());
-            let content_lines: u16 = if has_notes { 3 } else { 2 };
-            let block_h = content_lines + 1; // +1 for bottom border
+            let block_h = entry_block_height(entry, i == 0) as u16;
             let entry_end = current_line + block_h as usize;
 
             if entry_end <= self.scroll_offset {
