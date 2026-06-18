@@ -714,20 +714,14 @@ impl App {
             area,
         );
 
-        // 3-column layout centered vertically
-        let center_row = Layout::vertical([
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-        ])
-        .split(area)[1];
-
+        // Content row centered vertically, 3-column layout horizontally
+        let content_row = area.centered_vertically(Constraint::Length(1));
         let cols = Layout::horizontal([
             Constraint::Fill(1),
             Constraint::Fill(1),
             Constraint::Fill(1),
         ])
-        .split(center_row);
+        .split(content_row);
 
         f.render_widget(
             Paragraph::new(left).style(Style::new().bg(self.theme.bg)),
