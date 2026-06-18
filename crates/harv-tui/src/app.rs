@@ -659,45 +659,54 @@ impl App {
     }
 
     fn render_top_bar(&self, area: Rect, f: &mut Frame) {
+        let version = env!("CARGO_PKG_VERSION");
+
+        // Left: harv name + version
+        let left = Line::from(vec![
+            Span::styled(
+                format!(" {} ", harv_core::t("tui-app-title")),
+                Style::new()
+                    .fg(self.theme.primary)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(format!("v{} ", version), Style::new().fg(self.theme.muted)),
+        ]);
+
+        // Center: date nav with arrows
         let date = self.current_view.selected_date();
         let is_today = date == harv_core::datetime::today();
         let date_formatted =
             harv_core::datetime::format_date_header(date, &harv_core::current_langid());
 
-        let mut spans = vec![Span::styled(
-            format!(" {} ", harv_core::t("tui-app-title")),
-            Style::new()
-                .fg(self.theme.primary)
-                .add_modifier(Modifier::BOLD),
-        )];
-
-        spans.push(Span::styled(" │ ", Style::new().fg(self.theme.muted)));
-
-        spans.push(Span::styled(
-            format!(" {} ", date_formatted),
-            Style::new().fg(self.theme.fg).add_modifier(Modifier::BOLD),
-        ));
-
+        let mut date_spans = vec![
+            Span::styled(" < ", Style::new().fg(self.theme.muted)),
+            Span::styled(
+                date_formatted,
+                Style::new().fg(self.theme.fg).add_modifier(Modifier::BOLD),
+            ),
+        ];
         if is_today {
-            spans.push(Span::styled(
-                format!("{} ", harv_core::t("tui-dash-today")),
+            date_spans.push(Span::styled(
+                format!(" {} ", harv_core::t("tui-dash-today")),
                 Style::new().fg(self.theme.muted),
             ));
         }
+        date_spans.push(Span::styled(" > ", Style::new().fg(self.theme.muted)));
+        let center = Line::from(date_spans);
 
-        let left = Line::from(spans);
-
+        // Right: timer status
         let status = if self.current_view.timer_running() {
             Span::styled(
-                format!(" {}", harv_core::t("tui-app-running")),
+                format!(" {} ", harv_core::t("tui-app-running")),
                 Style::new().fg(self.theme.success),
             )
         } else {
             Span::styled(
-                format!(" {}", harv_core::t("tui-app-idle")),
+                format!(" {} ", harv_core::t("tui-app-idle")),
                 Style::new().fg(self.theme.muted),
             )
         };
+        let right = Line::from(status);
 
         // Fill entire bar area with background
         f.render_widget(
@@ -705,25 +714,34 @@ impl App {
             area,
         );
 
-        let center = Layout::vertical([
+        // 3-column layout centered vertically
+        let center_row = Layout::vertical([
             Constraint::Length(1),
             Constraint::Length(1),
             Constraint::Length(1),
         ])
-        .split(area);
-        let content_row = center[1];
+        .split(area)[1];
 
-        let inner =
-            Layout::horizontal([Constraint::Min(0), Constraint::Length(12)]).split(content_row);
+        let cols = Layout::horizontal([
+            Constraint::Min(0),
+            Constraint::Min(0),
+            Constraint::Length(12),
+        ])
+        .split(center_row);
 
         f.render_widget(
             Paragraph::new(left).style(Style::new().bg(self.theme.bg)),
-            inner[0],
+            cols[0],
         );
-
         f.render_widget(
-            Paragraph::new(Line::from(status)).style(Style::new().bg(self.theme.bg)),
-            inner[1],
+            Paragraph::new(center)
+                .alignment(Alignment::Center)
+                .style(Style::new().bg(self.theme.bg)),
+            cols[1],
+        );
+        f.render_widget(
+            Paragraph::new(right).style(Style::new().bg(self.theme.bg)),
+            cols[2],
         );
     }
 
