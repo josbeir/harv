@@ -6,25 +6,19 @@ use ratatui::Frame;
 use ratatui::crossterm::event::KeyCode;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
-use ratatui::text::Text;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Padding, Paragraph};
+use ratatui::widgets::{
+    Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+};
 
 const HOURS_COL_WIDTH: usize = 5;
-
-fn entry_to_item_index(entry_idx: usize) -> usize {
-    entry_idx * 2
-}
-
-fn item_to_entry_index(item_idx: usize) -> usize {
-    item_idx / 2
-}
 
 pub struct Dashboard {
     entries: Vec<TimeEntry>,
     running_entry: Option<TimeEntry>,
     daily_total: f64,
-    list_state: ListState,
+    selected_index: usize,
+    scroll_offset: usize,
     loaded: bool,
     loading_msg: String,
     selected_date: NaiveDate,
@@ -37,7 +31,8 @@ impl Default for Dashboard {
             entries: Vec::new(),
             running_entry: None,
             daily_total: 0.0,
-            list_state: ListState::default().with_selected(Some(0)),
+            selected_index: 0,
+            scroll_offset: 0,
             loaded: false,
             loading_msg: harv_core::t("tui-app-loading-generic"),
             selected_date: harv_core::datetime::today(),
@@ -66,7 +61,7 @@ impl Dashboard {
             .sum();
         self.entries = entries;
         self.project_count = project_count;
-        self.list_state.select(Some(0));
+        self.selected_index = 0;
     }
 
     pub fn update_running(&mut self, entries: Vec<TimeEntry>) {
@@ -74,10 +69,7 @@ impl Dashboard {
     }
 
     pub fn selected_entry(&self) -> Option<&TimeEntry> {
-        self.list_state.selected().and_then(|i| {
-            let entry_idx = item_to_entry_index(i);
-            self.entries.get(entry_idx)
-        })
+        self.entries.get(self.selected_index)
     }
 
     pub fn selected_date(&self) -> NaiveDate {
@@ -228,24 +220,102 @@ impl Dashboard {
             height: area.height,
         };
 
-        let block = Block::new()
-            .borders(Borders::ALL)
-            .border_style(Style::new().fg(theme.border))
-            .style(Style::new().bg(theme.bg))
-            .padding(Padding::horizontal(1));
+        let cols =
+            Layout::horizontal([Constraint::Min(0), Constraint::Length(1)]).split(padded_area);
+        let entries_area = cols[0];
+        let scrollbar_area = cols[1];
 
-        let inner = block.inner(padded_area);
-        let content_width = inner.width;
-
-        let border_style = Style::new().fg(theme.border);
         let muted_style = Style::new().fg(theme.muted);
-        let sep_prefix = format!("{} ", "─".repeat(HOURS_COL_WIDTH));
-        let padding = " ".repeat(HOURS_COL_WIDTH);
+        let border_style = Style::new().fg(theme.border);
+        let col_pad = " ".repeat(HOURS_COL_WIDTH + 2);
 
-        let mut items: Vec<ListItem> = Vec::new();
-        let mut heights: Vec<u16> = Vec::new();
+        let viewport_h = entries_area.height as usize;
+
+        // Compute total content lines for scrollbar
+        let total_lines: usize = self
+            .entries
+            .iter()
+            .map(|e| {
+                let has_notes = e.notes.as_deref().is_some_and(|n| !n.is_empty());
+                if has_notes { 4 } else { 3 }
+            })
+            .sum();
+
+        // Ensure selected entry is visible
+        let sel_y: usize = self
+            .entries
+            .iter()
+            .take(self.selected_index)
+            .map(|e| {
+                let has_notes = e.notes.as_deref().is_some_and(|n| !n.is_empty());
+                if has_notes { 4usize } else { 3 }
+            })
+            .sum();
+
+        let sel_h: usize = self
+            .entries
+            .get(self.selected_index)
+            .map(|e| {
+                let has_notes = e.notes.as_deref().is_some_and(|n| !n.is_empty());
+                if has_notes { 4 } else { 3 }
+            })
+            .unwrap_or(0);
+
+        if self.scroll_offset + viewport_h < sel_y + sel_h {
+            self.scroll_offset = sel_y + sel_h - viewport_h;
+        }
+        if sel_y < self.scroll_offset {
+            self.scroll_offset = sel_y;
+        }
+        self.scroll_offset = self
+            .scroll_offset
+            .min(total_lines.saturating_sub(viewport_h));
+
+        // Render visible entries
+        let mut y = entries_area.y as i32 - self.scroll_offset as i32;
+        let mut current_line: usize = 0;
 
         for (i, entry) in self.entries.iter().enumerate() {
+            let has_notes = entry.notes.as_deref().is_some_and(|n| !n.is_empty());
+            let content_lines: u16 = if has_notes { 3 } else { 2 };
+            let block_h = content_lines + 1; // +1 for bottom border
+            let entry_end = current_line + block_h as usize;
+
+            if entry_end <= self.scroll_offset {
+                current_line = entry_end;
+                continue;
+            }
+            let visible_start = (current_line as i32).max(self.scroll_offset as i32);
+            let visible_end = (entry_end as i32).min(self.scroll_offset as i32 + viewport_h as i32);
+            if visible_start >= visible_end {
+                break;
+            }
+
+            let clip_top = (visible_start - current_line as i32) as u16;
+            let clip_bot = (entry_end as i32 - visible_end) as u16;
+            let visible_h = block_h.saturating_sub(clip_top).saturating_sub(clip_bot);
+
+            let entry_rect = Rect {
+                x: entries_area.x,
+                y: y.max(entries_area.y as i32) as u16,
+                width: entries_area.width,
+                height: visible_h,
+            };
+
+            let mut borders = Borders::LEFT | Borders::BOTTOM;
+            if i == 0 {
+                borders |= Borders::TOP;
+            }
+
+            let is_selected = i == self.selected_index;
+            let bg = if is_selected { theme.surface } else { theme.bg };
+
+            let block = Block::new()
+                .borders(borders)
+                .border_style(border_style)
+                .style(Style::new().bg(bg));
+            let inner = block.inner(entry_rect);
+
             let running = entry.is_running;
             let hours_display = if running {
                 format!("{:>4} ", harv_core::t("tui-dash-running-prefix"))
@@ -256,7 +326,6 @@ impl Dashboard {
                 );
                 format!("{:>5}", s)
             };
-
             let hours_style = if running {
                 Style::new().fg(theme.success).add_modifier(Modifier::BOLD)
             } else {
@@ -270,7 +339,7 @@ impl Dashboard {
 
             let mut line1_spans = vec![
                 Span::styled(hours_display, hours_style),
-                Span::styled(" │ ", border_style),
+                Span::raw("  "),
                 Span::styled(display_name, Style::new().fg(theme.fg)),
             ];
             if let Some(ref client) = entry.client {
@@ -278,78 +347,52 @@ impl Dashboard {
             }
 
             let line2_spans = vec![
-                Span::raw(&padding),
-                Span::styled(" │ ", border_style),
-                Span::styled(format!(" └─ {}", entry.task.name), muted_style),
+                Span::raw(&col_pad),
+                Span::styled(format!("└─ {}", entry.task.name), muted_style),
             ];
 
             let mut entry_lines = vec![Line::from(line1_spans), Line::from(line2_spans)];
 
-            let has_notes = entry.notes.as_deref().is_some_and(|n| !n.is_empty());
             if has_notes {
                 let line3_spans = vec![
-                    Span::raw(&padding),
-                    Span::styled(" │ ", border_style),
+                    Span::raw(&col_pad),
                     Span::styled(
-                        format!(" └─ {}", entry.notes.as_deref().unwrap()),
+                        format!("└─ {}", entry.notes.as_deref().unwrap()),
                         muted_style,
                     ),
                 ];
                 entry_lines.push(Line::from(line3_spans));
             }
 
-            items.push(ListItem::new(Text::from(entry_lines)));
-            heights.push(if has_notes { 3 } else { 2 });
+            // Adjust for clipping (partial visibility at top/bottom)
+            let visible_lines: Vec<Line> = entry_lines
+                .into_iter()
+                .skip(clip_top as usize)
+                .take(inner.height as usize)
+                .collect();
 
-            if i < self.entries.len() - 1 {
-                let sep_width = content_width.saturating_sub(HOURS_COL_WIDTH as u16 + 2);
-                let sep_line = format!("{}┼{}", sep_prefix, "─".repeat(sep_width as usize),);
-                items.push(ListItem::new(Text::from(Line::from(Span::styled(
-                    sep_line,
-                    border_style,
-                )))));
-                heights.push(1);
+            f.render_widget(block, entry_rect);
+            if inner.height > 0 && !visible_lines.is_empty() {
+                f.render_widget(
+                    Paragraph::new(visible_lines).style(Style::new().bg(bg)),
+                    inner,
+                );
             }
+
+            y += block_h as i32;
+            current_line = entry_end;
         }
 
-        self.ensure_selected_visible(&heights, inner.height);
-
-        let list = List::new(items)
-            .block(block)
-            .highlight_style(
-                Style::new()
-                    .fg(theme.highlight)
-                    .bg(theme.surface)
-                    .add_modifier(Modifier::BOLD),
-            )
-            .highlight_symbol("");
-
-        f.render_stateful_widget(list, padded_area, &mut self.list_state);
-    }
-
-    fn ensure_selected_visible(&mut self, heights: &[u16], viewport_h: u16) {
-        let Some(selected) = self.list_state.selected() else {
-            return;
-        };
-        if heights.is_empty() {
-            return;
-        }
-        let mut cum = vec![0u16];
-        for &h in heights {
-            cum.push(cum.last().unwrap() + h);
-        }
-        let sel_start = cum[selected.min(heights.len())];
-        let sel_h = heights[selected.min(heights.len())];
-        let offset = self.list_state.offset();
-        let view_start = cum[offset.min(heights.len())];
-
-        if sel_start < view_start {
-            *self.list_state.offset_mut() = selected;
-        } else if sel_start + sel_h > view_start + viewport_h {
-            let target = (sel_start + sel_h).saturating_sub(viewport_h);
-            let new_off = cum.iter().rposition(|&p| p <= target).unwrap_or(0);
-            *self.list_state.offset_mut() = new_off;
-        }
+        // Render scrollbar
+        let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+            .begin_symbol(None)
+            .end_symbol(None)
+            .track_style(Style::new().fg(theme.border))
+            .thumb_style(Style::new().fg(theme.muted));
+        let mut sb_state = ScrollbarState::new(total_lines)
+            .position(self.scroll_offset)
+            .viewport_content_length(viewport_h);
+        f.render_stateful_widget(scrollbar, scrollbar_area, &mut sb_state);
     }
 
     fn render_stats_footer(&self, area: Rect, f: &mut Frame, theme: &Theme) {
@@ -400,17 +443,12 @@ impl Dashboard {
     pub fn handle_key(&mut self, key: &ratatui::crossterm::event::KeyEvent) -> Vec<Action> {
         match key.code {
             KeyCode::Char('j') | KeyCode::Down => {
-                let max = entry_to_item_index(self.entries.len().saturating_sub(1));
-                let i = self.list_state.selected().map_or(0, |i| (i + 2).min(max));
-                self.list_state.select(Some(i));
+                let max = self.entries.len().saturating_sub(1);
+                self.selected_index = (self.selected_index + 1).min(max);
                 vec![]
             }
             KeyCode::Char('k') | KeyCode::Up => {
-                let i = self
-                    .list_state
-                    .selected()
-                    .map_or(0, |i| i.saturating_sub(2));
-                self.list_state.select(Some(i));
+                self.selected_index = self.selected_index.saturating_sub(1);
                 vec![]
             }
             KeyCode::Char('s') => {
@@ -754,12 +792,10 @@ mod tests {
             ],
             0,
         );
-        d.list_state.select(Some(0));
+        d.selected_index = 0;
         assert_eq!(d.selected_entry().unwrap().id, 1);
-        d.list_state.select(Some(2));
+        d.selected_index = 1;
         assert_eq!(d.selected_entry().unwrap().id, 2);
-        d.list_state.select(None);
-        assert!(d.selected_entry().is_none());
     }
 
     #[test]
@@ -784,11 +820,11 @@ mod tests {
             0,
         );
         d.handle_key(&key_press(KeyCode::Char('j')));
-        assert_eq!(d.list_state.selected(), Some(2));
+        assert_eq!(d.selected_index, 1);
         d.handle_key(&key_press(KeyCode::Char('j')));
-        assert_eq!(d.list_state.selected(), Some(4));
+        assert_eq!(d.selected_index, 2);
         d.handle_key(&key_press(KeyCode::Char('j')));
-        assert_eq!(d.list_state.selected(), Some(4));
+        assert_eq!(d.selected_index, 2);
     }
 
     #[test]
@@ -801,11 +837,11 @@ mod tests {
             ],
             0,
         );
-        d.list_state.select(Some(2));
+        d.selected_index = 1;
         d.handle_key(&key_press(KeyCode::Char('k')));
-        assert_eq!(d.list_state.selected(), Some(0));
+        assert_eq!(d.selected_index, 0);
         d.handle_key(&key_press(KeyCode::Char('k')));
-        assert_eq!(d.list_state.selected(), Some(0));
+        assert_eq!(d.selected_index, 0);
     }
 
     #[test]
@@ -866,7 +902,6 @@ mod tests {
     fn test_e_opens_edit_form() {
         let mut d = Dashboard::default();
         d.update_entries(vec![entry(42, 10, 20, Some(2.0), false)], 0);
-        d.list_state.select(Some(0));
         let actions = d.handle_key(&key_press(KeyCode::Char('e')));
         assert!(matches!(
             actions[0],
@@ -882,7 +917,6 @@ mod tests {
     fn test_d_triggers_confirm_delete() {
         let mut d = Dashboard::default();
         d.update_entries(vec![entry(42, 10, 20, Some(2.0), false)], 0);
-        d.list_state.select(Some(0));
         let actions = d.handle_key(&key_press(KeyCode::Char('d')));
         assert!(matches!(
             actions[0],
@@ -930,7 +964,6 @@ mod tests {
     fn test_e_on_stopped_passes_is_running_false() {
         let mut d = Dashboard::default();
         d.update_entries(vec![entry(1, 10, 20, Some(2.0), false)], 0);
-        d.list_state.select(Some(0));
         let actions = d.handle_key(&key_press(KeyCode::Char('e')));
         assert!(matches!(
             actions[0],
