@@ -94,12 +94,7 @@ impl Dashboard {
     }
 
     pub fn render(&mut self, area: Rect, f: &mut Frame, theme: &Theme, tick: u64) {
-        let layout = Layout::vertical([
-            Constraint::Length(1),
-            Constraint::Min(0),
-            Constraint::Length(3),
-        ])
-        .split(area);
+        let layout = Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).split(area);
 
         if !self.loaded {
             crate::loading::render_harv_loading(layout[1], f, tick, &self.loading_msg, theme);
@@ -107,8 +102,11 @@ impl Dashboard {
         }
 
         if self.entries.is_empty() {
-            render_harv_header(layout[1], f, theme, self.selected_date);
-            self.render_stats_footer(layout[2], f, theme);
+            let inner = Layout::vertical([Constraint::Min(0), Constraint::Length(3)])
+                .spacing(Spacing::Overlap(1))
+                .split(layout[1]);
+            render_harv_header(inner[0], f, theme, self.selected_date);
+            self.render_stats_footer(inner[1], f, theme);
             return;
         }
 
@@ -216,13 +214,13 @@ impl Dashboard {
 
             let block = if is_selected {
                 Block::new()
-                    .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM)
+                    .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM | Borders::RIGHT)
                     .border_style(border_style)
                     .merge_borders(MergeStrategy::Exact)
                     .style(Style::new().bg(theme.surface))
             } else {
                 Block::new()
-                    .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM)
+                    .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM | Borders::RIGHT)
                     .border_style(border_style)
                     .merge_borders(MergeStrategy::Exact)
             };
@@ -288,9 +286,8 @@ impl Dashboard {
 
     fn render_stats_footer(&self, area: Rect, f: &mut Frame, theme: &Theme) {
         let block = Block::new()
-            .borders(Borders::TOP)
+            .borders(Borders::TOP | Borders::BOTTOM)
             .border_style(Style::new().fg(theme.border))
-            .style(Style::new().bg(theme.bg))
             .merge_borders(MergeStrategy::Exact);
         let inner = block.inner(area);
 

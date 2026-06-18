@@ -9,8 +9,9 @@ use harv_sdk::{HarvClient, ResolvedConfig};
 use ratatui::Frame;
 use ratatui::crossterm::event::{Event, KeyCode, KeyEventKind};
 use ratatui::layout::Alignment;
-use ratatui::layout::{Constraint, Layout, Rect};
+use ratatui::layout::{Constraint, Layout, Rect, Spacing};
 use ratatui::style::{Modifier, Style};
+use ratatui::symbols::merge::MergeStrategy;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use tokio::sync::mpsc::{self, UnboundedSender};
@@ -634,6 +635,7 @@ impl App {
             Constraint::Min(0),
             Constraint::Length(2),
         ])
+        .spacing(Spacing::Overlap(1))
         .split(area);
 
         self.render_top_bar(layout[0], f);
@@ -745,13 +747,15 @@ impl App {
 
         let block = Block::new()
             .borders(Borders::TOP)
-            .border_style(Style::new().fg(self.theme.border));
+            .border_style(Style::new().fg(self.theme.border))
+            .merge_borders(MergeStrategy::Exact);
 
-        let paragraph = Paragraph::new(Line::from(spans))
-            .block(block)
-            .alignment(Alignment::Center);
-
-        f.render_widget(paragraph, area);
+        let inner = block.inner(area);
+        f.render_widget(block, area);
+        f.render_widget(
+            Paragraph::new(Line::from(spans)).alignment(Alignment::Center),
+            inner,
+        );
     }
 }
 
