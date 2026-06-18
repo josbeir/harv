@@ -723,9 +723,9 @@ impl App {
         .split(area)[1];
 
         let cols = Layout::horizontal([
-            Constraint::Min(0),
-            Constraint::Min(0),
-            Constraint::Length(12),
+            Constraint::Fill(1),
+            Constraint::Fill(1),
+            Constraint::Fill(1),
         ])
         .split(center_row);
 
@@ -740,7 +740,9 @@ impl App {
             cols[1],
         );
         f.render_widget(
-            Paragraph::new(right).style(Style::new().bg(self.theme.bg)),
+            Paragraph::new(right)
+                .alignment(Alignment::Right)
+                .style(Style::new().bg(self.theme.bg)),
             cols[2],
         );
     }
