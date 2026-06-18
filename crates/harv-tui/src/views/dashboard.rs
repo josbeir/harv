@@ -17,6 +17,7 @@ pub struct Dashboard {
     running_entry: Option<TimeEntry>,
     daily_total: f64,
     selected_index: usize,
+    scroll_offset: usize,
     loaded: bool,
     loading_msg: String,
     selected_date: NaiveDate,
@@ -30,6 +31,7 @@ impl Default for Dashboard {
             running_entry: None,
             daily_total: 0.0,
             selected_index: 0,
+            scroll_offset: 0,
             loaded: false,
             loading_msg: harv_core::t("tui-app-loading-generic"),
             selected_date: harv_core::datetime::today(),
@@ -61,6 +63,7 @@ impl Dashboard {
         self.entries = entries;
         self.project_count = project_count;
         self.selected_index = 0;
+        self.scroll_offset = 0;
     }
 
     pub fn update_running(&mut self, entries: Vec<TimeEntry>) {
@@ -125,21 +128,63 @@ impl Dashboard {
         let muted_style = Style::new().fg(theme.muted);
         let col_pad = " ".repeat(HOURS_COL_WIDTH + 2);
 
+        // Compute selected entry visual position
+        let sel_vis_y: usize = self
+            .entries
+            .iter()
+            .take(self.selected_index)
+            .map(|e| {
+                let has_notes = e.notes.as_deref().is_some_and(|n| !n.is_empty());
+                let lines: usize = if has_notes { 3 } else { 2 };
+                lines + 1 // content_lines + 1 for overlap
+            })
+            .sum();
+        let sel_h: usize = self
+            .entries
+            .get(self.selected_index)
+            .map(|e| {
+                let has_notes = e.notes.as_deref().is_some_and(|n| !n.is_empty());
+                let lines: usize = if has_notes { 3 } else { 2 };
+                lines + 1
+            })
+            .unwrap_or(0);
+        let viewport_h = area.height as usize;
+
+        // Ensure selected entry is visible
+        if self.scroll_offset + viewport_h < sel_vis_y + sel_h {
+            self.scroll_offset = sel_vis_y + sel_h - viewport_h;
+        }
+        if sel_vis_y < self.scroll_offset {
+            self.scroll_offset = sel_vis_y;
+        }
+
         let mut y: u16 = 0;
         for (i, entry) in self.entries.iter().enumerate() {
             let has_notes = entry.notes.as_deref().is_some_and(|n| !n.is_empty());
             let content_lines: u16 = if has_notes { 3 } else { 2 };
             let block_h = content_lines + 2; // TOP + content + BOTTOM
 
-            if y + content_lines > area.height {
+            let vis_y = y as i32 - self.scroll_offset as i32;
+            if vis_y + block_h as i32 <= 0 {
+                y += content_lines + 1; // +1 for the shared border overlap
+                continue;
+            }
+            if vis_y >= area.height as i32 {
                 break;
             }
 
+            let clip_top = if vis_y < 0 { (-vis_y) as u16 } else { 0 };
+            let clip_bot = {
+                let bottom = vis_y + block_h as i32 - area.height as i32;
+                if bottom > 0 { bottom as u16 } else { 0 }
+            };
+            let visible_h = block_h.saturating_sub(clip_top).saturating_sub(clip_bot);
+
             let entry_rect = Rect {
                 x: area.x,
-                y: area.y + y,
+                y: (area.y as i32 + vis_y).max(area.y as i32) as u16,
                 width: area.width,
-                height: block_h,
+                height: visible_h,
             };
 
             let is_selected = i == self.selected_index;
@@ -206,13 +251,24 @@ impl Dashboard {
                 entry_lines.push(Line::from(line3_spans));
             }
 
+            let visible_content_lines: Vec<Line> = entry_lines
+                .into_iter()
+                .skip(clip_top as usize)
+                .take(inner.height as usize)
+                .collect();
+
             f.render_widget(block, entry_rect);
             let para_style = if is_selected {
                 Style::new().bg(theme.surface)
             } else {
                 Style::default()
             };
-            f.render_widget(Paragraph::new(entry_lines).style(para_style), inner);
+            if !visible_content_lines.is_empty() {
+                f.render_widget(
+                    Paragraph::new(visible_content_lines).style(para_style),
+                    inner,
+                );
+            }
 
             y += content_lines + 1; // +1 for the shared border overlap
         }
