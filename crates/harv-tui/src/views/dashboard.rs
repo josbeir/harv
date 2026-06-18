@@ -6,14 +6,25 @@ use ratatui::Frame;
 use ratatui::crossterm::event::KeyCode;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::Text;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Cell, Padding, Paragraph, Row, Table, TableState};
+use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Padding, Paragraph};
+
+const HOURS_COL_WIDTH: usize = 5;
+
+fn entry_to_item_index(entry_idx: usize) -> usize {
+    entry_idx * 2
+}
+
+fn item_to_entry_index(item_idx: usize) -> usize {
+    item_idx / 2
+}
 
 pub struct Dashboard {
     entries: Vec<TimeEntry>,
     running_entry: Option<TimeEntry>,
     daily_total: f64,
-    table_state: TableState,
+    list_state: ListState,
     loaded: bool,
     loading_msg: String,
     selected_date: NaiveDate,
@@ -26,7 +37,7 @@ impl Default for Dashboard {
             entries: Vec::new(),
             running_entry: None,
             daily_total: 0.0,
-            table_state: TableState::default().with_selected(Some(0)),
+            list_state: ListState::default().with_selected(Some(0)),
             loaded: false,
             loading_msg: harv_core::t("tui-app-loading-generic"),
             selected_date: harv_core::datetime::today(),
@@ -55,6 +66,7 @@ impl Dashboard {
             .sum();
         self.entries = entries;
         self.project_count = project_count;
+        self.list_state.select(Some(0));
     }
 
     pub fn update_running(&mut self, entries: Vec<TimeEntry>) {
@@ -62,9 +74,10 @@ impl Dashboard {
     }
 
     pub fn selected_entry(&self) -> Option<&TimeEntry> {
-        self.table_state
-            .selected()
-            .and_then(|i| self.entries.get(i))
+        self.list_state.selected().and_then(|i| {
+            let entry_idx = item_to_entry_index(i);
+            self.entries.get(entry_idx)
+        })
     }
 
     pub fn selected_date(&self) -> NaiveDate {
@@ -121,7 +134,7 @@ impl Dashboard {
         if self.running_entry.is_some() {
             self.render_timer_header(body[0], f, theme);
         }
-        self.render_entry_table(body[1], f, theme);
+        self.render_entry_list(body[1], f, theme);
         self.render_stats_footer(layout[4], f, theme);
     }
 
@@ -206,162 +219,14 @@ impl Dashboard {
         f.render_widget(paragraph, area);
     }
 
-    fn render_entry_table(&mut self, area: Rect, f: &mut Frame, theme: &Theme) {
+    fn render_entry_list(&mut self, area: Rect, f: &mut Frame, theme: &Theme) {
         let hmargin = 2u16;
-        let vtop = 0u16;
-        let vbottom = 1u16;
         let padded_area = Rect {
             x: area.x + hmargin,
-            y: area.y + vtop,
+            y: area.y,
             width: area.width.saturating_sub(hmargin * 2),
-            height: area.height.saturating_sub(vtop + vbottom),
+            height: area.height,
         };
-
-        // Usable content width after borders and padding
-        let inner_w = padded_area
-            .width
-            .saturating_sub(2) // block borders
-            .saturating_sub(2); // Padding::horizontal(1)
-
-        let hours_w = 12u16;
-        let spacing = 2u16;
-
-        // Minimum widths for each flex column
-        let min_project = 28u16;
-        let min_task = 14u16;
-        let min_notes = 20u16;
-
-        // Decide which columns to show based on available width
-        let show_notes = inner_w >= min_project + min_task + hours_w + min_notes + spacing * 3;
-        let show_task = inner_w >= min_project + min_task + hours_w + spacing * 2;
-
-        let num_gaps = if show_notes {
-            3
-        } else if show_task {
-            2
-        } else {
-            1
-        };
-        let flex_w = inner_w
-            .saturating_sub(hours_w)
-            .saturating_sub(spacing * num_gaps);
-
-        let (project_w, task_w, notes_w) = if show_notes {
-            let pw = ((flex_w as f32) * 0.50) as u16;
-            let tw = ((flex_w as f32) * 0.15) as u16;
-            let nw = flex_w.saturating_sub(pw).saturating_sub(tw);
-            (pw, tw, nw)
-        } else if show_task {
-            let pw = ((flex_w as f32) * 0.75) as u16;
-            let tw = flex_w.saturating_sub(pw);
-            (pw, tw, 0)
-        } else {
-            (flex_w, 0, 0)
-        };
-
-        // Build header labels
-        let mut header_labels = vec![
-            harv_core::t("tui-dash-table-project"),
-            harv_core::t("tui-dash-table-hours"),
-        ];
-        if show_task {
-            header_labels.insert(1, harv_core::t("tui-dash-table-task"));
-        }
-        if show_notes {
-            header_labels.push(harv_core::t("tui-dash-table-notes"));
-        }
-
-        let header = Row::new(header_labels)
-            .style(Style::new().fg(theme.muted).add_modifier(Modifier::BOLD))
-            .height(1);
-
-        // Build widths vector
-        let mut widths = vec![Constraint::Length(project_w), Constraint::Length(hours_w)];
-        if show_task {
-            widths.insert(1, Constraint::Length(task_w));
-        }
-        if show_notes {
-            widths.push(Constraint::Length(notes_w));
-        }
-
-        // Truncation limits (leave 1 char margin)
-        let proj_max = project_w.saturating_sub(1) as usize;
-        let task_max = task_w.saturating_sub(1) as usize;
-        let notes_max = notes_w.saturating_sub(1) as usize;
-
-        let rows: Vec<Row> = self
-            .entries
-            .iter()
-            .map(|entry| {
-                let is_running = entry.is_running;
-                let prefix = if is_running {
-                    format!("{} ", harv_core::t("tui-dash-running-prefix"))
-                } else {
-                    String::new()
-                };
-                let avail = proj_max.saturating_sub(prefix.chars().count());
-
-                let display_name = harv_core::text::format_project_display(
-                    &entry.project.name,
-                    entry.project_code.as_deref(),
-                );
-
-                let row_style = if is_running {
-                    Style::new().fg(theme.success)
-                } else {
-                    Style::new().fg(theme.fg)
-                };
-
-                let project_cell = match &entry.client {
-                    Some(client) if avail >= 10 => {
-                        let client_text = client.name.as_str();
-                        let tree_prefix = " | ";
-                        let client_w = (avail / 3).min(client_text.chars().count()).max(1);
-                        let proj_w = avail
-                            .saturating_sub(client_w)
-                            .saturating_sub(tree_prefix.chars().count());
-                        let proj_trunc = harv_core::text::truncate(&display_name, proj_w.max(1));
-                        let client_trunc = harv_core::text::truncate(client_text, client_w);
-                        let line = Line::from(vec![
-                            Span::styled(format!("{}{}", prefix, proj_trunc), row_style),
-                            Span::styled(
-                                format!("{}{}", tree_prefix, client_trunc),
-                                Style::new().fg(theme.muted),
-                            ),
-                        ]);
-                        Cell::from(line)
-                    }
-                    _ => {
-                        let project = format!(
-                            "{}{}",
-                            prefix,
-                            harv_core::text::truncate(&display_name, avail)
-                        );
-                        Cell::from(project)
-                    }
-                };
-
-                let hours = format_hours_cell(entry);
-
-                let mut cells: Vec<Cell> = Vec::new();
-                cells.push(project_cell);
-                if show_task {
-                    cells.push(Cell::from(harv_core::text::truncate(
-                        &entry.task.name,
-                        task_max,
-                    )));
-                }
-                cells.push(Cell::from(hours));
-                if show_notes {
-                    cells.push(Cell::from(harv_core::text::truncate(
-                        entry.notes.as_deref().unwrap_or(""),
-                        notes_max.max(1),
-                    )));
-                }
-
-                Row::new(cells).style(row_style).height(1)
-            })
-            .collect();
 
         let block_title = if self.selected_date == harv_core::datetime::today() {
             harv_core::t("tui-dash-block-today")
@@ -375,18 +240,122 @@ impl Dashboard {
             .style(Style::new().bg(theme.bg))
             .padding(Padding::horizontal(1));
 
-        let table = Table::new(rows, widths)
-            .header(header)
+        let inner = block.inner(padded_area);
+        let content_width = inner.width.saturating_sub(2);
+
+        let border_style = Style::new().fg(theme.border);
+        let muted_style = Style::new().fg(theme.muted);
+        let sep_prefix = "─".repeat(HOURS_COL_WIDTH);
+        let padding = " ".repeat(HOURS_COL_WIDTH);
+
+        let mut items: Vec<ListItem> = Vec::new();
+        let mut heights: Vec<u16> = Vec::new();
+
+        for (i, entry) in self.entries.iter().enumerate() {
+            let running = entry.is_running;
+            let hours_display = if running {
+                format!("{:>4} ", harv_core::t("tui-dash-running-prefix"))
+            } else {
+                let s = entry.hours.map_or_else(
+                    || "0:00".to_string(),
+                    harv_core::text::decimal_hours_to_hhmm,
+                );
+                format!("{:>5}", s)
+            };
+
+            let hours_style = if running {
+                Style::new().fg(theme.success).add_modifier(Modifier::BOLD)
+            } else {
+                Style::new().fg(theme.fg)
+            };
+
+            let display_name = harv_core::text::format_project_display(
+                &entry.project.name,
+                entry.project_code.as_deref(),
+            );
+
+            let mut line1_spans = vec![
+                Span::styled(hours_display, hours_style),
+                Span::styled(" │ ", border_style),
+                Span::styled(display_name, Style::new().fg(theme.fg)),
+            ];
+            if let Some(ref client) = entry.client {
+                line1_spans.push(Span::styled(format!(" | {}", client.name), muted_style));
+            }
+
+            let line2_spans = vec![
+                Span::raw(&padding),
+                Span::styled(" │ ", border_style),
+                Span::styled(format!(" └─ {}", entry.task.name), muted_style),
+            ];
+
+            let mut entry_lines = vec![Line::from(line1_spans), Line::from(line2_spans)];
+
+            let has_notes = entry.notes.as_deref().is_some_and(|n| !n.is_empty());
+            if has_notes {
+                let line3_spans = vec![
+                    Span::raw(&padding),
+                    Span::styled(" │ ", border_style),
+                    Span::styled(
+                        format!(" └─ {}", entry.notes.as_deref().unwrap()),
+                        muted_style,
+                    ),
+                ];
+                entry_lines.push(Line::from(line3_spans));
+            }
+
+            items.push(ListItem::new(Text::from(entry_lines)));
+            heights.push(if has_notes { 3 } else { 2 });
+
+            if i < self.entries.len() - 1 {
+                let sep_width = content_width.saturating_sub(HOURS_COL_WIDTH as u16 + 1);
+                let sep_line = format!("{}┼{}", sep_prefix, "─".repeat(sep_width as usize),);
+                items.push(ListItem::new(Text::from(Line::from(Span::styled(
+                    sep_line,
+                    border_style,
+                )))));
+                heights.push(1);
+            }
+        }
+
+        self.ensure_selected_visible(&heights, inner.height);
+
+        let list = List::new(items)
             .block(block)
-            .row_highlight_style(
+            .highlight_style(
                 Style::new()
                     .fg(theme.highlight)
                     .bg(theme.surface)
                     .add_modifier(Modifier::BOLD),
             )
-            .column_spacing(spacing);
+            .highlight_symbol("");
 
-        f.render_stateful_widget(table, padded_area, &mut self.table_state);
+        f.render_stateful_widget(list, padded_area, &mut self.list_state);
+    }
+
+    fn ensure_selected_visible(&mut self, heights: &[u16], viewport_h: u16) {
+        let Some(selected) = self.list_state.selected() else {
+            return;
+        };
+        if heights.is_empty() {
+            return;
+        }
+        let mut cum = vec![0u16];
+        for &h in heights {
+            cum.push(cum.last().unwrap() + h);
+        }
+        let sel_start = cum[selected.min(heights.len())];
+        let sel_h = heights[selected.min(heights.len())];
+        let offset = self.list_state.offset();
+        let view_start = cum[offset.min(heights.len())];
+
+        if sel_start < view_start {
+            *self.list_state.offset_mut() = selected;
+        } else if sel_start + sel_h > view_start + viewport_h {
+            let target = (sel_start + sel_h).saturating_sub(viewport_h);
+            let new_off = cum.iter().rposition(|&p| p <= target).unwrap_or(0);
+            *self.list_state.offset_mut() = new_off;
+        }
     }
 
     fn render_stats_footer(&self, area: Rect, f: &mut Frame, theme: &Theme) {
@@ -437,19 +406,17 @@ impl Dashboard {
     pub fn handle_key(&mut self, key: &ratatui::crossterm::event::KeyEvent) -> Vec<Action> {
         match key.code {
             KeyCode::Char('j') | KeyCode::Down => {
-                let i = self
-                    .table_state
-                    .selected()
-                    .map_or(0, |i| (i + 1).min(self.entries.len().saturating_sub(1)));
-                self.table_state.select(Some(i));
+                let max = entry_to_item_index(self.entries.len().saturating_sub(1));
+                let i = self.list_state.selected().map_or(0, |i| (i + 2).min(max));
+                self.list_state.select(Some(i));
                 vec![]
             }
             KeyCode::Char('k') | KeyCode::Up => {
                 let i = self
-                    .table_state
+                    .list_state
                     .selected()
-                    .map_or(0, |i| i.saturating_sub(1));
-                self.table_state.select(Some(i));
+                    .map_or(0, |i| i.saturating_sub(2));
+                self.list_state.select(Some(i));
                 vec![]
             }
             KeyCode::Char('s') => {
@@ -553,17 +520,6 @@ impl Dashboard {
             KeyCode::Char('g') => vec![Action::OpenDatePicker],
             _ => vec![],
         }
-    }
-}
-
-fn format_hours_cell(entry: &TimeEntry) -> String {
-    if entry.is_running {
-        format_timer_elapsed(entry)
-    } else {
-        entry.hours.map_or_else(
-            || "0:00".to_string(),
-            harv_core::text::decimal_hours_to_hhmm,
-        )
     }
 }
 
@@ -804,11 +760,11 @@ mod tests {
             ],
             0,
         );
-        d.table_state.select(Some(0));
+        d.list_state.select(Some(0));
         assert_eq!(d.selected_entry().unwrap().id, 1);
-        d.table_state.select(Some(1));
+        d.list_state.select(Some(2));
         assert_eq!(d.selected_entry().unwrap().id, 2);
-        d.table_state.select(None);
+        d.list_state.select(None);
         assert!(d.selected_entry().is_none());
     }
 
@@ -834,11 +790,11 @@ mod tests {
             0,
         );
         d.handle_key(&key_press(KeyCode::Char('j')));
-        assert_eq!(d.table_state.selected(), Some(1));
+        assert_eq!(d.list_state.selected(), Some(2));
         d.handle_key(&key_press(KeyCode::Char('j')));
-        assert_eq!(d.table_state.selected(), Some(2));
+        assert_eq!(d.list_state.selected(), Some(4));
         d.handle_key(&key_press(KeyCode::Char('j')));
-        assert_eq!(d.table_state.selected(), Some(2));
+        assert_eq!(d.list_state.selected(), Some(4));
     }
 
     #[test]
@@ -851,11 +807,11 @@ mod tests {
             ],
             0,
         );
-        d.table_state.select(Some(1));
+        d.list_state.select(Some(2));
         d.handle_key(&key_press(KeyCode::Char('k')));
-        assert_eq!(d.table_state.selected(), Some(0));
+        assert_eq!(d.list_state.selected(), Some(0));
         d.handle_key(&key_press(KeyCode::Char('k')));
-        assert_eq!(d.table_state.selected(), Some(0));
+        assert_eq!(d.list_state.selected(), Some(0));
     }
 
     #[test]
@@ -916,7 +872,7 @@ mod tests {
     fn test_e_opens_edit_form() {
         let mut d = Dashboard::default();
         d.update_entries(vec![entry(42, 10, 20, Some(2.0), false)], 0);
-        d.table_state.select(Some(0));
+        d.list_state.select(Some(0));
         let actions = d.handle_key(&key_press(KeyCode::Char('e')));
         assert!(matches!(
             actions[0],
@@ -932,7 +888,7 @@ mod tests {
     fn test_d_triggers_confirm_delete() {
         let mut d = Dashboard::default();
         d.update_entries(vec![entry(42, 10, 20, Some(2.0), false)], 0);
-        d.table_state.select(Some(0));
+        d.list_state.select(Some(0));
         let actions = d.handle_key(&key_press(KeyCode::Char('d')));
         assert!(matches!(
             actions[0],
@@ -980,7 +936,7 @@ mod tests {
     fn test_e_on_stopped_passes_is_running_false() {
         let mut d = Dashboard::default();
         d.update_entries(vec![entry(1, 10, 20, Some(2.0), false)], 0);
-        d.table_state.select(Some(0));
+        d.list_state.select(Some(0));
         let actions = d.handle_key(&key_press(KeyCode::Char('e')));
         assert!(matches!(
             actions[0],
