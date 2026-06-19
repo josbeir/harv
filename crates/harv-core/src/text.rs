@@ -51,7 +51,8 @@ pub fn format_project_display(name: &str, code: Option<&str>) -> String {
 /// Format a `TimeEntry` as a one-line summary suitable for selection lists.
 pub fn format_timer_line(entry: &TimeEntry) -> String {
     format!(
-        "[{}] {} => {} => {}",
+        "#{} [{}] {} => {} => {}",
+        entry.id,
         entry
             .timer_started_at
             .map(|ts| crate::datetime::format_local(ts, true))

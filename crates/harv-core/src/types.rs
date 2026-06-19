@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 /// A lightweight reference to a Harvest resource.
 /// Used pervasively in Harvest API responses.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct Reference {
     pub id: u64,
     pub name: String,

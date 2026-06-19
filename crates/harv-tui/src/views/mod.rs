@@ -3,7 +3,7 @@ pub mod date_picker;
 pub mod form;
 pub mod help;
 
-use crate::action::{Action, ViewId};
+use crate::action::Action;
 use crate::theme::Theme;
 use ratatui::Frame;
 use ratatui::layout::Rect;
@@ -11,18 +11,12 @@ use ratatui::layout::Rect;
 use self::dashboard::Dashboard;
 
 #[allow(clippy::large_enum_variant)]
+#[non_exhaustive]
 pub enum View {
     Dashboard(Dashboard),
 }
 
 impl View {
-    #[allow(dead_code)]
-    pub fn id(&self) -> ViewId {
-        match self {
-            View::Dashboard(_) => ViewId::Dashboard,
-        }
-    }
-
     pub fn render(&mut self, area: Rect, f: &mut Frame, theme: &Theme, tick: u64) {
         match self {
             View::Dashboard(v) => v.render(area, f, theme, tick),
@@ -64,12 +58,6 @@ mod tests {
     fn test_view_default_is_dashboard() {
         let view = View::default();
         assert!(matches!(view, View::Dashboard(_)));
-    }
-
-    #[test]
-    fn test_view_dashboard_id() {
-        let view = View::Dashboard(Dashboard::default());
-        assert_eq!(view.id(), ViewId::Dashboard);
     }
 
     #[test]

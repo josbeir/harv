@@ -1,7 +1,7 @@
 use crate::prompts;
 use crate::spinner;
 use harv_core::{CreateTimeEntry, HarvError};
-use harv_sdk::{HarvClient, ProjectConfig, ResolvedConfig, TemplateContext};
+use harv_sdk::{HarvClient, ResolvedConfig, TemplateContext};
 
 #[allow(clippy::too_many_arguments)]
 pub async fn execute(
@@ -17,14 +17,13 @@ pub async fn execute(
     is_start: bool,
 ) -> color_eyre::eyre::Result<()> {
     let config = client.config().clone();
+    let resolved = ResolvedConfig::resolve_from_environment(&config).await?;
 
-    // Discover project-level config and merge with global config.
-    let project_config = ProjectConfig::discover().await?;
-    let resolved = ResolvedConfig::resolve(&config, project_config.as_ref());
-
-    let pb = spinner::new_spinner("Loading project assignments...");
-    let (assignments, _) = client.projects().my_assignments(refresh).await?;
-    pb.finish_and_clear();
+    let (assignments, _) = spinner::with_spinner(
+        "Loading project assignments...",
+        client.projects().my_assignments(refresh),
+    )
+    .await?;
 
     // Use resolved defaults for project pre-selection (project config
     // takes priority over global last_used).
@@ -143,13 +142,12 @@ pub async fn execute(
         ended_time,
     };
 
-    let pb = spinner::new_spinner("Creating time entry...");
-    let created = client
-        .time_entries()
-        .create(&entry)
-        .await
-        .map_err(|e| color_eyre::eyre::eyre!(e.user_message()))?;
-    pb.finish_and_clear();
+    let created = spinner::with_spinner(
+        "Creating time entry...",
+        client.time_entries().create(&entry),
+    )
+    .await
+    .map_err(|e| color_eyre::eyre::eyre!(e.user_message()))?;
 
     let confirmation = prompts::format_entry_confirmation(
         resolved_hours,
@@ -167,9 +165,10 @@ pub async fn execute(
     }
 
     // Persist last-used project/task to global config.
-    let mut saved_cfg = client.config().clone();
-    saved_cfg.set_last_used(p_id, t_id);
-    let _ = saved_cfg.save().await;
+    {
+        let mut saved_cfg = client.config().clone();
+        let _ = saved_cfg.save_last_used(p_id, t_id).await;
+    }
 
     Ok(())
 }

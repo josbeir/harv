@@ -73,21 +73,22 @@ impl HarvClient {
     }
 
     /// Builds the standard request headers with auth and content type.
-    fn headers(&self) -> HeaderMap {
+    fn headers(&self) -> Result<HeaderMap, HarvError> {
         let mut headers = HeaderMap::new();
         headers.insert(
             AUTHORIZATION,
-            HeaderValue::from_str(&format!("Bearer {}", self.config.access_token))
-                .expect("valid bearer token"),
+            HeaderValue::from_str(&format!("Bearer {}", self.config.access_token()))
+                .map_err(|e| HarvError::Http(format!("Invalid bearer token: {}", e)))?,
         );
         headers.insert(
             "Harvest-Account-Id",
-            HeaderValue::from_str(&self.config.account_id).expect("valid account ID"),
+            HeaderValue::from_str(self.config.account_id())
+                .map_err(|e| HarvError::Http(format!("Invalid account ID: {}", e)))?,
         );
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
         headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
         headers.insert(USER_AGENT, HeaderValue::from_static(USER_AGENT_STRING));
-        headers
+        Ok(headers)
     }
 
     /// Makes a GET request to the given path with optional query parameters.
@@ -100,7 +101,7 @@ impl HarvClient {
         let response = self
             .http
             .get(&url)
-            .headers(self.headers())
+            .headers(self.headers()?)
             .query(query)
             .send()
             .await
@@ -119,7 +120,7 @@ impl HarvClient {
         let response = self
             .http
             .post(&url)
-            .headers(self.headers())
+            .headers(self.headers()?)
             .json(body)
             .send()
             .await
@@ -138,7 +139,7 @@ impl HarvClient {
         let response = self
             .http
             .patch(&url)
-            .headers(self.headers())
+            .headers(self.headers()?)
             .json(body)
             .send()
             .await
@@ -153,7 +154,7 @@ impl HarvClient {
         let response = self
             .http
             .delete(&url)
-            .headers(self.headers())
+            .headers(self.headers()?)
             .send()
             .await
             .map_err(|e| HarvError::Http(e.to_string()))?;

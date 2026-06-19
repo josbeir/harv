@@ -4,12 +4,14 @@ use crate::OutputFormat;
 use crate::output;
 use crate::prompts;
 use crate::spinner;
-use harv_sdk::{Alias, HarvClient, HarvConfig};
+use harv_sdk::{Alias, HarvClient, HarvConfig, ProjectConfig};
 
 pub async fn create_execute(client: &HarvClient, name: &str) -> color_eyre::eyre::Result<()> {
-    let pb = spinner::new_spinner("Loading project assignments...");
-    let (assignments, _) = client.projects().my_assignments(false).await?;
-    pb.finish_and_clear();
+    let (assignments, _) = spinner::with_spinner(
+        "Loading project assignments...",
+        client.projects().my_assignments(false),
+    )
+    .await?;
 
     let choices = prompts::build_project_choices(&assignments, None);
     if choices.is_empty() {
@@ -52,9 +54,7 @@ pub async fn list_execute(
     format: &OutputFormat,
 ) -> color_eyre::eyre::Result<()> {
     let config = client.config().clone();
-
-    // Discover project-level config for merged aliases.
-    let project_config = harv_sdk::ProjectConfig::discover().await?;
+    let project_config = ProjectConfig::discover().await?;
     let resolved = harv_sdk::ResolvedConfig::resolve(&config, project_config.as_ref());
 
     if resolved.aliases.is_empty() {
@@ -105,7 +105,7 @@ pub async fn list_execute(
             ]
         })
         .collect();
-    println!("{}", output::render(&headers, &rows, format));
+    output::print(&headers, &rows, format);
     Ok(())
 }
 

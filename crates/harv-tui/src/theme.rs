@@ -1,6 +1,7 @@
 use ratatui::style::Color;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ThemeMode {
     Dark,
     Light,
@@ -13,7 +14,6 @@ pub struct Theme {
     pub fg: Color,
     pub primary: Color,
     pub success: Color,
-    #[allow(dead_code)]
     pub warning: Color,
     #[allow(dead_code)]
     pub error: Color,

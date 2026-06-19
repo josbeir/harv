@@ -10,9 +10,11 @@ pub async fn execute(
     refresh: bool,
     format: &OutputFormat,
 ) -> color_eyre::eyre::Result<()> {
-    let pb = spinner::new_spinner("Loading project assignments...");
-    let (assignments, _) = client.projects().my_assignments(refresh).await?;
-    pb.finish_and_clear();
+    let (assignments, _) = spinner::with_spinner(
+        "Loading project assignments...",
+        client.projects().my_assignments(refresh),
+    )
+    .await?;
 
     let mut filtered: Vec<_> = if let Some(query) = &search {
         let q = query.to_lowercase();
@@ -58,7 +60,7 @@ pub async fn execute(
         })
         .collect();
 
-    println!("{}", output::render(&headers, &rows, format));
+    output::print(&headers, &rows, format);
     Ok(())
 }
 

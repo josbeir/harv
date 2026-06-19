@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 /// Top-level error type for the harv ecosystem.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum HarvError {
     #[error("Authentication required. Run `harv connect` to log in.")]
     NotAuthenticated,
@@ -23,9 +24,6 @@ pub enum HarvError {
 
     #[error("Invalid date: {0}")]
     InvalidDate(String),
-
-    #[error("Invalid time: {0}")]
-    InvalidTime(String),
 
     #[error("No running timer found.")]
     NoRunningTimer,
@@ -202,14 +200,6 @@ mod tests {
         ensure_locale();
         let err = HarvError::InvalidDate("2026-13-01".into());
         assert!(err.to_string().contains("Invalid date"));
-    }
-
-    #[serial]
-    #[test]
-    fn test_invalid_time() {
-        ensure_locale();
-        let err = HarvError::InvalidTime("25:00".into());
-        assert!(err.to_string().contains("Invalid time"));
     }
 
     #[serial]

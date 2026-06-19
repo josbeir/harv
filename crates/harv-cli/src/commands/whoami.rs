@@ -21,7 +21,7 @@ pub async fn execute(client: &HarvClient, output: &OutputFormat) -> color_eyre::
                 "  {}",
                 t_args(
                     "cli-whoami-account-label",
-                    &[("account_id", client.config().account_id.clone())]
+                    &[("account_id", client.config().account_id().to_string())]
                 )
             );
             println!();
@@ -58,7 +58,7 @@ pub async fn execute(client: &HarvClient, output: &OutputFormat) -> color_eyre::
         OutputFormat::Json => {
             let json = serde_json::json!({
                 "authenticated": true,
-                "account_id": client.config().account_id,
+                "account_id": client.config().account_id(),
                 "first_name": user.first_name,
                 "last_name": user.last_name,
                 "email": user.email,

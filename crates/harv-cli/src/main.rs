@@ -32,7 +32,7 @@ fn main() -> color_eyre::eyre::Result<()> {
             rt.block_on(async {
                 // Apply locale override from config
                 if let Ok(config) = harv_sdk::HarvConfig::load().await
-                    && let Some(locale) = &config.locale
+                    && let Some(locale) = config.locale()
                 {
                     harv_core::init_locale(Some(locale));
                 }

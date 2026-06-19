@@ -79,7 +79,6 @@ async fn fetch_one_page_owned<T: DeserializeOwned + Send + 'static>(
 /// Pages beyond the first are fetched concurrently with up to
 /// `MAX_CONCURRENT_PAGES` in-flight requests at any time.
 /// Results are always returned in page order.
-#[allow(dead_code)]
 pub(crate) async fn fetch_all_pages<T>(
     client: &HarvClient,
     path: &str,

@@ -30,6 +30,51 @@ pub fn config_with_last_used(pid: u64, tid: u64) -> HarvConfig {
     }
 }
 
+// ── Time entry test factories ──────────────────────────────────
+
+#[doc(hidden)]
+pub fn make_reference(id: u64, name: &str) -> harv_core::Reference {
+    harv_core::Reference {
+        id,
+        name: name.into(),
+    }
+}
+
+#[doc(hidden)]
+pub fn make_time_entry(
+    id: u64,
+    project_id: u64,
+    task_id: u64,
+    hours: Option<f64>,
+    is_running: bool,
+) -> harv_core::TimeEntry {
+    harv_core::TimeEntry {
+        id,
+        spent_date: None,
+        hours,
+        notes: None,
+        is_running,
+        timer_started_at: if is_running {
+            Some(chrono::Utc::now())
+        } else {
+            None
+        },
+        started_time: None,
+        ended_time: None,
+        project: make_reference(project_id, "Project"),
+        task: make_reference(task_id, "Task"),
+        user: make_reference(1, "User"),
+        client: None,
+        is_billed: false,
+        billable: true,
+        project_code: None,
+        billable_rate: None,
+        cost_rate: None,
+        created_at: None,
+        updated_at: None,
+    }
+}
+
 // ── Pagination ──────────────────────────────────────────────
 
 pub fn paginated(key: &str, items: Vec<serde_json::Value>) -> serde_json::Value {

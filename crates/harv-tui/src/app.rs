@@ -186,52 +186,371 @@ impl App {
         }
     }
 
+    // ── Action handlers ────────────────────────────────────────────
+
+    fn handle_tick(&mut self) {
+        self.tick = self.tick.wrapping_add(1);
+    }
+
+    fn handle_user_loaded(&mut self, user: harv_core::User, tx: &UnboundedSender<Action>) {
+        self.user_id = user.id;
+        self.user_name = Some(format!("{} {}", user.first_name, user.last_name));
+
+        let poll_client = Arc::clone(&self.client);
+        let poll_tx = tx.clone();
+        let poll_user_id = user.id;
+        tokio::spawn(async move {
+            loop {
+                match poll_client.time_entries().running(poll_user_id).await {
+                    Ok(entries) => {
+                        let _ = poll_tx.send(Action::TimerUpdate(entries));
+                    }
+                    Err(e) => {
+                        let _ = poll_tx.send(Action::Error(e.user_message()));
+                    }
+                }
+                tokio::time::sleep(Duration::from_secs(2)).await;
+            }
+        });
+
+        self.fetch_dashboard_data(tx, false, harv_core::datetime::today());
+    }
+
+    fn handle_toggle_help(&mut self) {
+        self.help.toggle();
+    }
+
+    fn handle_theme_changed(&mut self, mode: ThemeMode) {
+        self.theme = match mode {
+            ThemeMode::Dark => Theme::dark(),
+            ThemeMode::Light => Theme::light(),
+        };
+    }
+
+    fn handle_switch_view(&mut self, tx: &UnboundedSender<Action>) {
+        self.form = None;
+        let date = {
+            let View::Dashboard(d) = &self.current_view;
+            d.selected_date()
+        };
+        self.fetch_dashboard_data(tx, false, date);
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn handle_open_form(
+        &mut self,
+        last_project_id: Option<u64>,
+        last_task_id: Option<u64>,
+        project_name: Option<String>,
+        mode: crate::action::FormMode,
+        entry_id: Option<u64>,
+        entry_date: Option<String>,
+        entry_hours: Option<String>,
+        entry_notes: Option<String>,
+        is_running: bool,
+        tx: &UnboundedSender<Action>,
+    ) {
+        let pid = last_project_id.or(self.resolved_config.default_project_id);
+        let tid = last_task_id.or(self.resolved_config.default_task_id);
+        let form = TimeEntryForm::new(
+            pid,
+            tid,
+            project_name,
+            mode,
+            entry_id,
+            entry_date,
+            entry_hours,
+            entry_notes,
+            is_running,
+        );
+        self.form = Some(form);
+
+        let client = Arc::clone(&self.client);
+        let tx = tx.clone();
+        tokio::spawn(async move {
+            match client.projects().my_assignments(false).await {
+                Ok((assignments, _)) => {
+                    let _ = tx.send(Action::FormAssignmentsUpdate(assignments));
+                }
+                Err(e) => {
+                    let _ = tx.send(Action::Error(e.user_message()));
+                }
+            }
+        });
+    }
+
+    fn handle_form_assignments_update(&mut self, assignments: Vec<harv_core::ProjectAssignment>) {
+        if let Some(ref mut f) = self.form {
+            f.update_assignments(assignments);
+        }
+    }
+
+    fn handle_create_entry(
+        &mut self,
+        project_id: u64,
+        task_id: u64,
+        spent_date: String,
+        hours: Option<f64>,
+        notes: Option<String>,
+        tx: &UnboundedSender<Action>,
+    ) {
+        let View::Dashboard(d) = &mut self.current_view;
+        d.set_loading(harv_core::t("tui-app-loading-create"));
+
+        {
+            let mut config = self.client.config().clone();
+            config.set_last_used(project_id, task_id);
+            let config = config;
+            tokio::spawn(async move {
+                let _ = config.save().await;
+            });
+        }
+
+        let client = Arc::clone(&self.client);
+        let tx = tx.clone();
+        tokio::spawn(async move {
+            let spent_date = harv_core::datetime::parse_date(&spent_date)
+                .unwrap_or_else(|_| harv_core::datetime::today());
+
+            let entry = CreateTimeEntry {
+                project_id,
+                task_id,
+                spent_date: Some(spent_date),
+                hours,
+                notes,
+                started_time: None,
+                ended_time: None,
+            };
+            if let Err(e) = client.time_entries().create(&entry).await {
+                let _ = tx.send(Action::Error(e.user_message()));
+            }
+            let _ = tx.send(Action::RefreshEntries);
+        });
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn handle_edit_entry(
+        &mut self,
+        entry_id: u64,
+        project_id: u64,
+        task_id: u64,
+        spent_date: String,
+        hours: Option<f64>,
+        notes: Option<String>,
+        tx: &UnboundedSender<Action>,
+    ) {
+        let View::Dashboard(d) = &mut self.current_view;
+        d.set_loading(harv_core::t("tui-app-loading-save"));
+
+        {
+            let mut config = self.client.config().clone();
+            config.set_last_used(project_id, task_id);
+            let config = config;
+            tokio::spawn(async move {
+                let _ = config.save().await;
+            });
+        }
+
+        let client = Arc::clone(&self.client);
+        let tx = tx.clone();
+        tokio::spawn(async move {
+            let spent_date = harv_core::datetime::parse_date(&spent_date)
+                .unwrap_or_else(|_| harv_core::datetime::today());
+
+            let update = harv_core::UpdateTimeEntry {
+                project_id: Some(project_id),
+                task_id: Some(task_id),
+                spent_date: Some(spent_date),
+                hours,
+                notes,
+                ..Default::default()
+            };
+            if let Err(e) = client.time_entries().update(entry_id, &update).await {
+                let _ = tx.send(Action::Error(e.user_message()));
+            }
+            let _ = tx.send(Action::RefreshEntries);
+        });
+    }
+
+    fn handle_timer_update(&mut self, mut entries: Vec<harv_core::TimeEntry>) {
+        for e in &mut entries {
+            e.project_code = self.project_codes.get(&e.project.id).cloned();
+        }
+        let View::Dashboard(d) = &mut self.current_view;
+        d.update_running(entries);
+    }
+
+    fn handle_today_entries_update(
+        &mut self,
+        mut entries: Vec<harv_core::TimeEntry>,
+        _total: f64,
+        project_count: usize,
+    ) {
+        for e in &entries {
+            if let Some(ref code) = e.project_code {
+                self.project_codes.insert(e.project.id, code.clone());
+            }
+        }
+        for e in &mut entries {
+            if e.project_code.is_none() {
+                e.project_code = self.project_codes.get(&e.project.id).cloned();
+            }
+        }
+        let View::Dashboard(d) = &mut self.current_view;
+        let pc = project_count.max(d.project_count());
+        d.update_entries(entries, pc);
+    }
+
+    fn handle_refresh(&mut self, tx: &UnboundedSender<Action>) {
+        let View::Dashboard(d) = &mut self.current_view;
+        d.set_loading(harv_core::t("tui-app-loading-sync"));
+        let date = d.selected_date();
+        self.fetch_dashboard_data(tx, true, date);
+    }
+
+    fn handle_refresh_entries(&self, tx: &UnboundedSender<Action>) {
+        let View::Dashboard(d) = &self.current_view;
+        let date = d.selected_date();
+        self.fetch_entries(tx, date);
+    }
+
+    fn handle_navigate_day_prev(&mut self, tx: &UnboundedSender<Action>) {
+        let View::Dashboard(d) = &mut self.current_view;
+        d.prev_day();
+        let date = d.selected_date();
+        d.set_loading(harv_core::t("tui-app-loading-generic"));
+        self.update_window_title();
+        self.fetch_entries(tx, date);
+    }
+
+    fn handle_navigate_day_next(&mut self, tx: &UnboundedSender<Action>) {
+        let View::Dashboard(d) = &mut self.current_view;
+        d.next_day();
+        let date = d.selected_date();
+        d.set_loading(harv_core::t("tui-app-loading-generic"));
+        self.update_window_title();
+        self.fetch_entries(tx, date);
+    }
+
+    fn handle_navigate_day_today(&mut self, tx: &UnboundedSender<Action>) {
+        let View::Dashboard(d) = &mut self.current_view;
+        d.go_today();
+        let date = d.selected_date();
+        d.set_loading(harv_core::t("tui-app-loading-generic"));
+        self.update_window_title();
+        self.fetch_entries(tx, date);
+    }
+
+    fn handle_open_date_picker(&mut self) {
+        let initial = if let Some(ref form) = self.form {
+            harv_core::datetime::parse_date(form.date())
+                .unwrap_or_else(|_| harv_core::datetime::today())
+        } else {
+            let View::Dashboard(d) = &self.current_view;
+            d.selected_date()
+        };
+        self.date_picker = Some(DatePicker::new(initial));
+    }
+
+    fn handle_close_date_picker(&mut self) {
+        self.date_picker = None;
+    }
+
+    fn handle_select_date(&mut self, date: NaiveDate, tx: &UnboundedSender<Action>) {
+        if let Some(ref mut form) = self.form {
+            form.set_date(harv_core::datetime::format_date(date));
+        } else {
+            let View::Dashboard(d) = &mut self.current_view;
+            d.set_date(date);
+            d.set_loading(harv_core::t("tui-app-loading-generic"));
+            self.update_window_title();
+            self.fetch_entries(tx, date);
+        }
+        self.date_picker = None;
+    }
+
+    fn handle_stop_timer(&mut self, entry_id: u64, tx: &UnboundedSender<Action>) {
+        let View::Dashboard(d) = &mut self.current_view;
+        d.set_loading(harv_core::t("tui-app-loading-stop"));
+        let client = Arc::clone(&self.client);
+        let tx = tx.clone();
+        tokio::spawn(async move {
+            if let Err(e) = client.time_entries().stop(entry_id).await {
+                let _ = tx.send(Action::Error(e.user_message()));
+            }
+            let _ = tx.send(Action::RefreshEntries);
+        });
+    }
+
+    fn handle_delete_entry(&mut self, entry_id: u64, tx: &UnboundedSender<Action>) {
+        let View::Dashboard(d) = &mut self.current_view;
+        d.set_loading(harv_core::t("tui-app-loading-delete"));
+        let client = Arc::clone(&self.client);
+        let tx = tx.clone();
+        tokio::spawn(async move {
+            match client.time_entries().delete(entry_id).await {
+                Ok(()) => {
+                    let _ = tx.send(Action::RefreshEntries);
+                }
+                Err(e) => {
+                    let _ = tx.send(Action::Error(e.user_message()));
+                }
+            }
+        });
+    }
+
+    fn handle_confirm_delete(&mut self, entry_id: u64, entry_desc: String) {
+        self.pending_confirm = Some((
+            harv_core::t_args("tui-app-confirm-delete", &[("desc", entry_desc)]),
+            vec![Action::DeleteEntry { entry_id }],
+        ));
+    }
+
+    fn handle_confirm_stop_and_start(&mut self, entry_id: u64, entry_desc: String) {
+        self.pending_confirm = Some((
+            harv_core::t_args("tui-app-confirm-stop-start", &[("desc", entry_desc)]),
+            vec![Action::StopAndStartNew { entry_id }],
+        ));
+    }
+
+    fn handle_stop_and_start_new(&mut self, entry_id: u64, tx: &UnboundedSender<Action>) {
+        let View::Dashboard(d) = &mut self.current_view;
+        d.set_loading(harv_core::t("tui-app-loading-stop"));
+        let client = Arc::clone(&self.client);
+        let tx = tx.clone();
+        tokio::spawn(async move {
+            let _ = client.time_entries().stop(entry_id).await;
+            let _ = tx.send(Action::OpenForm {
+                last_project_id: None,
+                last_task_id: None,
+                project_name: None,
+                mode: crate::action::FormMode::Start,
+                entry_id: None,
+                entry_date: None,
+                entry_hours: None,
+                entry_notes: None,
+                is_running: false,
+            });
+            let _ = tx.send(Action::RefreshEntries);
+        });
+    }
+
+    fn handle_set_loading_message(&mut self, msg: String) {
+        let View::Dashboard(d) = &mut self.current_view;
+        d.set_loading_msg(msg);
+    }
+
+    fn handle_error(&self, msg: String) {
+        tracing::error!("{}", msg);
+    }
+
     pub fn dispatch(&mut self, action: Action, tx: &UnboundedSender<Action>) {
         match action {
-            Action::Tick => {
-                self.tick = self.tick.wrapping_add(1);
-            }
-            Action::UserLoaded(user) => {
-                self.user_id = user.id;
-                self.user_name = Some(format!("{} {}", user.first_name, user.last_name));
-
-                // Start the timer poller now that we have a user_id
-                let poll_client = Arc::clone(&self.client);
-                let poll_tx = tx.clone();
-                let poll_user_id = user.id;
-                tokio::spawn(async move {
-                    loop {
-                        match poll_client.time_entries().running(poll_user_id).await {
-                            Ok(entries) => {
-                                let _ = poll_tx.send(Action::TimerUpdate(entries));
-                            }
-                            Err(e) => {
-                                let _ = poll_tx.send(Action::Error(e.user_message()));
-                            }
-                        }
-                        tokio::time::sleep(Duration::from_secs(2)).await;
-                    }
-                });
-
-                self.fetch_dashboard_data(tx, false, harv_core::datetime::today());
-            }
-            Action::ToggleHelp => {
-                self.help.toggle();
-            }
-            Action::ThemeChanged(mode) => {
-                self.theme = match mode {
-                    ThemeMode::Dark => Theme::dark(),
-                    ThemeMode::Light => Theme::light(),
-                };
-            }
-            Action::SwitchView(_) => {
-                self.form = None;
-                let date = {
-                    let View::Dashboard(d) = &self.current_view;
-                    d.selected_date()
-                };
-                self.fetch_dashboard_data(tx, false, date);
-            }
+            Action::Tick => self.handle_tick(),
+            Action::UserLoaded(user) => self.handle_user_loaded(user, tx),
+            Action::ToggleHelp => self.handle_toggle_help(),
+            Action::ThemeChanged(mode) => self.handle_theme_changed(mode),
+            Action::SwitchView(_) => self.handle_switch_view(tx),
             Action::OpenForm {
                 last_project_id,
                 last_task_id,
@@ -242,40 +561,20 @@ impl App {
                 entry_hours,
                 entry_notes,
                 is_running,
-            } => {
-                // Use project-config defaults when no specific override is provided.
-                let pid = last_project_id.or(self.resolved_config.default_project_id);
-                let tid = last_task_id.or(self.resolved_config.default_task_id);
-                let form = TimeEntryForm::new(
-                    pid,
-                    tid,
-                    project_name,
-                    mode,
-                    entry_id,
-                    entry_date,
-                    entry_hours,
-                    entry_notes,
-                    is_running,
-                );
-                self.form = Some(form);
-
-                let client = Arc::clone(&self.client);
-                let tx = tx.clone();
-                tokio::spawn(async move {
-                    match client.projects().my_assignments(false).await {
-                        Ok((assignments, _)) => {
-                            let _ = tx.send(Action::FormAssignmentsUpdate(assignments));
-                        }
-                        Err(e) => {
-                            let _ = tx.send(Action::Error(e.user_message()));
-                        }
-                    }
-                });
-            }
+            } => self.handle_open_form(
+                last_project_id,
+                last_task_id,
+                project_name,
+                mode,
+                entry_id,
+                entry_date,
+                entry_hours,
+                entry_notes,
+                is_running,
+                tx,
+            ),
             Action::FormAssignmentsUpdate(assignments) => {
-                if let Some(ref mut f) = self.form {
-                    f.update_assignments(assignments);
-                }
+                self.handle_form_assignments_update(assignments)
             }
             Action::CreateEntry {
                 project_id,
@@ -283,41 +582,7 @@ impl App {
                 spent_date,
                 hours,
                 notes,
-            } => {
-                let View::Dashboard(d) = &mut self.current_view;
-                d.set_loading(harv_core::t("tui-app-loading-create"));
-
-                // Save last used project/task to config
-                {
-                    let mut config = self.client.config().clone();
-                    config.set_last_used(project_id, task_id);
-                    let config = config;
-                    tokio::spawn(async move {
-                        let _ = config.save().await;
-                    });
-                }
-
-                let client = Arc::clone(&self.client);
-                let tx = tx.clone();
-                tokio::spawn(async move {
-                    let spent_date = harv_core::datetime::parse_date(&spent_date)
-                        .unwrap_or_else(|_| harv_core::datetime::today());
-
-                    let entry = CreateTimeEntry {
-                        project_id,
-                        task_id,
-                        spent_date: Some(spent_date),
-                        hours,
-                        notes,
-                        started_time: None,
-                        ended_time: None,
-                    };
-                    if let Err(e) = client.time_entries().create(&entry).await {
-                        let _ = tx.send(Action::Error(e.user_message()));
-                    }
-                    let _ = tx.send(Action::RefreshEntries);
-                });
-            }
+            } => self.handle_create_entry(project_id, task_id, spent_date, hours, notes, tx),
             Action::EditEntry {
                 entry_id,
                 project_id,
@@ -326,218 +591,33 @@ impl App {
                 hours,
                 notes,
             } => {
-                let View::Dashboard(d) = &mut self.current_view;
-                d.set_loading(harv_core::t("tui-app-loading-save"));
-
-                {
-                    let mut config = self.client.config().clone();
-                    config.set_last_used(project_id, task_id);
-                    let config = config;
-                    tokio::spawn(async move {
-                        let _ = config.save().await;
-                    });
-                }
-
-                let client = Arc::clone(&self.client);
-                let tx = tx.clone();
-                tokio::spawn(async move {
-                    let spent_date = harv_core::datetime::parse_date(&spent_date)
-                        .unwrap_or_else(|_| harv_core::datetime::today());
-
-                    let update = harv_core::UpdateTimeEntry {
-                        project_id: Some(project_id),
-                        task_id: Some(task_id),
-                        spent_date: Some(spent_date),
-                        hours,
-                        notes,
-                        ..Default::default()
-                    };
-                    if let Err(e) = client.time_entries().update(entry_id, &update).await {
-                        let _ = tx.send(Action::Error(e.user_message()));
-                    }
-                    let _ = tx.send(Action::RefreshEntries);
-                });
+                self.handle_edit_entry(entry_id, project_id, task_id, spent_date, hours, notes, tx)
             }
-            Action::TimerUpdate(mut entries) => {
-                for e in &mut entries {
-                    e.project_code = self.project_codes.get(&e.project.id).cloned();
-                }
-                let View::Dashboard(d) = &mut self.current_view;
-                d.update_running(entries);
+            Action::TimerUpdate(entries) => self.handle_timer_update(entries),
+            Action::TodayEntriesUpdate(entries, total, project_count) => {
+                self.handle_today_entries_update(entries, total, project_count)
             }
-            Action::TodayEntriesUpdate(mut entries, _total, project_count) => {
-                for e in &entries {
-                    if let Some(ref code) = e.project_code {
-                        self.project_codes.insert(e.project.id, code.clone());
-                    }
-                }
-                for e in &mut entries {
-                    if e.project_code.is_none() {
-                        e.project_code = self.project_codes.get(&e.project.id).cloned();
-                    }
-                }
-                let View::Dashboard(d) = &mut self.current_view;
-                // Preserve existing project_count on light refreshes (day nav)
-                // that don't fetch assignments (project_count = 0 from fetch_entries).
-                let pc = project_count.max(d.project_count());
-                d.update_entries(entries, pc);
-            }
-            Action::Refresh => {
-                let View::Dashboard(d) = &mut self.current_view;
-                d.set_loading(harv_core::t("tui-app-loading-sync"));
-                let date = d.selected_date();
-                self.fetch_dashboard_data(tx, true, date);
-            }
-            Action::RefreshEntries => {
-                let View::Dashboard(d) = &self.current_view;
-                let date = d.selected_date();
-                self.fetch_entries(tx, date);
-            }
-            Action::NavigateDayPrev => {
-                let View::Dashboard(d) = &mut self.current_view;
-                d.prev_day();
-                let date = d.selected_date();
-                d.set_loading(harv_core::t("tui-app-loading-generic"));
-                self.update_window_title();
-                self.fetch_entries(tx, date);
-            }
-            Action::NavigateDayNext => {
-                let View::Dashboard(d) = &mut self.current_view;
-                d.next_day();
-                let date = d.selected_date();
-                d.set_loading(harv_core::t("tui-app-loading-generic"));
-                self.update_window_title();
-                self.fetch_entries(tx, date);
-            }
-            Action::NavigateDayToday => {
-                let View::Dashboard(d) = &mut self.current_view;
-                d.go_today();
-                let date = d.selected_date();
-                d.set_loading(harv_core::t("tui-app-loading-generic"));
-                self.update_window_title();
-                self.fetch_entries(tx, date);
-            }
-            Action::OpenDatePicker => {
-                let initial = if let Some(ref form) = self.form {
-                    harv_core::datetime::parse_date(form.date())
-                        .unwrap_or_else(|_| harv_core::datetime::today())
-                } else {
-                    let View::Dashboard(d) = &self.current_view;
-                    d.selected_date()
-                };
-                self.date_picker = Some(DatePicker::new(initial));
-            }
-            Action::CloseDatePicker => {
-                self.date_picker = None;
-            }
-            Action::SelectDate(date) => {
-                if let Some(ref mut form) = self.form {
-                    form.set_date(harv_core::datetime::format_date(date));
-                } else {
-                    let View::Dashboard(d) = &mut self.current_view;
-                    d.set_date(date);
-                    d.set_loading(harv_core::t("tui-app-loading-generic"));
-                    self.update_window_title();
-                    self.fetch_entries(tx, date);
-                }
-                self.date_picker = None;
-            }
-            Action::StartTimer {
-                project_id,
-                task_id,
-            } => {
-                let client = Arc::clone(&self.client);
-                let tx = tx.clone();
-                tokio::spawn(async move {
-                    let entry = CreateTimeEntry {
-                        project_id,
-                        task_id,
-                        spent_date: Some(harv_core::datetime::today()),
-                        hours: None,
-                        notes: None,
-                        started_time: None,
-                        ended_time: None,
-                    };
-                    if let Err(e) = client.time_entries().create(&entry).await {
-                        let _ = tx.send(Action::Error(e.user_message()));
-                    }
-                    let _ = tx.send(Action::RefreshEntries);
-                });
-            }
-            Action::StopTimer { entry_id } => {
-                let View::Dashboard(d) = &mut self.current_view;
-                d.set_loading(harv_core::t("tui-app-loading-stop"));
-                let client = Arc::clone(&self.client);
-                let tx = tx.clone();
-                tokio::spawn(async move {
-                    if let Err(e) = client.time_entries().stop(entry_id).await {
-                        let _ = tx.send(Action::Error(e.user_message()));
-                    }
-                    let _ = tx.send(Action::RefreshEntries);
-                });
-            }
-            Action::DeleteEntry { entry_id } => {
-                let View::Dashboard(d) = &mut self.current_view;
-                d.set_loading(harv_core::t("tui-app-loading-delete"));
-                let client = Arc::clone(&self.client);
-                let tx = tx.clone();
-                tokio::spawn(async move {
-                    match client.time_entries().delete(entry_id).await {
-                        Ok(()) => {
-                            let _ = tx.send(Action::RefreshEntries);
-                        }
-                        Err(e) => {
-                            let _ = tx.send(Action::Error(e.user_message()));
-                        }
-                    }
-                });
-            }
+            Action::Refresh => self.handle_refresh(tx),
+            Action::RefreshEntries => self.handle_refresh_entries(tx),
+            Action::NavigateDayPrev => self.handle_navigate_day_prev(tx),
+            Action::NavigateDayNext => self.handle_navigate_day_next(tx),
+            Action::NavigateDayToday => self.handle_navigate_day_today(tx),
+            Action::OpenDatePicker => self.handle_open_date_picker(),
+            Action::CloseDatePicker => self.handle_close_date_picker(),
+            Action::SelectDate(date) => self.handle_select_date(date, tx),
+            Action::StopTimer { entry_id } => self.handle_stop_timer(entry_id, tx),
+            Action::DeleteEntry { entry_id } => self.handle_delete_entry(entry_id, tx),
             Action::ConfirmDelete {
                 entry_id,
                 entry_desc,
-            } => {
-                self.pending_confirm = Some((
-                    harv_core::t_args("tui-app-confirm-delete", &[("desc", entry_desc)]),
-                    vec![Action::DeleteEntry { entry_id }],
-                ));
-            }
+            } => self.handle_confirm_delete(entry_id, entry_desc),
             Action::ConfirmStopAndStart {
                 entry_id,
                 entry_desc,
-            } => {
-                self.pending_confirm = Some((
-                    harv_core::t_args("tui-app-confirm-stop-start", &[("desc", entry_desc)]),
-                    vec![Action::StopAndStartNew { entry_id }],
-                ));
-            }
-            Action::StopAndStartNew { entry_id } => {
-                let View::Dashboard(d) = &mut self.current_view;
-                d.set_loading(harv_core::t("tui-app-loading-stop"));
-                let client = Arc::clone(&self.client);
-                let tx = tx.clone();
-                tokio::spawn(async move {
-                    let _ = client.time_entries().stop(entry_id).await;
-                    let _ = tx.send(Action::OpenForm {
-                        last_project_id: None,
-                        last_task_id: None,
-                        project_name: None,
-                        mode: crate::action::FormMode::Start,
-                        entry_id: None,
-                        entry_date: None,
-                        entry_hours: None,
-                        entry_notes: None,
-                        is_running: false,
-                    });
-                    let _ = tx.send(Action::RefreshEntries);
-                });
-            }
-            Action::SetLoadingMessage(msg) => {
-                let View::Dashboard(d) = &mut self.current_view;
-                d.set_loading_msg(msg);
-            }
-            Action::Error(msg) => {
-                tracing::error!("{}", msg);
-            }
+            } => self.handle_confirm_stop_and_start(entry_id, entry_desc),
+            Action::StopAndStartNew { entry_id } => self.handle_stop_and_start_new(entry_id, tx),
+            Action::SetLoadingMessage(msg) => self.handle_set_loading_message(msg),
+            Action::Error(msg) => self.handle_error(msg),
             _ => {}
         }
     }
@@ -1040,6 +1120,7 @@ mod tests {
         let mut app = make_app();
         let (_tx, _rx) = make_channel();
         app.dispatch(Action::SetLoadingMessage("syncing".into()), &_tx);
+        assert_eq!(app.dashboard().loading_msg_str(), "syncing");
     }
 
     #[test]
@@ -1048,6 +1129,7 @@ mod tests {
         let (tx, _rx) = make_channel();
         let assignments = vec![];
         app.dispatch(Action::FormAssignmentsUpdate(assignments), &tx);
+        assert!(!app.has_form());
     }
 
     #[test]
@@ -1085,6 +1167,7 @@ mod tests {
             updated_at: None,
         };
         app.dispatch(Action::TimerUpdate(vec![entry]), &tx);
+        assert!(app.dashboard().has_running());
     }
 
     #[tokio::test]
@@ -1113,6 +1196,8 @@ mod tests {
         let mut app = make_app();
         let (tx, _rx) = make_channel();
         app.dispatch(Action::Error("test error".into()), &tx);
+        assert!(!app.has_form());
+        assert!(!app.dashboard().has_running());
     }
 
     #[tokio::test]
@@ -1148,9 +1233,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_dispatch_refresh() {
+        harv_core::init_locale(Some("en"));
         let mut app = make_app();
         let (tx, _rx) = make_channel();
+        let before = app.dashboard().loading_msg_str().to_string();
         app.dispatch(Action::Refresh, &tx);
+        assert_ne!(app.dashboard().loading_msg_str(), before);
     }
 
     #[tokio::test]
@@ -1158,6 +1246,7 @@ mod tests {
         let mut app = make_app();
         let (tx, _rx) = make_channel();
         app.dispatch(Action::RefreshEntries, &tx);
+        assert_eq!(app.dashboard().entry_count(), 0);
     }
 
     #[test]

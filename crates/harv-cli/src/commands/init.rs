@@ -27,11 +27,13 @@ pub async fn run(args: &crate::InitArgs) -> color_eyre::eyre::Result<()> {
     let client = HarvClient::from_config_file().await?;
     let config = client.config().clone();
 
-    let pb = spinner::new_spinner("Loading project assignments...");
-    let (assignments, _) = client.projects().my_assignments(false).await?;
-    pb.finish_and_clear();
+    let (assignments, _) = spinner::with_spinner(
+        "Loading project assignments...",
+        client.projects().my_assignments(false),
+    )
+    .await?;
 
-    let choices = prompts::build_project_choices(&assignments, config.last_project_id);
+    let choices = prompts::build_project_choices(&assignments, config.last_project_id());
     if choices.is_empty() {
         println!("No project assignments found.");
         return Ok(());
@@ -48,7 +50,7 @@ pub async fn run(args: &crate::InitArgs) -> color_eyre::eyre::Result<()> {
         (pid, choice.display.clone(), choice.task_assignments.clone())
     } else {
         let cursor =
-            crate::resolution::starting_cursor_for_default(&choices, config.last_project_id);
+            crate::resolution::starting_cursor_for_default(&choices, config.last_project_id());
         println!("\nSelect the default project for this directory:");
         let choice = prompts::pick_project(&choices, cursor)?;
         (

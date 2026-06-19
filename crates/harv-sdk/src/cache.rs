@@ -61,7 +61,7 @@ impl ProjectsCache {
         for a in assignments {
             for ta in &a.task_assignments {
                 task_map.entry(ta.task.id).or_insert_with(|| {
-                    let idx = tasks.len() as u32;
+                    let idx = u32::try_from(tasks.len()).expect("task count exceeds u32 capacity");
                     tasks.push(TaskDefinition {
                         id: ta.task.id,
                         name: ta.task.name.clone(),
@@ -158,7 +158,8 @@ impl ProjectsCache {
             return false;
         }
         let age = chrono::Utc::now() - self.fetched_at;
-        age.num_hours() < ttl_hours as i64
+        let ttl: i64 = i64::try_from(ttl_hours).unwrap_or(i64::MAX);
+        age.num_hours() < ttl
     }
 }
 

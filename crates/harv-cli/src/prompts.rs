@@ -1,7 +1,6 @@
 use chrono::NaiveDate;
 use harv_core::text::format_project_display;
 use harv_core::{ProjectAssignment, Reference, TaskAssignment};
-use harv_sdk::HarvConfig;
 use inquire::{CustomType, Select, Text, validator::Validation};
 
 /// Prompt for an alias name (non-empty, no whitespace).
@@ -102,17 +101,6 @@ pub fn pick_task(choice: &ProjectChoice) -> color_eyre::eyre::Result<&TaskAssign
     Ok(&choice.task_assignments[idx])
 }
 
-/// Find a project choice by alias name. Returns None if not found.
-#[allow(dead_code)]
-pub fn resolve_alias<'a>(
-    config: &HarvConfig,
-    choices: &'a [ProjectChoice],
-    alias_name: &str,
-) -> Option<&'a ProjectChoice> {
-    let alias = config.alias(alias_name)?;
-    choices.iter().find(|c| c.project_id == alias.project_id)
-}
-
 /// Prompt for a date, defaulting to today.
 pub fn ask_date(default: NaiveDate) -> color_eyre::eyre::Result<NaiveDate> {
     let default_str = default.format("%Y-%m-%d").to_string();
@@ -120,12 +108,9 @@ pub fn ask_date(default: NaiveDate) -> color_eyre::eyre::Result<NaiveDate> {
         if input.is_empty() {
             return Ok(Validation::Valid);
         }
-        match NaiveDate::parse_from_str(input, "%Y-%m-%d") {
-            Ok(d) if d <= harv_core::datetime::today() => Ok(Validation::Valid),
-            Ok(_) => Ok(Validation::Invalid("Date cannot be in the future".into())),
-            Err(_) => Ok(Validation::Invalid(
-                "Invalid date format (YYYY-MM-DD)".into(),
-            )),
+        match harv_core::datetime::parse_date_not_future(input) {
+            Ok(_) => Ok(Validation::Valid),
+            Err(e) => Ok(Validation::Invalid(e.user_message().into())),
         }
     };
 
@@ -258,12 +243,9 @@ pub fn ask_date_with_default(default: NaiveDate) -> color_eyre::eyre::Result<Opt
         if input.is_empty() {
             return Ok(Validation::Valid);
         }
-        match NaiveDate::parse_from_str(input, "%Y-%m-%d") {
-            Ok(d) if d <= harv_core::datetime::today() => Ok(Validation::Valid),
-            Ok(_) => Ok(Validation::Invalid("Date cannot be in the future".into())),
-            Err(_) => Ok(Validation::Invalid(
-                "Invalid date format (YYYY-MM-DD)".into(),
-            )),
+        match harv_core::datetime::parse_date_not_future(input) {
+            Ok(_) => Ok(Validation::Valid),
+            Err(e) => Ok(Validation::Invalid(e.user_message().into())),
         }
     };
 
@@ -370,9 +352,52 @@ pub fn format_timer_display(
     }
 }
 
-#[allow(dead_code)]
-fn fuzzy_score(pattern: &str, text: &str) -> i32 {
-    harv_core::text::fuzzy_score(pattern, text)
+pub(crate) fn pick_running_timer<'a>(
+    running: &'a [harv_core::TimeEntry],
+    prompt: &str,
+) -> color_eyre::eyre::Result<&'a harv_core::TimeEntry> {
+    if running.len() == 1 {
+        Ok(&running[0])
+    } else {
+        let items: Vec<String> = running
+            .iter()
+            .map(harv_core::text::format_timer_line)
+            .collect();
+        let items_str: Vec<&str> = items.iter().map(|s| s.as_str()).collect();
+        let selection = inquire::Select::new(prompt, items_str.clone()).prompt()?;
+        let idx = items_str.iter().position(|&s| s == selection).unwrap();
+        Ok(&running[idx])
+    }
+}
+
+pub(crate) fn resolve_entry_notes(
+    existing: &str,
+    notes: Option<&str>,
+    overwrite: bool,
+    editor: bool,
+) -> color_eyre::eyre::Result<Option<String>> {
+    if editor {
+        let input = inquire::Text::new("Notes (empty to keep current):")
+            .prompt_skippable()?
+            .filter(|s| !s.trim().is_empty());
+        Ok(input.map(|n| {
+            if overwrite || existing.is_empty() {
+                n
+            } else {
+                harv_core::text::append_notes(existing, &n)
+            }
+        }))
+    } else if let Some(n) = notes {
+        if n.is_empty() {
+            Ok(None)
+        } else if overwrite || existing.is_empty() {
+            Ok(Some(n.to_string()))
+        } else {
+            Ok(Some(harv_core::text::append_notes(existing, n)))
+        }
+    } else {
+        Ok(None)
+    }
 }
 
 #[cfg(test)]
@@ -382,17 +407,17 @@ mod tests {
 
     #[test]
     fn test_fuzzy_score_exact() {
-        assert!(fuzzy_score("dev", "Development") > 0);
+        assert!(harv_core::text::fuzzy_score("dev", "Development") > 0);
     }
 
     #[test]
     fn test_fuzzy_score_no_match() {
-        assert_eq!(fuzzy_score("xyz", "Development"), -1);
+        assert_eq!(harv_core::text::fuzzy_score("xyz", "Development"), -1);
     }
 
     #[test]
     fn test_fuzzy_score_substring() {
-        assert!(fuzzy_score("De", "Development") > 0);
+        assert!(harv_core::text::fuzzy_score("De", "Development") > 0);
     }
 
     #[test]
@@ -581,5 +606,82 @@ mod tests {
         assert!(result.contains("\"project\""));
         assert!(result.contains("Test Project"));
         assert!(result.contains("30"));
+    }
+
+    // --- resolve_entry_notes tests ---
+
+    #[test]
+    fn test_resolve_entry_notes_overwrite() {
+        let result = resolve_entry_notes("old notes", Some("new"), true, false).unwrap();
+        assert_eq!(result, Some("new".into()));
+    }
+
+    #[test]
+    fn test_resolve_entry_notes_append() {
+        let result = resolve_entry_notes("old notes", Some("new"), false, false).unwrap();
+        let notes = result.unwrap();
+        assert!(notes.contains("new"));
+        assert!(notes.contains("old notes"));
+    }
+
+    #[test]
+    fn test_resolve_entry_notes_empty_existing_overwrite() {
+        let result = resolve_entry_notes("", Some("new"), false, false).unwrap();
+        assert_eq!(result, Some("new".into()));
+    }
+
+    #[test]
+    fn test_resolve_entry_notes_empty_notes() {
+        let result = resolve_entry_notes("old", Some(""), false, false).unwrap();
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_resolve_entry_notes_none_notes() {
+        let result = resolve_entry_notes("old", None, false, false).unwrap();
+        assert_eq!(result, None);
+    }
+
+    // --- pick_running_timer test (single-entry path, non-interactive) ---
+
+    #[test]
+    fn test_pick_running_timer_single() {
+        let entry = make_timer_entry(1, 100, 200);
+        let running = vec![entry];
+        let picked = pick_running_timer(&running, "Pick one").unwrap();
+        assert_eq!(picked.id, 1);
+    }
+
+    fn make_timer_entry(id: u64, project_id: u64, task_id: u64) -> harv_core::TimeEntry {
+        harv_core::TimeEntry {
+            id,
+            spent_date: None,
+            hours: None,
+            notes: None,
+            is_running: true,
+            timer_started_at: Some(chrono::Utc::now()),
+            started_time: None,
+            ended_time: None,
+            project: harv_core::Reference {
+                id: project_id,
+                name: "Project".into(),
+            },
+            task: harv_core::Reference {
+                id: task_id,
+                name: "Task".into(),
+            },
+            user: harv_core::Reference {
+                id: 1,
+                name: "User".into(),
+            },
+            client: None,
+            is_billed: false,
+            billable: true,
+            project_code: None,
+            billable_rate: None,
+            cost_rate: None,
+            created_at: None,
+            updated_at: None,
+        }
     }
 }

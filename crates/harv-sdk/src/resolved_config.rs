@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::config::{Alias, HarvConfig};
 use crate::project_config::{NoteTemplate, ProjectConfig};
+use harv_core::HarvError;
 
 /// The effective configuration after merging global (`HarvConfig`) and
 /// project-level (`ProjectConfig`) settings.
@@ -43,15 +44,15 @@ impl ResolvedConfig {
     pub fn resolve(global: &HarvConfig, project: Option<&ProjectConfig>) -> Self {
         let default_project_id = project
             .and_then(|p| p.default_project_id)
-            .or(global.last_project_id);
+            .or(global.last_project_id());
 
         let default_task_id = project
             .and_then(|p| p.default_task_id)
-            .or(global.last_task_id);
+            .or(global.last_task_id());
 
         // Merge aliases: start with global, then overlay project
         // (project entries win on name conflict).
-        let mut aliases = global.aliases.clone();
+        let mut aliases = global.aliases().clone();
         if let Some(proj) = project {
             for (name, alias) in &proj.aliases {
                 aliases.insert(name.clone(), alias.clone());
@@ -92,6 +93,14 @@ impl ResolvedConfig {
             && self.default_task_id.is_none()
             && self.aliases.is_empty()
             && self.templates.is_empty()
+    }
+
+    /// Discover project-level config from the filesystem and merge it with
+    /// the global config. Convenience wrapper around `ProjectConfig::discover()`
+    /// and `Self::resolve()`.
+    pub async fn resolve_from_environment(global: &HarvConfig) -> Result<Self, HarvError> {
+        let project_config = ProjectConfig::discover().await?;
+        Ok(Self::resolve(global, project_config.as_ref()))
     }
 }
 

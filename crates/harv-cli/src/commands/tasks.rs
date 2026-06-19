@@ -21,7 +21,7 @@ pub async fn execute(
         })
         .collect();
 
-    println!("{}", output::render(&headers, &rows, format));
+    output::print(&headers, &rows, format);
     Ok(())
 }
 

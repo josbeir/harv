@@ -3,7 +3,6 @@ use tabled::builder::Builder;
 use tabled::settings::Style;
 
 /// Renders output as a table or JSON string.
-#[allow(dead_code)]
 pub(crate) fn render<H, R>(headers: &[H], rows: &[R], format: &OutputFormat) -> String
 where
     H: AsRef<str>,
@@ -43,28 +42,13 @@ where
     }
 }
 
-/// Render a single key-value record as a vertical table or JSON object.
-#[allow(dead_code)]
-pub(crate) fn render_kv(entries: &[(&str, &str)], format: &OutputFormat) -> String {
-    match format {
-        OutputFormat::Table => {
-            let mut builder = Builder::default();
-            for (k, v) in entries {
-                builder.push_record([*k, *v]);
-            }
-            builder.build().with(Style::rounded()).to_string()
-        }
-        OutputFormat::Json => {
-            let mut result = String::from("{");
-            let fields: Vec<String> = entries
-                .iter()
-                .map(|(k, v)| format!(r#""{}": "{}""#, k, v))
-                .collect();
-            result.push_str(&fields.join(", "));
-            result.push('}');
-            result
-        }
-    }
+/// Print rendered output to stdout.
+pub(crate) fn print<H, R>(headers: &[H], rows: &[R], format: &OutputFormat)
+where
+    H: AsRef<str>,
+    R: AsRef<[String]>,
+{
+    println!("{}", render(headers, rows, format));
 }
 
 #[cfg(test)]
@@ -97,22 +81,5 @@ mod tests {
         let rows: Vec<[String; 0]> = vec![];
         let output = render(&headers, &rows, &OutputFormat::Json);
         assert_eq!(output, "[]");
-    }
-
-    #[test]
-    fn test_render_kv_json() {
-        let entries = [("key", "value")];
-        let output = render_kv(&entries, &OutputFormat::Json);
-        assert!(output.contains("\"key\""));
-        assert!(output.contains("\"value\""));
-    }
-
-    #[test]
-    fn test_render_kv_table() {
-        let entries = [("Setting", "Value"), ("Locale", "en")];
-        let output = render_kv(&entries, &OutputFormat::Table);
-        assert!(output.contains("Setting"));
-        assert!(output.contains("Value"));
-        assert!(output.contains("Locale"));
     }
 }

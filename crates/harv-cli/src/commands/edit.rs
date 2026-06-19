@@ -16,12 +16,7 @@ pub async fn execute(
     date: Option<String>,
     refresh: bool,
 ) -> color_eyre::eyre::Result<()> {
-    let user = {
-        let pb = spinner::new_spinner("Loading...");
-        let u = client.users().me().await?;
-        pb.finish_and_clear();
-        u
-    };
+    let user = spinner::with_spinner("Loading...", client.users().me()).await?;
 
     // Step 1: resolve the entry to edit
     let entry = if let Some(id) = entry_id {
@@ -31,9 +26,8 @@ pub async fn execute(
             .await
             .map_err(|e| color_eyre::eyre::eyre!(e.user_message()))?
     } else {
-        let pb = spinner::new_spinner("Loading...");
-        let running = client.time_entries().running(user.id).await?;
-        pb.finish_and_clear();
+        let running =
+            spinner::with_spinner("Loading...", client.time_entries().running(user.id)).await?;
 
         let picked_id = if !running.is_empty() {
             pick_entry_id(&running, "Which timer do you want to edit?")?
@@ -59,14 +53,12 @@ pub async fn execute(
             pick_entry_id(&entries, "Which entry do you want to edit?")?
         };
 
-        let pb = spinner::new_spinner("Loading entry details...");
-        let entry = client
-            .time_entries()
-            .get(picked_id)
-            .await
-            .map_err(|e| color_eyre::eyre::eyre!(e.user_message()))?;
-        pb.finish_and_clear();
-        entry
+        spinner::with_spinner(
+            "Loading entry details...",
+            client.time_entries().get(picked_id),
+        )
+        .await
+        .map_err(|e| color_eyre::eyre::eyre!(e.user_message()))?
     };
 
     let is_running = entry.is_running;
@@ -98,9 +90,11 @@ pub async fn execute(
     }
 
     // Interactive path: load assignments and prompt
-    let pb = spinner::new_spinner("Loading project assignments...");
-    let (assignments, _) = client.projects().my_assignments(refresh).await?;
-    pb.finish_and_clear();
+    let (assignments, _) = spinner::with_spinner(
+        "Loading project assignments...",
+        client.projects().my_assignments(refresh),
+    )
+    .await?;
 
     let choices = prompts::build_project_choices(&assignments, None);
     if choices.is_empty() {
@@ -184,7 +178,6 @@ pub async fn execute(
     };
 
     // Step 9: PATCH the entry
-    let pb = spinner::new_spinner("Saving changes...");
     let update = UpdateTimeEntry {
         project_id: if p_id != entry.project.id {
             Some(p_id)
@@ -201,12 +194,12 @@ pub async fn execute(
         notes: resolved_notes,
         ..Default::default()
     };
-    let updated = client
-        .time_entries()
-        .update(entry.id, &update)
-        .await
-        .map_err(|e| color_eyre::eyre::eyre!(e.user_message()))?;
-    pb.finish_and_clear();
+    let updated = spinner::with_spinner(
+        "Saving changes...",
+        client.time_entries().update(entry.id, &update),
+    )
+    .await
+    .map_err(|e| color_eyre::eyre::eyre!(e.user_message()))?;
 
     // Step 10: confirmation
     let display_hours = updated.hours.or(resolved_hours).or(entry.hours);
@@ -229,9 +222,10 @@ pub async fn execute(
     );
 
     // Save last-used project/task
-    let mut saved_cfg = client.config().clone();
-    saved_cfg.set_last_used(p_id, t_id);
-    let _ = saved_cfg.save().await;
+    {
+        let mut saved_cfg = client.config().clone();
+        let _ = saved_cfg.save_last_used(p_id, t_id).await;
+    }
 
     Ok(())
 }
@@ -274,7 +268,6 @@ async fn execute_non_interactive(
         None
     };
 
-    let pb = spinner::new_spinner("Saving changes...");
     let update = UpdateTimeEntry {
         project_id,
         task_id,
@@ -283,12 +276,12 @@ async fn execute_non_interactive(
         notes: resolved_notes,
         ..Default::default()
     };
-    let updated = client
-        .time_entries()
-        .update(entry.id, &update)
-        .await
-        .map_err(|e| color_eyre::eyre::eyre!(e.user_message()))?;
-    pb.finish_and_clear();
+    let updated = spinner::with_spinner(
+        "Saving changes...",
+        client.time_entries().update(entry.id, &update),
+    )
+    .await
+    .map_err(|e| color_eyre::eyre::eyre!(e.user_message()))?;
 
     let hours_str = updated
         .hours
@@ -313,8 +306,7 @@ async fn execute_non_interactive(
 
     if let (Some(pid), Some(tid)) = (project_id, task_id) {
         let mut saved_cfg = client.config().clone();
-        saved_cfg.set_last_used(pid, tid);
-        let _ = saved_cfg.save().await;
+        let _ = saved_cfg.save_last_used(pid, tid).await;
     }
 
     Ok(())
@@ -370,44 +362,11 @@ pub async fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use harv_core::Reference;
-
-    fn make_entry(id: u64, hours: Option<f64>, running: bool) -> harv_core::TimeEntry {
-        harv_core::TimeEntry {
-            id,
-            spent_date: None,
-            hours,
-            notes: None,
-            is_running: running,
-            timer_started_at: None,
-            started_time: None,
-            ended_time: None,
-            project: Reference {
-                id: 100,
-                name: "Project".into(),
-            },
-            task: Reference {
-                id: 200,
-                name: "Task".into(),
-            },
-            user: Reference {
-                id: 1,
-                name: "User".into(),
-            },
-            client: None,
-            is_billed: false,
-            billable: true,
-            project_code: None,
-            billable_rate: None,
-            cost_rate: None,
-            created_at: None,
-            updated_at: None,
-        }
-    }
+    use harv_sdk::mock_data::make_time_entry;
 
     #[test]
     fn test_format_entry_line_with_hours() {
-        let entry = make_entry(1, Some(1.5), false);
+        let entry = make_time_entry(1, 100, 200, Some(1.5), false);
         let line = format_entry_line(&entry);
         assert!(line.starts_with("#1"));
         assert!(line.contains("1.50h"));
@@ -417,21 +376,21 @@ mod tests {
 
     #[test]
     fn test_format_entry_line_running() {
-        let entry = make_entry(2, None, true);
+        let entry = make_time_entry(2, 100, 200, None, true);
         let line = format_entry_line(&entry);
         assert!(line.contains("Running"));
     }
 
     #[test]
     fn test_format_entry_line_no_hours_not_running() {
-        let entry = make_entry(3, None, false);
+        let entry = make_time_entry(3, 100, 200, None, false);
         let line = format_entry_line(&entry);
         assert!(line.contains("—"));
     }
 
     #[test]
     fn test_pick_entry_id_single_entry() {
-        let entries = vec![make_entry(42, Some(1.0), false)];
+        let entries = vec![make_time_entry(42, 100, 200, Some(1.0), false)];
         let id = pick_entry_id(&entries, "Prompt").unwrap();
         assert_eq!(id, 42);
     }

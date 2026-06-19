@@ -70,7 +70,7 @@ impl Dashboard {
         self.running_entry = entries.into_iter().next();
     }
 
-    pub fn selected_entry(&self) -> Option<&TimeEntry> {
+    pub fn selected_make_time_entry(&self) -> Option<&TimeEntry> {
         self.entries.get(self.selected_index)
     }
 
@@ -356,7 +356,7 @@ impl Dashboard {
                 }
             }
             KeyCode::Char('d') => {
-                if let Some(entry) = self.selected_entry() {
+                if let Some(entry) = self.selected_make_time_entry() {
                     let entry_desc = format!(
                         "{} · {} ({})",
                         harv_core::text::format_project_display(
@@ -377,7 +377,7 @@ impl Dashboard {
                 }
                 vec![]
             }
-            KeyCode::Char('e') | KeyCode::Enter => match self.selected_entry() {
+            KeyCode::Char('e') | KeyCode::Enter => match self.selected_make_time_entry() {
                 Some(entry) => {
                     let date = entry
                         .spent_date
@@ -540,49 +540,16 @@ impl Dashboard {
     pub fn set_loaded(&mut self, v: bool) {
         self.loaded = v;
     }
+
+    #[doc(hidden)]
+    pub fn loading_msg_str(&self) -> &str {
+        &self.loading_msg
+    }
 }
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Utc;
-    use harv_core::Reference;
-
-    fn ref_(id: u64, name: &str) -> Reference {
-        Reference {
-            id,
-            name: name.into(),
-        }
-    }
-
-    fn entry(
-        id: u64,
-        project_id: u64,
-        task_id: u64,
-        hours: Option<f64>,
-        is_running: bool,
-    ) -> TimeEntry {
-        TimeEntry {
-            id,
-            spent_date: None,
-            hours,
-            notes: None,
-            is_running,
-            timer_started_at: if is_running { Some(Utc::now()) } else { None },
-            started_time: None,
-            ended_time: None,
-            project: ref_(project_id, "Project"),
-            task: ref_(task_id, "Task"),
-            user: ref_(1, "User"),
-            client: None,
-            is_billed: false,
-            billable: true,
-            project_code: None,
-            billable_rate: None,
-            cost_rate: None,
-            created_at: None,
-            updated_at: None,
-        }
-    }
+    use harv_sdk::mock_data::make_time_entry;
 
     fn key_press(code: KeyCode) -> ratatui::crossterm::event::KeyEvent {
         ratatui::crossterm::event::KeyEvent::new(
@@ -612,8 +579,8 @@ mod tests {
     fn test_update_entries_sets_data() {
         let mut d = Dashboard::default();
         let entries = vec![
-            entry(1, 10, 20, Some(2.5), false),
-            entry(2, 11, 21, None, true),
+            make_time_entry(1, 10, 20, Some(2.5), false),
+            make_time_entry(2, 11, 21, None, true),
         ];
         d.update_entries(entries, 0);
         assert!(d.loaded);
@@ -627,9 +594,9 @@ mod tests {
         let mut d = Dashboard::default();
         d.update_entries(
             vec![
-                entry(1, 10, 20, Some(2.5), false),
-                entry(2, 11, 21, Some(1.5), false),
-                entry(3, 12, 22, None, true),
+                make_time_entry(1, 10, 20, Some(2.5), false),
+                make_time_entry(2, 11, 21, Some(1.5), false),
+                make_time_entry(3, 12, 22, None, true),
             ],
             0,
         );
@@ -639,33 +606,33 @@ mod tests {
     #[test]
     fn test_update_running_preserves_entries() {
         let mut d = Dashboard::default();
-        d.update_entries(vec![entry(1, 10, 20, Some(2.5), false)], 0);
-        d.update_running(vec![entry(99, 10, 20, None, true)]);
+        d.update_entries(vec![make_time_entry(1, 10, 20, Some(2.5), false)], 0);
+        d.update_running(vec![make_time_entry(99, 10, 20, None, true)]);
         assert_eq!(d.entries.len(), 1);
         assert!(d.running_entry.is_some());
         assert_eq!(d.running_entry.unwrap().id, 99);
     }
 
     #[test]
-    fn test_selected_entry() {
+    fn test_selected_make_time_entry() {
         let mut d = Dashboard::default();
         d.update_entries(
             vec![
-                entry(1, 10, 20, Some(1.0), false),
-                entry(2, 11, 21, Some(2.0), false),
+                make_time_entry(1, 10, 20, Some(1.0), false),
+                make_time_entry(2, 11, 21, Some(2.0), false),
             ],
             0,
         );
         d.selected_index = 0;
-        assert_eq!(d.selected_entry().unwrap().id, 1);
+        assert_eq!(d.selected_make_time_entry().unwrap().id, 1);
         d.selected_index = 1;
-        assert_eq!(d.selected_entry().unwrap().id, 2);
+        assert_eq!(d.selected_make_time_entry().unwrap().id, 2);
     }
 
     #[test]
     fn test_set_loading() {
         let mut d = Dashboard::default();
-        d.update_entries(vec![entry(1, 10, 20, Some(1.0), false)], 0);
+        d.update_entries(vec![make_time_entry(1, 10, 20, Some(1.0), false)], 0);
         assert!(d.loaded);
         d.set_loading("Test".to_string());
         assert!(!d.loaded);
@@ -677,9 +644,9 @@ mod tests {
         let mut d = Dashboard::default();
         d.update_entries(
             vec![
-                entry(1, 10, 20, Some(1.0), false),
-                entry(2, 11, 21, Some(2.0), false),
-                entry(3, 12, 22, Some(3.0), false),
+                make_time_entry(1, 10, 20, Some(1.0), false),
+                make_time_entry(2, 11, 21, Some(2.0), false),
+                make_time_entry(3, 12, 22, Some(3.0), false),
             ],
             0,
         );
@@ -696,8 +663,8 @@ mod tests {
         let mut d = Dashboard::default();
         d.update_entries(
             vec![
-                entry(1, 10, 20, Some(1.0), false),
-                entry(2, 11, 21, Some(2.0), false),
+                make_time_entry(1, 10, 20, Some(1.0), false),
+                make_time_entry(2, 11, 21, Some(2.0), false),
             ],
             0,
         );
@@ -711,7 +678,7 @@ mod tests {
     #[test]
     fn test_s_stops_running() {
         let mut d = Dashboard::default();
-        d.update_entries(vec![entry(1, 10, 20, None, true)], 0);
+        d.update_entries(vec![make_time_entry(1, 10, 20, None, true)], 0);
         let actions = d.handle_key(&key_press(KeyCode::Char('s')));
         assert!(matches!(
             actions[0],
@@ -722,7 +689,7 @@ mod tests {
     #[test]
     fn test_s_no_timer_opens_start_form() {
         let mut d = Dashboard::default();
-        d.update_entries(vec![entry(1, 10, 20, Some(1.0), false)], 0);
+        d.update_entries(vec![make_time_entry(1, 10, 20, Some(1.0), false)], 0);
         let actions = d.handle_key(&key_press(KeyCode::Char('s')));
         assert!(matches!(
             actions[0],
@@ -736,7 +703,7 @@ mod tests {
     #[test]
     fn test_x_stops_running_timer() {
         let mut d = Dashboard::default();
-        d.update_entries(vec![entry(1, 10, 20, None, true)], 0);
+        d.update_entries(vec![make_time_entry(1, 10, 20, None, true)], 0);
         let actions = d.handle_key(&key_press(KeyCode::Char('x')));
         assert!(matches!(actions[0], Action::StopTimer { entry_id: 1 }));
     }
@@ -744,7 +711,7 @@ mod tests {
     #[test]
     fn test_x_idle_does_nothing() {
         let mut d = Dashboard::default();
-        d.update_entries(vec![entry(1, 10, 20, Some(1.0), false)], 0);
+        d.update_entries(vec![make_time_entry(1, 10, 20, Some(1.0), false)], 0);
         let actions = d.handle_key(&key_press(KeyCode::Char('x')));
         assert!(actions.is_empty());
     }
@@ -765,7 +732,7 @@ mod tests {
     #[test]
     fn test_e_opens_edit_form() {
         let mut d = Dashboard::default();
-        d.update_entries(vec![entry(42, 10, 20, Some(2.0), false)], 0);
+        d.update_entries(vec![make_time_entry(42, 10, 20, Some(2.0), false)], 0);
         let actions = d.handle_key(&key_press(KeyCode::Char('e')));
         assert!(matches!(
             actions[0],
@@ -780,7 +747,7 @@ mod tests {
     #[test]
     fn test_d_triggers_confirm_delete() {
         let mut d = Dashboard::default();
-        d.update_entries(vec![entry(42, 10, 20, Some(2.0), false)], 0);
+        d.update_entries(vec![make_time_entry(42, 10, 20, Some(2.0), false)], 0);
         let actions = d.handle_key(&key_press(KeyCode::Char('d')));
         assert!(matches!(
             actions[0],
@@ -798,7 +765,7 @@ mod tests {
     #[test]
     fn test_enter_on_running_opens_edit() {
         let mut d = Dashboard::default();
-        d.update_entries(vec![entry(1, 10, 20, None, true)], 0);
+        d.update_entries(vec![make_time_entry(1, 10, 20, None, true)], 0);
         let actions = d.handle_key(&key_press(KeyCode::Enter));
         assert!(matches!(
             actions[0],
@@ -813,7 +780,7 @@ mod tests {
     #[test]
     fn test_enter_on_running_passes_is_running_true() {
         let mut d = Dashboard::default();
-        d.update_entries(vec![entry(1, 10, 20, None, true)], 0);
+        d.update_entries(vec![make_time_entry(1, 10, 20, None, true)], 0);
         let actions = d.handle_key(&key_press(KeyCode::Enter));
         assert!(matches!(
             actions[0],
@@ -827,7 +794,7 @@ mod tests {
     #[test]
     fn test_e_on_stopped_passes_is_running_false() {
         let mut d = Dashboard::default();
-        d.update_entries(vec![entry(1, 10, 20, Some(2.0), false)], 0);
+        d.update_entries(vec![make_time_entry(1, 10, 20, Some(2.0), false)], 0);
         let actions = d.handle_key(&key_press(KeyCode::Char('e')));
         assert!(matches!(
             actions[0],
