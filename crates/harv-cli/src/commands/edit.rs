@@ -16,12 +16,7 @@ pub async fn execute(
     date: Option<String>,
     refresh: bool,
 ) -> color_eyre::eyre::Result<()> {
-    let user = {
-        let pb = spinner::new_spinner("Loading...");
-        let u = client.users().me().await?;
-        pb.finish_and_clear();
-        u
-    };
+    let user = spinner::with_spinner("Loading...", client.users().me()).await?;
 
     // Step 1: resolve the entry to edit
     let entry = if let Some(id) = entry_id {
@@ -31,9 +26,8 @@ pub async fn execute(
             .await
             .map_err(|e| color_eyre::eyre::eyre!(e.user_message()))?
     } else {
-        let pb = spinner::new_spinner("Loading...");
-        let running = client.time_entries().running(user.id).await?;
-        pb.finish_and_clear();
+        let running =
+            spinner::with_spinner("Loading...", client.time_entries().running(user.id)).await?;
 
         let picked_id = if !running.is_empty() {
             pick_entry_id(&running, "Which timer do you want to edit?")?
@@ -59,14 +53,12 @@ pub async fn execute(
             pick_entry_id(&entries, "Which entry do you want to edit?")?
         };
 
-        let pb = spinner::new_spinner("Loading entry details...");
-        let entry = client
-            .time_entries()
-            .get(picked_id)
-            .await
-            .map_err(|e| color_eyre::eyre::eyre!(e.user_message()))?;
-        pb.finish_and_clear();
-        entry
+        spinner::with_spinner(
+            "Loading entry details...",
+            client.time_entries().get(picked_id),
+        )
+        .await
+        .map_err(|e| color_eyre::eyre::eyre!(e.user_message()))?
     };
 
     let is_running = entry.is_running;
@@ -98,9 +90,11 @@ pub async fn execute(
     }
 
     // Interactive path: load assignments and prompt
-    let pb = spinner::new_spinner("Loading project assignments...");
-    let (assignments, _) = client.projects().my_assignments(refresh).await?;
-    pb.finish_and_clear();
+    let (assignments, _) = spinner::with_spinner(
+        "Loading project assignments...",
+        client.projects().my_assignments(refresh),
+    )
+    .await?;
 
     let choices = prompts::build_project_choices(&assignments, None);
     if choices.is_empty() {
@@ -184,7 +178,6 @@ pub async fn execute(
     };
 
     // Step 9: PATCH the entry
-    let pb = spinner::new_spinner("Saving changes...");
     let update = UpdateTimeEntry {
         project_id: if p_id != entry.project.id {
             Some(p_id)
@@ -201,12 +194,12 @@ pub async fn execute(
         notes: resolved_notes,
         ..Default::default()
     };
-    let updated = client
-        .time_entries()
-        .update(entry.id, &update)
-        .await
-        .map_err(|e| color_eyre::eyre::eyre!(e.user_message()))?;
-    pb.finish_and_clear();
+    let updated = spinner::with_spinner(
+        "Saving changes...",
+        client.time_entries().update(entry.id, &update),
+    )
+    .await
+    .map_err(|e| color_eyre::eyre::eyre!(e.user_message()))?;
 
     // Step 10: confirmation
     let display_hours = updated.hours.or(resolved_hours).or(entry.hours);
@@ -274,7 +267,6 @@ async fn execute_non_interactive(
         None
     };
 
-    let pb = spinner::new_spinner("Saving changes...");
     let update = UpdateTimeEntry {
         project_id,
         task_id,
@@ -283,12 +275,12 @@ async fn execute_non_interactive(
         notes: resolved_notes,
         ..Default::default()
     };
-    let updated = client
-        .time_entries()
-        .update(entry.id, &update)
-        .await
-        .map_err(|e| color_eyre::eyre::eyre!(e.user_message()))?;
-    pb.finish_and_clear();
+    let updated = spinner::with_spinner(
+        "Saving changes...",
+        client.time_entries().update(entry.id, &update),
+    )
+    .await
+    .map_err(|e| color_eyre::eyre::eyre!(e.user_message()))?;
 
     let hours_str = updated
         .hours

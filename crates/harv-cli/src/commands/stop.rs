@@ -7,10 +7,8 @@ pub async fn execute(
     overwrite: bool,
     editor: bool,
 ) -> color_eyre::eyre::Result<()> {
-    let pb = spinner::new_spinner("Loading...");
-    let user = client.users().me().await?;
+    let user = spinner::with_spinner("Loading...", client.users().me()).await?;
     let running = client.time_entries().running(user.id).await?;
-    pb.finish_and_clear();
 
     if running.is_empty() {
         println!("No timer is currently running.");

@@ -22,9 +22,11 @@ pub async fn execute(
     let project_config = ProjectConfig::discover().await?;
     let resolved = ResolvedConfig::resolve(&config, project_config.as_ref());
 
-    let pb = spinner::new_spinner("Loading project assignments...");
-    let (assignments, _) = client.projects().my_assignments(refresh).await?;
-    pb.finish_and_clear();
+    let (assignments, _) = spinner::with_spinner(
+        "Loading project assignments...",
+        client.projects().my_assignments(refresh),
+    )
+    .await?;
 
     // Use resolved defaults for project pre-selection (project config
     // takes priority over global last_used).
@@ -143,13 +145,12 @@ pub async fn execute(
         ended_time,
     };
 
-    let pb = spinner::new_spinner("Creating time entry...");
-    let created = client
-        .time_entries()
-        .create(&entry)
-        .await
-        .map_err(|e| color_eyre::eyre::eyre!(e.user_message()))?;
-    pb.finish_and_clear();
+    let created = spinner::with_spinner(
+        "Creating time entry...",
+        client.time_entries().create(&entry),
+    )
+    .await
+    .map_err(|e| color_eyre::eyre::eyre!(e.user_message()))?;
 
     let confirmation = prompts::format_entry_confirmation(
         resolved_hours,

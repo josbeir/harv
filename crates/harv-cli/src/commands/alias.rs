@@ -7,9 +7,11 @@ use crate::spinner;
 use harv_sdk::{Alias, HarvClient, HarvConfig};
 
 pub async fn create_execute(client: &HarvClient, name: &str) -> color_eyre::eyre::Result<()> {
-    let pb = spinner::new_spinner("Loading project assignments...");
-    let (assignments, _) = client.projects().my_assignments(false).await?;
-    pb.finish_and_clear();
+    let (assignments, _) = spinner::with_spinner(
+        "Loading project assignments...",
+        client.projects().my_assignments(false),
+    )
+    .await?;
 
     let choices = prompts::build_project_choices(&assignments, None);
     if choices.is_empty() {
