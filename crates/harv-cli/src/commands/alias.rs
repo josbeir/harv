@@ -105,7 +105,7 @@ pub async fn list_execute(
             ]
         })
         .collect();
-    println!("{}", output::render(&headers, &rows, format));
+    output::print(&headers, &rows, format);
     Ok(())
 }
 

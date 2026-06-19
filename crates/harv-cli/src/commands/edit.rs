@@ -222,9 +222,10 @@ pub async fn execute(
     );
 
     // Save last-used project/task
-    let mut saved_cfg = client.config().clone();
-    saved_cfg.set_last_used(p_id, t_id);
-    let _ = saved_cfg.save().await;
+    {
+        let mut saved_cfg = client.config().clone();
+        let _ = saved_cfg.save_last_used(p_id, t_id).await;
+    }
 
     Ok(())
 }
@@ -305,8 +306,7 @@ async fn execute_non_interactive(
 
     if let (Some(pid), Some(tid)) = (project_id, task_id) {
         let mut saved_cfg = client.config().clone();
-        saved_cfg.set_last_used(pid, tid);
-        let _ = saved_cfg.save().await;
+        let _ = saved_cfg.save_last_used(pid, tid).await;
     }
 
     Ok(())

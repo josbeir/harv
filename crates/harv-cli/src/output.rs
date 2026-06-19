@@ -42,6 +42,15 @@ where
     }
 }
 
+/// Print rendered output to stdout.
+pub(crate) fn print<H, R>(headers: &[H], rows: &[R], format: &OutputFormat)
+where
+    H: AsRef<str>,
+    R: AsRef<[String]>,
+{
+    println!("{}", render(headers, rows, format));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

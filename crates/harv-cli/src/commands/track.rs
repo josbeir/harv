@@ -165,9 +165,10 @@ pub async fn execute(
     }
 
     // Persist last-used project/task to global config.
-    let mut saved_cfg = client.config().clone();
-    saved_cfg.set_last_used(p_id, t_id);
-    let _ = saved_cfg.save().await;
+    {
+        let mut saved_cfg = client.config().clone();
+        let _ = saved_cfg.save_last_used(p_id, t_id).await;
+    }
 
     Ok(())
 }

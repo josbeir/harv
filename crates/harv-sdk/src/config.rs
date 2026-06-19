@@ -87,6 +87,12 @@ impl HarvConfig {
         self.last_project_id = Some(project_id);
         self.last_task_id = Some(task_id);
     }
+
+    /// Record the last used project and task IDs and persist to disk.
+    pub async fn save_last_used(&mut self, project_id: u64, task_id: u64) -> Result<(), HarvError> {
+        self.set_last_used(project_id, task_id);
+        self.save().await
+    }
 }
 
 #[cfg(test)]
