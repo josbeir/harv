@@ -438,23 +438,10 @@ fn format_timer_compact(entry: &TimeEntry) -> String {
 }
 
 fn render_harv_header(area: Rect, f: &mut Frame, theme: &Theme, date: NaiveDate) {
+    use crate::loading::{ASCII_LOGO, LOGO_SHADES};
     use ratatui::widgets::Clear;
 
     f.render_widget(Clear, area);
-
-    let shades: [(u8, u8, u8); 4] = [
-        (250, 210, 140),
-        (250, 170, 90),
-        (250, 130, 40),
-        (250, 93, 0),
-    ];
-
-    let header_lines = [
-        "▗▖ ▗▖ ▗▄▖ ▗▄▄▖ ▗▖  ▗▖",
-        "▐▌ ▐▌▐▌ ▐▌▐▌ ▐▌▐▌  ▐▌",
-        "▐▛▀▜▌▐▛▀▜▌▐▛▀▚▖▐▌  ▐▌",
-        "▐▌ ▐▌▐▌ ▐▌▐▌ ▐▌ ▝▚▞▘ ",
-    ];
 
     let version = env!("CARGO_PKG_VERSION");
     let version_text = format!("{} v{}", harv_core::t("tui-app-title"), version);
@@ -467,8 +454,8 @@ fn render_harv_header(area: Rect, f: &mut Frame, theme: &Theme, date: NaiveDate)
 
     let mut lines: Vec<Line> = Vec::new();
 
-    for (i, header_line) in header_lines.iter().enumerate() {
-        let (r, g, b) = shades[i];
+    for (i, header_line) in ASCII_LOGO.iter().enumerate() {
+        let (r, g, b) = LOGO_SHADES[i];
         lines.push(Line::from(Span::styled(
             header_line.to_string(),
             Style::new()
