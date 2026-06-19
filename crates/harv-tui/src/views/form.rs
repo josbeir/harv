@@ -35,6 +35,7 @@ pub struct TimeEntryForm {
     date: String,
     hours: String,
     notes: String,
+    cursor_pos: usize,
     active: Field,
     visible: bool,
     tasks_loading: bool,
@@ -80,6 +81,7 @@ impl TimeEntryForm {
             date,
             hours: entry_hours.unwrap_or_default(),
             notes: entry_notes.unwrap_or_default(),
+            cursor_pos: 0,
             active: Field::ProjectList,
             visible: true,
             tasks_loading: false,
@@ -334,6 +336,7 @@ impl TimeEntryForm {
             self.render_text_field(
                 &harv_core::t("tui-form-date-label"),
                 &self.date,
+                self.cursor_pos,
                 self.active == Field::Date,
                 Rect {
                     x: content_x,
@@ -347,6 +350,7 @@ impl TimeEntryForm {
             self.render_text_field(
                 &harv_core::t("tui-form-hours-label"),
                 &self.hours,
+                self.cursor_pos,
                 self.active == Field::Hours,
                 Rect {
                     x: content_x,
@@ -360,6 +364,7 @@ impl TimeEntryForm {
             self.render_text_field(
                 &harv_core::t("tui-form-notes-label"),
                 &self.notes,
+                self.cursor_pos,
                 self.active == Field::Notes,
                 Rect {
                     x: content_x,
@@ -391,6 +396,7 @@ impl TimeEntryForm {
             self.render_text_field(
                 &harv_core::t("tui-form-notes-label"),
                 &self.notes,
+                self.cursor_pos,
                 self.active == Field::Notes,
                 Rect {
                     x: content_x,
@@ -569,10 +575,12 @@ impl TimeEntryForm {
         f.render_stateful_widget(list, list_area, &mut self.task_list);
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn render_text_field(
         &self,
         label: &str,
         value: &str,
+        cursor_pos: usize,
         active: bool,
         area: Rect,
         f: &mut Frame,
@@ -603,11 +611,7 @@ impl TimeEntryForm {
         f.render_widget(Paragraph::new(display.clone()), inner);
 
         if active {
-            let cursor_x = if value.is_empty() {
-                inner.x
-            } else {
-                inner.x + display.width() as u16
-            };
+            let cursor_x = inner.x + cursor_pos.min(inner.width.saturating_sub(1) as usize) as u16;
             f.set_cursor_position((cursor_x.min(inner.right().saturating_sub(1)), inner.y));
         }
     }
@@ -679,6 +683,7 @@ impl TimeEntryForm {
                 } else {
                     Field::Notes
                 };
+                self.cursor_pos = self.active_text_field().len();
                 vec![]
             }
             KeyCode::BackTab => {
@@ -702,6 +707,7 @@ impl TimeEntryForm {
                 } else {
                     Field::Notes
                 };
+                self.cursor_pos = self.active_text_field().len();
                 vec![]
             }
             KeyCode::Backspace => {
@@ -743,6 +749,9 @@ impl TimeEntryForm {
                     Field::Notes => Field::ProjectList,
                     _ => Field::ProjectList,
                 };
+                if Self::is_text_field(self.active) {
+                    self.cursor_pos = self.active_text_field().len();
+                }
                 vec![]
             }
             KeyCode::BackTab => {
@@ -758,6 +767,9 @@ impl TimeEntryForm {
                     }
                     _ => Field::ProjectList,
                 };
+                if Self::is_text_field(self.active) {
+                    self.cursor_pos = self.active_text_field().len();
+                }
                 vec![]
             }
             KeyCode::Char('g') if self.active == Field::Date => {
@@ -769,17 +781,64 @@ impl TimeEntryForm {
                     Field::Hours => self.active = Field::Notes,
                     _ => return self.submit_entry(),
                 };
+                self.cursor_pos = self.active_text_field().len();
+                vec![]
+            }
+            KeyCode::Left => {
+                self.cursor_pos = self.cursor_pos.saturating_sub(1);
+                vec![]
+            }
+            KeyCode::Right => {
+                let max = self.active_text_field().len();
+                if self.cursor_pos < max {
+                    self.cursor_pos += 1;
+                }
+                vec![]
+            }
+            KeyCode::Home => {
+                self.cursor_pos = 0;
+                vec![]
+            }
+            KeyCode::End => {
+                self.cursor_pos = self.active_text_field().len();
                 vec![]
             }
             KeyCode::Backspace => {
-                self.active_text_field_mut().pop();
+                if self.cursor_pos > 0 {
+                    self.cursor_pos -= 1;
+                    let pos = self.cursor_pos;
+                    self.active_text_field_mut().remove(pos);
+                }
+                vec![]
+            }
+            KeyCode::Delete => {
+                let pos = self.cursor_pos;
+                let s = self.active_text_field_mut();
+                if pos < s.len() {
+                    s.remove(pos);
+                }
                 vec![]
             }
             KeyCode::Char(c) => {
-                self.active_text_field_mut().push(c);
+                let pos = self.cursor_pos;
+                self.active_text_field_mut().insert(pos, c);
+                self.cursor_pos = pos + 1;
                 vec![]
             }
             _ => vec![],
+        }
+    }
+
+    fn is_text_field(active: Field) -> bool {
+        matches!(active, Field::Date | Field::Hours | Field::Notes)
+    }
+
+    fn active_text_field(&self) -> &str {
+        match self.active {
+            Field::Date => &self.date,
+            Field::Hours => &self.hours,
+            Field::Notes => &self.notes,
+            _ => unreachable!(),
         }
     }
 
