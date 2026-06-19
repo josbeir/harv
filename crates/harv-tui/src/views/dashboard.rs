@@ -99,17 +99,17 @@ impl Dashboard {
     }
 
     pub fn render(&mut self, area: Rect, f: &mut Frame, theme: &Theme, tick: u64) {
-        let layout = Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).split(area);
+        let layout = Layout::vertical([Constraint::Min(0)]).split(area);
 
         if !self.loaded {
-            crate::loading::render_harv_loading(layout[1], f, tick, &self.loading_msg, theme);
+            crate::loading::render_harv_loading(layout[0], f, tick, &self.loading_msg, theme);
             return;
         }
 
         if self.entries.is_empty() {
             let inner = Layout::vertical([Constraint::Min(0), Constraint::Length(3)])
                 .spacing(Spacing::Overlap(1))
-                .split(layout[1]);
+                .split(layout[0]);
             render_harv_header(inner[0], f, theme, self.selected_date);
             self.render_stats_footer(inner[1], f, theme);
             return;
@@ -117,7 +117,7 @@ impl Dashboard {
 
         let body = Layout::vertical([Constraint::Min(0), Constraint::Length(3)])
             .spacing(Spacing::Overlap(1))
-            .split(layout[1]);
+            .split(layout[0]);
 
         self.render_entry_list(body[0], f, theme);
         self.render_stats_footer(body[1], f, theme);
@@ -145,7 +145,7 @@ impl Dashboard {
             .map(|e| {
                 let has_notes = e.notes.as_deref().is_some_and(|n| !n.is_empty());
                 let lines: usize = if has_notes { 3 } else { 2 };
-                lines + 1
+                lines + 2 // content_lines + TOP + BOTTOM
             })
             .unwrap_or(0);
         let viewport_h = area.height as usize;
@@ -253,7 +253,7 @@ impl Dashboard {
 
             let visible_content_lines: Vec<Line> = entry_lines
                 .into_iter()
-                .skip(clip_top as usize)
+                .skip(clip_top.saturating_sub(1) as usize)
                 .take(inner.height as usize)
                 .collect();
 

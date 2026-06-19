@@ -637,6 +637,12 @@ impl App {
     fn render(&mut self, f: &mut Frame) {
         let area = f.area();
 
+        // Fill entire frame with theme background
+        f.render_widget(
+            Paragraph::new("").style(Style::new().bg(self.theme.bg)),
+            area,
+        );
+
         let layout = Layout::vertical([
             Constraint::Length(3),
             Constraint::Min(0),
