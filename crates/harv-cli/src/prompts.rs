@@ -1,7 +1,6 @@
 use chrono::NaiveDate;
 use harv_core::text::format_project_display;
 use harv_core::{ProjectAssignment, Reference, TaskAssignment};
-use harv_sdk::HarvConfig;
 use inquire::{CustomType, Select, Text, validator::Validation};
 
 /// Prompt for an alias name (non-empty, no whitespace).
@@ -100,17 +99,6 @@ pub fn pick_task(choice: &ProjectChoice) -> color_eyre::eyre::Result<&TaskAssign
         .position(|&c| c == selection)
         .expect("selected item should exist");
     Ok(&choice.task_assignments[idx])
-}
-
-/// Find a project choice by alias name. Returns None if not found.
-#[allow(dead_code)]
-pub fn resolve_alias<'a>(
-    config: &HarvConfig,
-    choices: &'a [ProjectChoice],
-    alias_name: &str,
-) -> Option<&'a ProjectChoice> {
-    let alias = config.alias(alias_name)?;
-    choices.iter().find(|c| c.project_id == alias.project_id)
 }
 
 /// Prompt for a date, defaulting to today.
@@ -412,11 +400,6 @@ pub(crate) fn resolve_entry_notes(
     }
 }
 
-#[allow(dead_code)]
-fn fuzzy_score(pattern: &str, text: &str) -> i32 {
-    harv_core::text::fuzzy_score(pattern, text)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -424,17 +407,17 @@ mod tests {
 
     #[test]
     fn test_fuzzy_score_exact() {
-        assert!(fuzzy_score("dev", "Development") > 0);
+        assert!(harv_core::text::fuzzy_score("dev", "Development") > 0);
     }
 
     #[test]
     fn test_fuzzy_score_no_match() {
-        assert_eq!(fuzzy_score("xyz", "Development"), -1);
+        assert_eq!(harv_core::text::fuzzy_score("xyz", "Development"), -1);
     }
 
     #[test]
     fn test_fuzzy_score_substring() {
-        assert!(fuzzy_score("De", "Development") > 0);
+        assert!(harv_core::text::fuzzy_score("De", "Development") > 0);
     }
 
     #[test]

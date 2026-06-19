@@ -442,28 +442,6 @@ impl App {
                 }
                 self.date_picker = None;
             }
-            Action::StartTimer {
-                project_id,
-                task_id,
-            } => {
-                let client = Arc::clone(&self.client);
-                let tx = tx.clone();
-                tokio::spawn(async move {
-                    let entry = CreateTimeEntry {
-                        project_id,
-                        task_id,
-                        spent_date: Some(harv_core::datetime::today()),
-                        hours: None,
-                        notes: None,
-                        started_time: None,
-                        ended_time: None,
-                    };
-                    if let Err(e) = client.time_entries().create(&entry).await {
-                        let _ = tx.send(Action::Error(e.user_message()));
-                    }
-                    let _ = tx.send(Action::RefreshEntries);
-                });
-            }
             Action::StopTimer { entry_id } => {
                 let View::Dashboard(d) = &mut self.current_view;
                 d.set_loading(harv_core::t("tui-app-loading-stop"));

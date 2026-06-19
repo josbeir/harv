@@ -10,9 +10,6 @@ pub enum Action {
     Quit,
     Tick,
     SwitchView(ViewId),
-    NavigateUp,
-    NavigateDown,
-    Select,
     Refresh,
     RefreshEntries,
     TimerUpdate(Vec<TimeEntry>),
@@ -50,10 +47,6 @@ pub enum Action {
         spent_date: String,
         hours: Option<f64>,
         notes: Option<String>,
-    },
-    StartTimer {
-        project_id: u64,
-        task_id: u64,
     },
     StopTimer {
         entry_id: u64,

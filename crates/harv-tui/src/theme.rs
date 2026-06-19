@@ -14,7 +14,6 @@ pub struct Theme {
     pub fg: Color,
     pub primary: Color,
     pub success: Color,
-    #[allow(dead_code)]
     pub warning: Color,
     #[allow(dead_code)]
     pub error: Color,
