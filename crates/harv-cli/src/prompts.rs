@@ -607,4 +607,81 @@ mod tests {
         assert!(result.contains("Test Project"));
         assert!(result.contains("30"));
     }
+
+    // --- resolve_entry_notes tests ---
+
+    #[test]
+    fn test_resolve_entry_notes_overwrite() {
+        let result = resolve_entry_notes("old notes", Some("new"), true, false).unwrap();
+        assert_eq!(result, Some("new".into()));
+    }
+
+    #[test]
+    fn test_resolve_entry_notes_append() {
+        let result = resolve_entry_notes("old notes", Some("new"), false, false).unwrap();
+        let notes = result.unwrap();
+        assert!(notes.contains("new"));
+        assert!(notes.contains("old notes"));
+    }
+
+    #[test]
+    fn test_resolve_entry_notes_empty_existing_overwrite() {
+        let result = resolve_entry_notes("", Some("new"), false, false).unwrap();
+        assert_eq!(result, Some("new".into()));
+    }
+
+    #[test]
+    fn test_resolve_entry_notes_empty_notes() {
+        let result = resolve_entry_notes("old", Some(""), false, false).unwrap();
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_resolve_entry_notes_none_notes() {
+        let result = resolve_entry_notes("old", None, false, false).unwrap();
+        assert_eq!(result, None);
+    }
+
+    // --- pick_running_timer test (single-entry path, non-interactive) ---
+
+    #[test]
+    fn test_pick_running_timer_single() {
+        let entry = make_timer_entry(1, 100, 200);
+        let running = vec![entry];
+        let picked = pick_running_timer(&running, "Pick one").unwrap();
+        assert_eq!(picked.id, 1);
+    }
+
+    fn make_timer_entry(id: u64, project_id: u64, task_id: u64) -> harv_core::TimeEntry {
+        harv_core::TimeEntry {
+            id,
+            spent_date: None,
+            hours: None,
+            notes: None,
+            is_running: true,
+            timer_started_at: Some(chrono::Utc::now()),
+            started_time: None,
+            ended_time: None,
+            project: harv_core::Reference {
+                id: project_id,
+                name: "Project".into(),
+            },
+            task: harv_core::Reference {
+                id: task_id,
+                name: "Task".into(),
+            },
+            user: harv_core::Reference {
+                id: 1,
+                name: "User".into(),
+            },
+            client: None,
+            is_billed: false,
+            billable: true,
+            project_code: None,
+            billable_rate: None,
+            cost_rate: None,
+            created_at: None,
+            updated_at: None,
+        }
+    }
 }
