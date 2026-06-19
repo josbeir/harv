@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use tokio::net::TcpListener;
+use tokio::sync::Notify;
 
 /// Default Harvest OAuth2 client ID. Override at compile time by setting
 /// `HARV_CLIENT_ID` in the environment:
@@ -46,14 +47,18 @@ type CallbackResult = Arc<Mutex<Option<Result<(String, String), HarvError>>>>;
 pub async fn authenticate() -> Result<(String, String), HarvError> {
     let result: CallbackResult = Arc::new(Mutex::new(None));
     let result_handler = result.clone();
+    let notify = Arc::new(Notify::new());
+    let notify_handler = notify.clone();
 
     let app = Router::new().route(
         "/",
         get(move |Query(params): Query<HashMap<String, String>>| {
             let result = result_handler.clone();
+            let notify = notify_handler.clone();
             async move {
                 let parsed = parse_callback(&params);
                 *result.lock().unwrap() = Some(parsed);
+                notify.notify_one();
                 (StatusCode::OK, Html(String::from(SUCCESS_HTML)))
             }
         }),
@@ -78,42 +83,25 @@ pub async fn authenticate() -> Result<(String, String), HarvError> {
         );
     }
 
-    // Serve until we get at least one connection (or timeout would be better, but for now just serve)
-    // Use a one-shot approach: spawn the server and wait for the result
     let server = axum::serve(listener, app);
-
-    // Poll the result every 250ms while the server handles the callback
-    let result_clone = result.clone();
     let handle = tokio::spawn(async move { server.await });
 
-    // Wait until we have a result or the server task finishes
+    // Wait until we get the callback or the timeout fires
     tokio::select! {
-        _ = async {
-            loop {
-                if result_clone.lock().unwrap().is_some() {
-                    break;
-                }
-                tokio::time::sleep(std::time::Duration::from_millis(250)).await;
-            }
-        } => {
+        _ = notify.notified() => {
             handle.abort();
         }
-        _ = async {
-            // Safety: give the callback up to 120 seconds
-            tokio::time::sleep(std::time::Duration::from_secs(120)).await;
-        } => {
+        _ = tokio::time::sleep(std::time::Duration::from_secs(120)) => {
             handle.abort();
             return Err(HarvError::Other("OAuth login timed out after 120 seconds".into()));
         }
     }
 
-    #[allow(clippy::let_and_return)]
-    let out = result
+    result
         .lock()
         .unwrap()
         .take()
-        .ok_or(HarvError::OAuthFailed)?;
-    out
+        .ok_or(HarvError::OAuthFailed)?
 }
 
 fn parse_callback(query: &HashMap<String, String>) -> Result<(String, String), HarvError> {
