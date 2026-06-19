@@ -9,7 +9,10 @@ pub async fn run() -> color_eyre::eyre::Result<()> {
         return Ok(());
     }
 
-    let account_id = HarvConfig::load().await.map(|c| c.account_id).ok();
+    let account_id = HarvConfig::load()
+        .await
+        .map(|c| c.account_id().to_string())
+        .ok();
 
     if let Some(ref id) = account_id {
         println!(

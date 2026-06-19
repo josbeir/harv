@@ -7,18 +7,18 @@ use tokio::fs;
 /// Configuration stored at `~/.config/harv/config.toml`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HarvConfig {
-    pub access_token: String,
-    pub account_id: String,
+    pub(crate) access_token: String,
+    pub(crate) account_id: String,
     #[serde(default = "default_cache_ttl")]
-    pub cache_ttl_hours: u64,
+    pub(crate) cache_ttl_hours: u64,
     #[serde(default)]
-    pub last_project_id: Option<u64>,
+    pub(crate) last_project_id: Option<u64>,
     #[serde(default)]
-    pub last_task_id: Option<u64>,
+    pub(crate) last_task_id: Option<u64>,
     #[serde(default)]
-    pub locale: Option<String>,
+    pub(crate) locale: Option<String>,
     #[serde(default)]
-    pub aliases: HashMap<String, Alias>,
+    pub(crate) aliases: HashMap<String, Alias>,
 }
 
 fn default_cache_ttl() -> u64 {
@@ -33,6 +33,55 @@ pub struct Alias {
 }
 
 impl HarvConfig {
+    /// Create a new config with the given credentials and default values.
+    pub fn new(access_token: String, account_id: String) -> Self {
+        Self {
+            access_token,
+            account_id,
+            cache_ttl_hours: 24,
+            last_project_id: None,
+            last_task_id: None,
+            locale: None,
+            aliases: HashMap::new(),
+        }
+    }
+
+    pub fn access_token(&self) -> &str {
+        &self.access_token
+    }
+
+    pub fn account_id(&self) -> &str {
+        &self.account_id
+    }
+
+    pub fn cache_ttl_hours(&self) -> u64 {
+        self.cache_ttl_hours
+    }
+
+    pub fn last_project_id(&self) -> Option<u64> {
+        self.last_project_id
+    }
+
+    pub fn last_task_id(&self) -> Option<u64> {
+        self.last_task_id
+    }
+
+    pub fn locale(&self) -> Option<&str> {
+        self.locale.as_deref()
+    }
+
+    pub fn aliases(&self) -> &HashMap<String, Alias> {
+        &self.aliases
+    }
+
+    pub fn set_cache_ttl_hours(&mut self, hours: u64) {
+        self.cache_ttl_hours = hours;
+    }
+
+    pub fn set_locale(&mut self, locale: Option<String>) {
+        self.locale = locale;
+    }
+
     /// Load config from `~/.config/harv/config.toml`.
     pub async fn load() -> Result<Self, HarvError> {
         let path = Self::path();
@@ -72,8 +121,13 @@ impl HarvConfig {
 
     /// Insert or update an alias and persist to disk.
     pub async fn set_alias(&mut self, name: &str, alias: Alias) -> Result<(), HarvError> {
-        self.aliases.insert(name.to_string(), alias);
+        self.insert_alias(name, alias);
         self.save().await
+    }
+
+    /// Insert or update an alias without persisting to disk.
+    pub fn insert_alias(&mut self, name: &str, alias: Alias) {
+        self.aliases.insert(name.to_string(), alias);
     }
 
     /// Remove an alias and persist to disk.

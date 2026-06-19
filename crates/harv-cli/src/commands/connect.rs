@@ -13,15 +13,7 @@ pub async fn run() -> color_eyre::eyre::Result<()> {
         )
     })?;
 
-    let config = HarvConfig {
-        access_token,
-        account_id,
-        cache_ttl_hours: 24,
-        last_project_id: None,
-        last_task_id: None,
-        locale: None,
-        aliases: Default::default(),
-    };
+    let config = HarvConfig::new(access_token, account_id);
 
     config.save().await.map_err(|e| {
         color_eyre::eyre::eyre!(

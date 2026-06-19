@@ -36,30 +36,31 @@ async fn show() -> color_eyre::eyre::Result<()> {
     println!(
         "  {:<20} {}",
         t("cli-config-access-token"),
-        redact_token(&config.access_token)
+        redact_token(config.access_token())
     );
-    println!("  {:<20} {}", t("cli-config-account-id"), config.account_id);
+    println!(
+        "  {:<20} {}",
+        t("cli-config-account-id"),
+        config.account_id()
+    );
     println!(
         "  {:<20} {}",
         t("cli-config-locale"),
-        config
-            .locale
-            .as_deref()
-            .unwrap_or(&t("cli-config-auto-detect"))
+        config.locale().unwrap_or(&t("cli-config-auto-detect"))
     );
     println!(
         "  {:<20} {}h",
         t("cli-config-cache-ttl"),
-        config.cache_ttl_hours
+        config.cache_ttl_hours()
     );
     println!(
         "  {:<20} {}",
         t("cli-config-aliases"),
-        if config.aliases.is_empty() {
+        if config.aliases().is_empty() {
             t("cli-config-none-bare")
         } else {
             config
-                .aliases
+                .aliases()
                 .keys()
                 .cloned()
                 .collect::<Vec<_>>()
@@ -79,15 +80,15 @@ async fn get(setting: &str) -> color_eyre::eyre::Result<()> {
     })?;
 
     match setting {
-        "cache-ttl" => println!("{}", config.cache_ttl_hours),
-        "access-token" => println!("{}", redact_token(&config.access_token)),
-        "account-id" => println!("{}", config.account_id),
-        "locale" => println!("{}", config.locale.as_deref().unwrap_or("")),
+        "cache-ttl" => println!("{}", config.cache_ttl_hours()),
+        "access-token" => println!("{}", redact_token(config.access_token())),
+        "account-id" => println!("{}", config.account_id()),
+        "locale" => println!("{}", config.locale().unwrap_or("")),
         "aliases" => {
-            if config.aliases.is_empty() {
+            if config.aliases().is_empty() {
                 println!("{}", t("cli-config-none-bare"));
             } else {
-                for (name, alias) in config.aliases.iter() {
+                for (name, alias) in config.aliases().iter() {
                     println!(
                         "{}",
                         t_args(
@@ -125,15 +126,15 @@ async fn set(setting: &str, value: &str) -> color_eyre::eyre::Result<()> {
             let hours: u64 = value
                 .parse()
                 .map_err(|_| color_eyre::eyre::eyre!("{}", t("cli-config-cache-ttl-invalid")))?;
-            config.cache_ttl_hours = hours;
+            config.set_cache_ttl_hours(hours);
         }
         "locale" => {
             if value.is_empty() || value == "auto" {
-                config.locale = None;
+                config.set_locale(None);
             } else {
                 let valid = harv_core::locale::SUPPORTED_LANGS;
                 if valid.contains(&value) {
-                    config.locale = Some(value.into());
+                    config.set_locale(Some(value.into()));
                 } else {
                     return Err(color_eyre::eyre::eyre!(
                         "{}",

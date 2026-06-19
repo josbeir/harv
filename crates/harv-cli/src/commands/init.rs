@@ -33,7 +33,7 @@ pub async fn run(args: &crate::InitArgs) -> color_eyre::eyre::Result<()> {
     )
     .await?;
 
-    let choices = prompts::build_project_choices(&assignments, config.last_project_id);
+    let choices = prompts::build_project_choices(&assignments, config.last_project_id());
     if choices.is_empty() {
         println!("No project assignments found.");
         return Ok(());
@@ -50,7 +50,7 @@ pub async fn run(args: &crate::InitArgs) -> color_eyre::eyre::Result<()> {
         (pid, choice.display.clone(), choice.task_assignments.clone())
     } else {
         let cursor =
-            crate::resolution::starting_cursor_for_default(&choices, config.last_project_id);
+            crate::resolution::starting_cursor_for_default(&choices, config.last_project_id());
         println!("\nSelect the default project for this directory:");
         let choice = prompts::pick_project(&choices, cursor)?;
         (

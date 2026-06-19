@@ -77,12 +77,12 @@ impl HarvClient {
         let mut headers = HeaderMap::new();
         headers.insert(
             AUTHORIZATION,
-            HeaderValue::from_str(&format!("Bearer {}", self.config.access_token))
+            HeaderValue::from_str(&format!("Bearer {}", self.config.access_token()))
                 .map_err(|e| HarvError::Http(format!("Invalid bearer token: {}", e)))?,
         );
         headers.insert(
             "Harvest-Account-Id",
-            HeaderValue::from_str(&self.config.account_id)
+            HeaderValue::from_str(self.config.account_id())
                 .map_err(|e| HarvError::Http(format!("Invalid account ID: {}", e)))?,
         );
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));

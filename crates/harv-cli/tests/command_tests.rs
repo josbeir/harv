@@ -353,7 +353,7 @@ account_id = "1"
     .unwrap();
 
     let config = HarvConfig::load().await.unwrap();
-    assert_eq!(config.cache_ttl_hours, 72);
+    assert_eq!(config.cache_ttl_hours(), 72);
 }
 
 #[tokio::test]
@@ -638,8 +638,8 @@ async fn test_alias_list_with_data() {
     ensure_locale();
     let server = MockServer::start().await;
     let mut config = test_config();
-    config.aliases.insert(
-        "dev".into(),
+    config.insert_alias(
+        "dev",
         Alias {
             project_id: 100,
             task_id: 200,
@@ -660,8 +660,8 @@ async fn test_alias_list_stale() {
     ensure_locale();
     let server = MockServer::start().await;
     let mut config = test_config();
-    config.aliases.insert(
-        "old".into(),
+    config.insert_alias(
+        "old",
         Alias {
             project_id: 999,
             task_id: 888,
@@ -682,8 +682,8 @@ async fn test_alias_list_api_error() {
     ensure_locale();
     let server = MockServer::start().await;
     let mut config = test_config();
-    config.aliases.insert(
-        "dev".into(),
+    config.insert_alias(
+        "dev",
         Alias {
             project_id: 100,
             task_id: 200,
@@ -1350,7 +1350,7 @@ account_id = "1"
     .unwrap();
 
     let config = HarvConfig::load().await.unwrap();
-    assert_eq!(config.locale.as_deref(), Some("fr"));
+    assert_eq!(config.locale(), Some("fr"));
 }
 
 #[tokio::test]
@@ -1380,7 +1380,7 @@ locale = "nl"
     .unwrap();
 
     let config = HarvConfig::load().await.unwrap();
-    assert!(config.locale.is_none());
+    assert!(config.locale().is_none());
 }
 
 #[tokio::test]

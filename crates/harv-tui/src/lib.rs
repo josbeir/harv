@@ -16,7 +16,7 @@ pub async fn run() -> eyre::Result<()> {
         .await
         .map_err(|e| eyre::eyre!("{}", e.user_message()))?;
 
-    if let Some(locale) = &client.config().locale {
+    if let Some(locale) = client.config().locale() {
         harv_core::init_locale(Some(locale));
     }
 

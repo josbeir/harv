@@ -31,8 +31,8 @@ impl<'c> ProjectsApi<'c> {
         &self,
         force: bool,
     ) -> Result<(Vec<ProjectAssignment>, usize), harv_core::HarvError> {
-        let account_id = self.client.config().account_id.clone();
-        let ttl = self.client.config().cache_ttl_hours;
+        let account_id = self.client.config().account_id().to_string();
+        let ttl = self.client.config().cache_ttl_hours();
         crate::cache::get_cached_assignments(&account_id, ttl, force, async {
             let (assignments_result, projects_result) = tokio::join!(
                 crate::pagination::fetch_all_pages::<ProjectAssignment>(

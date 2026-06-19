@@ -44,15 +44,15 @@ impl ResolvedConfig {
     pub fn resolve(global: &HarvConfig, project: Option<&ProjectConfig>) -> Self {
         let default_project_id = project
             .and_then(|p| p.default_project_id)
-            .or(global.last_project_id);
+            .or(global.last_project_id());
 
         let default_task_id = project
             .and_then(|p| p.default_task_id)
-            .or(global.last_task_id);
+            .or(global.last_task_id());
 
         // Merge aliases: start with global, then overlay project
         // (project entries win on name conflict).
-        let mut aliases = global.aliases.clone();
+        let mut aliases = global.aliases().clone();
         if let Some(proj) = project {
             for (name, alias) in &proj.aliases {
                 aliases.insert(name.clone(), alias.clone());
