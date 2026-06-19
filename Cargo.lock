@@ -1445,7 +1445,7 @@ dependencies = [
 
 [[package]]
 name = "harv-cli"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "assert_cmd",
  "chrono",
@@ -1470,7 +1470,7 @@ dependencies = [
 
 [[package]]
 name = "harv-core"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "icu",
@@ -1485,7 +1485,7 @@ dependencies = [
 
 [[package]]
 name = "harv-sdk"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "axum",
  "chrono",
@@ -1508,7 +1508,7 @@ dependencies = [
 
 [[package]]
 name = "harv-tui"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "ashpd 0.13.11",
  "chrono",
