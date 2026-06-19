@@ -1,5 +1,4 @@
-use chrono::Utc;
-use harv_core::{Reference, TimeEntry};
+use harv_sdk::mock_data::make_time_entry;
 use harv_tui::action::{Action, FormMode};
 use harv_tui::theme::Theme;
 use harv_tui::theme::ThemeMode;
@@ -8,43 +7,14 @@ use harv_tui::views::form::TimeEntryForm;
 use harv_tui::views::help::Help;
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
-fn ref_(id: u64, name: &str) -> Reference {
-    Reference {
-        id,
-        name: name.into(),
-    }
-}
-fn entry(id: u64, proj: u64, task: u64, hours: Option<f64>, running: bool) -> TimeEntry {
-    TimeEntry {
-        id,
-        spent_date: None,
-        hours,
-        notes: None,
-        is_running: running,
-        timer_started_at: if running { Some(Utc::now()) } else { None },
-        started_time: None,
-        ended_time: None,
-        project: ref_(proj, "Project"),
-        task: ref_(task, "Task"),
-        user: ref_(1, "User"),
-        client: None,
-        is_billed: false,
-        billable: true,
-        project_code: None,
-        billable_rate: None,
-        cost_rate: None,
-        created_at: None,
-        updated_at: None,
-    }
-}
 #[test]
 fn test_dashboard_render_with_entries() {
     harv_core::init_locale(Some("en"));
     let mut d = Dashboard::default();
     d.update_entries(
         vec![
-            entry(1, 10, 20, Some(2.5), false),
-            entry(2, 11, 21, None, true),
+            make_time_entry(1, 10, 20, Some(2.5), false),
+            make_time_entry(2, 11, 21, None, true),
         ],
         0,
     );
@@ -284,7 +254,7 @@ fn test_form_render_edit_running_mode() {
 fn test_dashboard_entries_render() {
     harv_core::init_locale(Some("en"));
     let mut d = Dashboard::default();
-    d.update_entries(vec![entry(1, 10, 20, Some(2.0), false)], 0);
+    d.update_entries(vec![make_time_entry(1, 10, 20, Some(2.0), false)], 0);
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).unwrap();
     let theme = Theme::dark();
@@ -307,7 +277,7 @@ fn test_dashboard_entries_render() {
 fn test_dashboard_past_date_renders() {
     harv_core::init_locale(Some("en"));
     let mut d = Dashboard::default();
-    d.update_entries(vec![entry(1, 10, 20, Some(2.0), false)], 0);
+    d.update_entries(vec![make_time_entry(1, 10, 20, Some(2.0), false)], 0);
     let past = harv_core::datetime::today() - chrono::Duration::days(3);
     d.set_date(past);
     let backend = TestBackend::new(80, 24);
@@ -332,7 +302,7 @@ fn test_dashboard_past_date_renders() {
 fn test_stats_footer_shows_project_count() {
     harv_core::init_locale(Some("en"));
     let mut d = Dashboard::default();
-    d.update_entries(vec![entry(1, 10, 20, Some(2.0), false)], 0);
+    d.update_entries(vec![make_time_entry(1, 10, 20, Some(2.0), false)], 0);
     let past = harv_core::datetime::today() - chrono::Duration::days(3);
     d.set_date(past);
     let backend = TestBackend::new(80, 24);
@@ -357,7 +327,7 @@ fn test_stats_footer_shows_project_count() {
 fn test_stats_footer_shows_non_zero_project_count() {
     harv_core::init_locale(Some("en"));
     let mut d = Dashboard::default();
-    d.update_entries(vec![entry(1, 10, 20, Some(2.0), false)], 5);
+    d.update_entries(vec![make_time_entry(1, 10, 20, Some(2.0), false)], 5);
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).unwrap();
     let theme = Theme::dark();
