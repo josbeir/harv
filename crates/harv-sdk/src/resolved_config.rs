@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::config::{Alias, HarvConfig};
 use crate::project_config::{NoteTemplate, ProjectConfig};
+use harv_core::HarvError;
 
 /// The effective configuration after merging global (`HarvConfig`) and
 /// project-level (`ProjectConfig`) settings.
@@ -92,6 +93,14 @@ impl ResolvedConfig {
             && self.default_task_id.is_none()
             && self.aliases.is_empty()
             && self.templates.is_empty()
+    }
+
+    /// Discover project-level config from the filesystem and merge it with
+    /// the global config. Convenience wrapper around `ProjectConfig::discover()`
+    /// and `Self::resolve()`.
+    pub async fn resolve_from_environment(global: &HarvConfig) -> Result<Self, HarvError> {
+        let project_config = ProjectConfig::discover().await?;
+        Ok(Self::resolve(global, project_config.as_ref()))
     }
 }
 

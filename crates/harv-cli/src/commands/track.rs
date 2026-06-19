@@ -1,7 +1,7 @@
 use crate::prompts;
 use crate::spinner;
 use harv_core::{CreateTimeEntry, HarvError};
-use harv_sdk::{HarvClient, ProjectConfig, ResolvedConfig, TemplateContext};
+use harv_sdk::{HarvClient, ResolvedConfig, TemplateContext};
 
 #[allow(clippy::too_many_arguments)]
 pub async fn execute(
@@ -17,10 +17,7 @@ pub async fn execute(
     is_start: bool,
 ) -> color_eyre::eyre::Result<()> {
     let config = client.config().clone();
-
-    // Discover project-level config and merge with global config.
-    let project_config = ProjectConfig::discover().await?;
-    let resolved = ResolvedConfig::resolve(&config, project_config.as_ref());
+    let resolved = ResolvedConfig::resolve_from_environment(&config).await?;
 
     let (assignments, _) = spinner::with_spinner(
         "Loading project assignments...",
