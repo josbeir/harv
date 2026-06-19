@@ -5,14 +5,14 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Clear, Paragraph};
 
-const ASCII: &[&str] = &[
+pub const ASCII_LOGO: &[&str] = &[
     "▗▖ ▗▖ ▗▄▖ ▗▄▄▖ ▗▖  ▗▖",
     "▐▌ ▐▌▐▌ ▐▌▐▌ ▐▌▐▌  ▐▌",
     "▐▛▀▜▌▐▛▀▜▌▐▛▀▚▖▐▌  ▐▌",
     "▐▌ ▐▌▐▌ ▐▌▐▌ ▐▌ ▝▚▞▘ ",
 ];
 
-const SHADES: &[(u8, u8, u8)] = &[
+pub const LOGO_SHADES: &[(u8, u8, u8)] = &[
     (250, 210, 140),
     (250, 170, 90),
     (250, 130, 40),
@@ -29,13 +29,13 @@ pub fn render_harv_loading(area: Rect, f: &mut Frame, tick: u64, msg: &str, them
 
     let mut lines: Vec<Line> = Vec::new();
 
-    for (i, line) in ASCII.iter().enumerate() {
+    for (i, line) in ASCII_LOGO.iter().enumerate() {
         let spans: Vec<Span> = line
             .chars()
             .enumerate()
             .map(|(j, ch)| {
                 let shade_idx = (offset + i + (j / 3)) % 4;
-                let (r, g, b) = SHADES[shade_idx];
+                let (r, g, b) = LOGO_SHADES[shade_idx];
                 Span::styled(
                     ch.to_string(),
                     Style::new()

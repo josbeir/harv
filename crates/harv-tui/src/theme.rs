@@ -27,7 +27,7 @@ impl Theme {
         Self {
             mode: ThemeMode::Dark,
             bg: Color::from_u32(0x0012131a),
-            surface: Color::from_u32(0x001a1b26),
+            surface: Color::from_u32(0x00151721),
             fg: Color::from_u32(0x00c0caf5),
             primary: Color::from_u32(0x00f36c3d),
             success: Color::from_u32(0x009ece6a),

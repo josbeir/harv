@@ -244,8 +244,8 @@ async fn test_status_with_timers() {
 
 #[tokio::test]
 async fn test_config_execute_no_file() {
-    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
+    ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
     unsafe { std::env::set_var("HOME", tmp.path()) };
@@ -256,8 +256,8 @@ async fn test_config_execute_no_file() {
 
 #[tokio::test]
 async fn test_config_show_with_file() {
-    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
+    ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
     unsafe { std::env::set_var("HOME", tmp.path()) };
@@ -278,8 +278,8 @@ cache_ttl_hours = 48
 
 #[tokio::test]
 async fn test_config_get_cache_ttl() {
-    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
+    ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
     unsafe { std::env::set_var("HOME", tmp.path()) };
@@ -304,8 +304,8 @@ cache_ttl_hours = 48
 
 #[tokio::test]
 async fn test_config_get_invalid() {
-    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
+    ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
     unsafe { std::env::set_var("HOME", tmp.path()) };
@@ -329,8 +329,8 @@ account_id = "1"
 
 #[tokio::test]
 async fn test_config_set_cache_ttl() {
-    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
+    ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
     unsafe { std::env::set_var("HOME", tmp.path()) };
@@ -358,8 +358,8 @@ account_id = "1"
 
 #[tokio::test]
 async fn test_config_set_invalid() {
-    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
+    ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
     unsafe { std::env::set_var("HOME", tmp.path()) };
@@ -386,8 +386,8 @@ account_id = "1"
 
 #[tokio::test]
 async fn test_track_with_ids() {
-    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
+    ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
     unsafe { std::env::set_var("HOME", tmp.path()) };
@@ -423,8 +423,8 @@ async fn test_track_with_ids() {
 
 #[tokio::test]
 async fn test_track_with_last_used_auto_task() {
-    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
+    ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
     unsafe { std::env::set_var("HOME", tmp.path()) };
@@ -463,8 +463,8 @@ async fn test_track_with_last_used_auto_task() {
 
 #[tokio::test]
 async fn test_track_no_project_assignments() {
-    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
+    ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
     unsafe { std::env::set_var("HOME", tmp.path()) };
@@ -501,8 +501,8 @@ account_id = "1"
 
 #[tokio::test]
 async fn test_track_alias_not_found() {
-    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
+    ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
     unsafe { std::env::set_var("HOME", tmp.path()) };
@@ -592,8 +592,8 @@ async fn test_note_single_timer() {
 
 #[tokio::test]
 async fn test_alias_list_empty() {
-    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
+    ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
     unsafe { std::env::set_var("HOME", tmp.path()) };
@@ -614,8 +614,8 @@ account_id = "1"
 
 #[tokio::test]
 async fn test_alias_delete_not_found() {
-    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
+    ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
     unsafe { std::env::set_var("HOME", tmp.path()) };
@@ -955,8 +955,8 @@ async fn test_whoami_execute_json() {
 
 #[tokio::test]
 async fn test_disconnect_no_config() {
-    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
+    ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
     unsafe { std::env::set_var("HOME", tmp.path()) };
@@ -966,8 +966,8 @@ async fn test_disconnect_no_config() {
 
 #[tokio::test]
 async fn test_disconnect_with_config() {
-    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
+    ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
     unsafe { std::env::set_var("HOME", tmp.path()) };
@@ -1250,8 +1250,8 @@ async fn test_edit_confirmation_falls_back_to_submitted_hours() {
 
 #[tokio::test]
 async fn test_config_get_locale() {
-    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
+    ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
     unsafe { std::env::set_var("HOME", tmp.path()) };
@@ -1276,8 +1276,8 @@ locale = "nl"
 
 #[tokio::test]
 async fn test_config_get_account_id() {
-    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
+    ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
     unsafe { std::env::set_var("HOME", tmp.path()) };
@@ -1301,8 +1301,8 @@ account_id = "1"
 
 #[tokio::test]
 async fn test_config_get_aliases_empty() {
-    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
+    ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
     unsafe { std::env::set_var("HOME", tmp.path()) };
@@ -1326,8 +1326,8 @@ account_id = "1"
 
 #[tokio::test]
 async fn test_config_set_locale_valid() {
-    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
+    ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
     unsafe { std::env::set_var("HOME", tmp.path()) };
@@ -1355,8 +1355,8 @@ account_id = "1"
 
 #[tokio::test]
 async fn test_config_set_locale_auto() {
-    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
+    ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
     unsafe { std::env::set_var("HOME", tmp.path()) };
@@ -1385,8 +1385,8 @@ locale = "nl"
 
 #[tokio::test]
 async fn test_config_set_locale_invalid() {
-    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
+    ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
     unsafe { std::env::set_var("HOME", tmp.path()) };
@@ -1411,8 +1411,8 @@ account_id = "1"
 
 #[tokio::test]
 async fn test_config_set_cache_ttl_invalid() {
-    ensure_locale();
     let _guard = ENV_MUTEX.lock().await;
+    ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
     unsafe { std::env::set_var("HOME", tmp.path()) };

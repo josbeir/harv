@@ -4,16 +4,20 @@ use chrono::NaiveDate;
 use harv_core::TimeEntry;
 use ratatui::Frame;
 use ratatui::crossterm::event::KeyCode;
-use ratatui::layout::{Alignment, Constraint, Layout, Rect};
+use ratatui::layout::{Alignment, Constraint, Layout, Rect, Spacing};
 use ratatui::style::{Color, Modifier, Style};
+use ratatui::symbols::merge::MergeStrategy;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Cell, Padding, Paragraph, Row, Table, TableState};
+use ratatui::widgets::{Block, Borders, Paragraph};
+
+const HOURS_COL_WIDTH: usize = 5;
 
 pub struct Dashboard {
     entries: Vec<TimeEntry>,
     running_entry: Option<TimeEntry>,
     daily_total: f64,
-    table_state: TableState,
+    selected_index: usize,
+    scroll_offset: usize,
     loaded: bool,
     loading_msg: String,
     selected_date: NaiveDate,
@@ -26,7 +30,8 @@ impl Default for Dashboard {
             entries: Vec::new(),
             running_entry: None,
             daily_total: 0.0,
-            table_state: TableState::default().with_selected(Some(0)),
+            selected_index: 0,
+            scroll_offset: 0,
             loaded: false,
             loading_msg: harv_core::t("tui-app-loading-generic"),
             selected_date: harv_core::datetime::today(),
@@ -53,8 +58,12 @@ impl Dashboard {
             .filter(|e| !e.is_running)
             .filter_map(|e| e.hours)
             .sum();
+        let mut entries = entries;
+        entries.sort_by_key(|e| std::cmp::Reverse(e.created_at));
         self.entries = entries;
         self.project_count = project_count;
+        self.selected_index = 0;
+        self.scroll_offset = 0;
     }
 
     pub fn update_running(&mut self, entries: Vec<TimeEntry>) {
@@ -62,9 +71,7 @@ impl Dashboard {
     }
 
     pub fn selected_entry(&self) -> Option<&TimeEntry> {
-        self.table_state
-            .selected()
-            .and_then(|i| self.entries.get(i))
+        self.entries.get(self.selected_index)
     }
 
     pub fn selected_date(&self) -> NaiveDate {
@@ -92,317 +99,187 @@ impl Dashboard {
     }
 
     pub fn render(&mut self, area: Rect, f: &mut Frame, theme: &Theme, tick: u64) {
-        let layout = Layout::vertical([
-            Constraint::Length(1),
-            Constraint::Length(1),
+        let body = Layout::vertical([
             Constraint::Length(1),
             Constraint::Min(0),
             Constraint::Length(3),
         ])
+        .spacing(Spacing::Overlap(1))
         .split(area);
 
-        self.render_date_nav(layout[1], f, theme);
-
         if !self.loaded {
-            crate::loading::render_harv_loading(layout[3], f, tick, &self.loading_msg, theme);
+            crate::loading::render_harv_loading(body[1], f, tick, &self.loading_msg, theme);
+            self.render_stats_footer(body[2], f, theme);
             return;
         }
 
         if self.entries.is_empty() {
-            render_harv_header(layout[3], f, theme, self.selected_date);
-            self.render_stats_footer(layout[4], f, theme);
+            render_harv_header(body[1], f, theme, self.selected_date);
+            self.render_stats_footer(body[2], f, theme);
             return;
         }
 
-        let header_rows = if self.running_entry.is_some() { 2 } else { 0 };
-        let body = Layout::vertical([Constraint::Length(header_rows), Constraint::Min(0)])
-            .split(layout[3]);
-
-        if self.running_entry.is_some() {
-            self.render_timer_header(body[0], f, theme);
-        }
-        self.render_entry_table(body[1], f, theme);
-        self.render_stats_footer(layout[4], f, theme);
+        self.render_entry_list(body[1], f, theme);
+        self.render_stats_footer(body[2], f, theme);
     }
 
-    fn render_date_nav(&self, area: Rect, f: &mut Frame, theme: &Theme) {
-        let is_today = self.selected_date == harv_core::datetime::today();
-        let date_formatted = harv_core::datetime::format_date_header(
-            self.selected_date,
-            &harv_core::current_langid(),
-        );
+    fn render_entry_list(&mut self, area: Rect, f: &mut Frame, theme: &Theme) {
+        let border_style = Style::new().fg(theme.border);
+        let muted_style = Style::new().fg(theme.muted);
+        let col_pad = " ".repeat(HOURS_COL_WIDTH + 2);
 
-        let mut spans = vec![
-            Span::styled(" < ", Style::new().fg(theme.muted)),
-            Span::styled(
-                date_formatted,
-                Style::new().fg(theme.fg).add_modifier(Modifier::BOLD),
-            ),
-        ];
-        if is_today {
-            spans.push(Span::styled(
-                format!(" {} ", harv_core::t("tui-dash-today")),
-                Style::new().fg(theme.muted),
-            ));
-        }
-        spans.push(Span::styled(" > ", Style::new().fg(theme.muted)));
-
-        let line = Line::from(spans);
-        let paragraph = Paragraph::new(line).alignment(Alignment::Center);
-        f.render_widget(paragraph, area);
-    }
-
-    fn render_timer_header(&self, area: Rect, f: &mut Frame, theme: &Theme) {
-        let (indicator, status_text, elapsed) = if let Some(ref entry) = self.running_entry {
-            let elapsed_str = format_timer_elapsed(entry);
-            let status = harv_core::t_args("tui-dash-running-header", &[("elapsed", elapsed_str)]);
-            (harv_core::t("tui-dash-running-prefix"), status, true)
-        } else {
-            ("○".to_string(), harv_core::t("tui-dash-idle-header"), false)
-        };
-
-        let color = if elapsed { theme.success } else { theme.muted };
-
-        let line = if let Some(ref entry) = self.running_entry {
-            Line::from(vec![
-                Span::styled(
-                    format!(" {} ", indicator),
-                    Style::new().fg(color).add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(
-                    format!(" {} ", status_text),
-                    Style::new().fg(color).add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(
-                    format!(
-                        " {} · {} ",
-                        harv_core::text::format_project_display(
-                            &entry.project.name,
-                            entry.project_code.as_deref()
-                        ),
-                        entry.task.name
-                    ),
-                    Style::new().fg(theme.fg),
-                ),
-            ])
-        } else {
-            Line::from(vec![
-                Span::styled(format!(" {} ", indicator), Style::new().fg(color)),
-                Span::styled(format!(" {} ", status_text), Style::new().fg(color)),
-                Span::styled(
-                    format!(" {} ", harv_core::t("tui-dash-no-timer")),
-                    Style::new().fg(theme.muted),
-                ),
-            ])
-        };
-
-        let block = Block::new()
-            .borders(Borders::BOTTOM)
-            .border_style(Style::new().fg(theme.border));
-
-        let paragraph = Paragraph::new(line)
-            .block(block)
-            .style(Style::new().bg(theme.bg));
-        f.render_widget(paragraph, area);
-    }
-
-    fn render_entry_table(&mut self, area: Rect, f: &mut Frame, theme: &Theme) {
-        let hmargin = 2u16;
-        let vtop = 0u16;
-        let vbottom = 1u16;
-        let padded_area = Rect {
-            x: area.x + hmargin,
-            y: area.y + vtop,
-            width: area.width.saturating_sub(hmargin * 2),
-            height: area.height.saturating_sub(vtop + vbottom),
-        };
-
-        // Usable content width after borders and padding
-        let inner_w = padded_area
-            .width
-            .saturating_sub(2) // block borders
-            .saturating_sub(2); // Padding::horizontal(1)
-
-        let hours_w = 12u16;
-        let spacing = 2u16;
-
-        // Minimum widths for each flex column
-        let min_project = 28u16;
-        let min_task = 14u16;
-        let min_notes = 20u16;
-
-        // Decide which columns to show based on available width
-        let show_notes = inner_w >= min_project + min_task + hours_w + min_notes + spacing * 3;
-        let show_task = inner_w >= min_project + min_task + hours_w + spacing * 2;
-
-        let num_gaps = if show_notes {
-            3
-        } else if show_task {
-            2
-        } else {
-            1
-        };
-        let flex_w = inner_w
-            .saturating_sub(hours_w)
-            .saturating_sub(spacing * num_gaps);
-
-        let (project_w, task_w, notes_w) = if show_notes {
-            let pw = ((flex_w as f32) * 0.50) as u16;
-            let tw = ((flex_w as f32) * 0.15) as u16;
-            let nw = flex_w.saturating_sub(pw).saturating_sub(tw);
-            (pw, tw, nw)
-        } else if show_task {
-            let pw = ((flex_w as f32) * 0.75) as u16;
-            let tw = flex_w.saturating_sub(pw);
-            (pw, tw, 0)
-        } else {
-            (flex_w, 0, 0)
-        };
-
-        // Build header labels
-        let mut header_labels = vec![
-            harv_core::t("tui-dash-table-project"),
-            harv_core::t("tui-dash-table-hours"),
-        ];
-        if show_task {
-            header_labels.insert(1, harv_core::t("tui-dash-table-task"));
-        }
-        if show_notes {
-            header_labels.push(harv_core::t("tui-dash-table-notes"));
-        }
-
-        let header = Row::new(header_labels)
-            .style(Style::new().fg(theme.muted).add_modifier(Modifier::BOLD))
-            .height(1);
-
-        // Build widths vector
-        let mut widths = vec![Constraint::Length(project_w), Constraint::Length(hours_w)];
-        if show_task {
-            widths.insert(1, Constraint::Length(task_w));
-        }
-        if show_notes {
-            widths.push(Constraint::Length(notes_w));
-        }
-
-        // Truncation limits (leave 1 char margin)
-        let proj_max = project_w.saturating_sub(1) as usize;
-        let task_max = task_w.saturating_sub(1) as usize;
-        let notes_max = notes_w.saturating_sub(1) as usize;
-
-        let rows: Vec<Row> = self
+        // Compute selected entry visual position
+        let sel_vis_y: usize = self
             .entries
             .iter()
-            .map(|entry| {
-                let is_running = entry.is_running;
-                let prefix = if is_running {
-                    format!("{} ", harv_core::t("tui-dash-running-prefix"))
-                } else {
-                    String::new()
-                };
-                let avail = proj_max.saturating_sub(prefix.chars().count());
-
-                let display_name = harv_core::text::format_project_display(
-                    &entry.project.name,
-                    entry.project_code.as_deref(),
-                );
-
-                let row_style = if is_running {
-                    Style::new().fg(theme.success)
-                } else {
-                    Style::new().fg(theme.fg)
-                };
-
-                let project_cell = match &entry.client {
-                    Some(client) if avail >= 10 => {
-                        let client_text = client.name.as_str();
-                        let tree_prefix = " | ";
-                        let client_w = (avail / 3).min(client_text.chars().count()).max(1);
-                        let proj_w = avail
-                            .saturating_sub(client_w)
-                            .saturating_sub(tree_prefix.chars().count());
-                        let proj_trunc = harv_core::text::truncate(&display_name, proj_w.max(1));
-                        let client_trunc = harv_core::text::truncate(client_text, client_w);
-                        let line = Line::from(vec![
-                            Span::styled(format!("{}{}", prefix, proj_trunc), row_style),
-                            Span::styled(
-                                format!("{}{}", tree_prefix, client_trunc),
-                                Style::new().fg(theme.muted),
-                            ),
-                        ]);
-                        Cell::from(line)
-                    }
-                    _ => {
-                        let project = format!(
-                            "{}{}",
-                            prefix,
-                            harv_core::text::truncate(&display_name, avail)
-                        );
-                        Cell::from(project)
-                    }
-                };
-
-                let hours = format_hours_cell(entry);
-
-                let mut cells: Vec<Cell> = Vec::new();
-                cells.push(project_cell);
-                if show_task {
-                    cells.push(Cell::from(harv_core::text::truncate(
-                        &entry.task.name,
-                        task_max,
-                    )));
-                }
-                cells.push(Cell::from(hours));
-                if show_notes {
-                    cells.push(Cell::from(harv_core::text::truncate(
-                        entry.notes.as_deref().unwrap_or(""),
-                        notes_max.max(1),
-                    )));
-                }
-
-                Row::new(cells).style(row_style).height(1)
+            .take(self.selected_index)
+            .map(|e| {
+                let has_notes = e.notes.as_deref().is_some_and(|n| !n.is_empty());
+                let lines: usize = if has_notes { 3 } else { 2 };
+                lines + 1 // content_lines + 1 for overlap
             })
-            .collect();
+            .sum();
+        let sel_h: usize = self
+            .entries
+            .get(self.selected_index)
+            .map(|e| {
+                let has_notes = e.notes.as_deref().is_some_and(|n| !n.is_empty());
+                let lines: usize = if has_notes { 3 } else { 2 };
+                lines + 2 // content_lines + TOP + BOTTOM
+            })
+            .unwrap_or(0);
+        let viewport_h = area.height as usize;
 
-        let block_title = if self.selected_date == harv_core::datetime::today() {
-            harv_core::t("tui-dash-block-today")
-        } else {
-            harv_core::datetime::format_date_short(self.selected_date, &harv_core::current_langid())
-        };
-        let block = Block::new()
-            .title(block_title)
-            .borders(Borders::ALL)
-            .border_style(Style::new().fg(theme.border))
-            .style(Style::new().bg(theme.bg))
-            .padding(Padding::horizontal(1));
+        // Ensure selected entry is visible
+        if self.scroll_offset + viewport_h < sel_vis_y + sel_h {
+            self.scroll_offset = sel_vis_y + sel_h - viewport_h;
+        }
+        if sel_vis_y < self.scroll_offset {
+            self.scroll_offset = sel_vis_y;
+        }
 
-        let table = Table::new(rows, widths)
-            .header(header)
-            .block(block)
-            .row_highlight_style(
-                Style::new()
-                    .fg(theme.highlight)
-                    .bg(theme.surface)
-                    .add_modifier(Modifier::BOLD),
-            )
-            .column_spacing(spacing);
+        let mut y: u16 = 0;
+        for (i, entry) in self.entries.iter().enumerate() {
+            let has_notes = entry.notes.as_deref().is_some_and(|n| !n.is_empty());
+            let content_lines: u16 = if has_notes { 3 } else { 2 };
+            let block_h = content_lines + 2; // TOP + content + BOTTOM
 
-        f.render_stateful_widget(table, padded_area, &mut self.table_state);
+            let vis_y = y as i32 - self.scroll_offset as i32;
+            if vis_y + block_h as i32 <= 0 {
+                y += content_lines + 1; // +1 for the shared border overlap
+                continue;
+            }
+            if vis_y >= area.height as i32 {
+                break;
+            }
+
+            let clip_top = if vis_y < 0 { (-vis_y) as u16 } else { 0 };
+            let clip_bot = {
+                let bottom = vis_y + block_h as i32 - area.height as i32;
+                if bottom > 0 { bottom as u16 } else { 0 }
+            };
+            let visible_h = block_h.saturating_sub(clip_top).saturating_sub(clip_bot);
+
+            let entry_rect = Rect {
+                x: area.x,
+                y: (area.y as i32 + vis_y).max(area.y as i32) as u16,
+                width: area.width,
+                height: visible_h,
+            };
+
+            let is_selected = i == self.selected_index;
+
+            let block = if is_selected {
+                Block::new()
+                    .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM | Borders::RIGHT)
+                    .border_style(border_style)
+                    .merge_borders(MergeStrategy::Exact)
+                    .style(Style::new().bg(theme.surface))
+            } else {
+                Block::new()
+                    .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM | Borders::RIGHT)
+                    .border_style(border_style)
+                    .merge_borders(MergeStrategy::Exact)
+            };
+            let inner = block.inner(entry_rect);
+
+            let running = entry.is_running;
+            let hours_display = if running {
+                format_timer_compact(entry)
+            } else {
+                let s = entry.hours.map_or_else(
+                    || "0:00".to_string(),
+                    harv_core::text::decimal_hours_to_hhmm,
+                );
+                format!("{:>5}", s)
+            };
+            let hours_style = if running {
+                Style::new().fg(theme.success).add_modifier(Modifier::BOLD)
+            } else {
+                Style::new().fg(theme.fg)
+            };
+
+            let display_name = harv_core::text::format_project_display(
+                &entry.project.name,
+                entry.project_code.as_deref(),
+            );
+
+            let mut line1_spans = vec![
+                Span::styled(hours_display, hours_style),
+                Span::raw("  "),
+                Span::styled(display_name, Style::new().fg(theme.fg)),
+            ];
+            if let Some(ref client) = entry.client {
+                line1_spans.push(Span::styled(format!(" | {}", client.name), muted_style));
+            }
+
+            let line2_spans = vec![
+                Span::raw(&col_pad),
+                Span::styled(format!("└─ {}", entry.task.name), muted_style),
+            ];
+
+            let mut entry_lines = vec![Line::from(line1_spans), Line::from(line2_spans)];
+
+            if has_notes {
+                let line3_spans = vec![
+                    Span::raw(&col_pad),
+                    Span::styled(
+                        format!("└─ {}", entry.notes.as_deref().unwrap()),
+                        muted_style,
+                    ),
+                ];
+                entry_lines.push(Line::from(line3_spans));
+            }
+
+            let visible_content_lines: Vec<Line> = entry_lines
+                .into_iter()
+                .skip(clip_top.saturating_sub(1) as usize)
+                .take(inner.height as usize)
+                .collect();
+
+            f.render_widget(block, entry_rect);
+            let para_style = if is_selected {
+                Style::new().bg(theme.surface)
+            } else {
+                Style::default()
+            };
+            if !visible_content_lines.is_empty() {
+                f.render_widget(
+                    Paragraph::new(visible_content_lines).style(para_style),
+                    inner,
+                );
+            }
+
+            y += content_lines + 1; // +1 for the shared border overlap
+        }
     }
 
     fn render_stats_footer(&self, area: Rect, f: &mut Frame, theme: &Theme) {
-        let hmargin = 2u16;
-        let padded = Rect {
-            x: area.x + hmargin,
-            y: area.y,
-            width: area.width.saturating_sub(hmargin * 2),
-            height: area.height,
-        };
-
         let block = Block::new()
-            .borders(Borders::ALL)
+            .borders(Borders::TOP | Borders::BOTTOM)
             .border_style(Style::new().fg(theme.border))
-            .style(Style::new().bg(theme.bg));
-        let inner = block.inner(padded);
+            .merge_borders(MergeStrategy::Exact);
+        let inner = block.inner(area);
 
         let hours = format!(
             "{} {}",
@@ -424,11 +301,9 @@ impl Dashboard {
             Span::styled(projects, Style::new().fg(theme.muted)),
         ]);
 
-        let paragraph = Paragraph::new(line)
-            .alignment(Alignment::Center)
-            .style(Style::new().bg(theme.bg));
+        let paragraph = Paragraph::new(line).alignment(Alignment::Center);
 
-        f.render_widget(block, padded);
+        f.render_widget(block, area);
         if inner.height > 0 {
             f.render_widget(paragraph, inner);
         }
@@ -437,19 +312,12 @@ impl Dashboard {
     pub fn handle_key(&mut self, key: &ratatui::crossterm::event::KeyEvent) -> Vec<Action> {
         match key.code {
             KeyCode::Char('j') | KeyCode::Down => {
-                let i = self
-                    .table_state
-                    .selected()
-                    .map_or(0, |i| (i + 1).min(self.entries.len().saturating_sub(1)));
-                self.table_state.select(Some(i));
+                let max = self.entries.len().saturating_sub(1);
+                self.selected_index = (self.selected_index + 1).min(max);
                 vec![]
             }
             KeyCode::Char('k') | KeyCode::Up => {
-                let i = self
-                    .table_state
-                    .selected()
-                    .map_or(0, |i| i.saturating_sub(1));
-                self.table_state.select(Some(i));
+                self.selected_index = self.selected_index.saturating_sub(1);
                 vec![]
             }
             KeyCode::Char('s') => {
@@ -556,44 +424,28 @@ impl Dashboard {
     }
 }
 
-fn format_hours_cell(entry: &TimeEntry) -> String {
-    if entry.is_running {
-        format_timer_elapsed(entry)
-    } else {
-        entry.hours.map_or_else(
-            || "0:00".to_string(),
-            harv_core::text::decimal_hours_to_hhmm,
-        )
-    }
-}
-
-fn format_timer_elapsed(entry: &TimeEntry) -> String {
+fn format_timer_compact(entry: &TimeEntry) -> String {
     if let Some(started) = entry.timer_started_at {
-        let elapsed = chrono::Utc::now() - started;
-        harv_core::text::format_elapsed_hms(elapsed.num_seconds())
+        let secs = (chrono::Utc::now() - started).num_seconds().max(0);
+        let h = secs / 3600;
+        let m = (secs % 3600) / 60;
+        let s = secs % 60;
+        let s = if h > 0 {
+            format!("{}:{:02}", h, m)
+        } else {
+            format!("{}:{:02}", m, s)
+        };
+        format!("{:>5}", s)
     } else {
-        String::from("--:--:--")
+        "--:--".to_string()
     }
 }
 
 fn render_harv_header(area: Rect, f: &mut Frame, theme: &Theme, date: NaiveDate) {
+    use crate::loading::{ASCII_LOGO, LOGO_SHADES};
     use ratatui::widgets::Clear;
 
     f.render_widget(Clear, area);
-
-    let shades: [(u8, u8, u8); 4] = [
-        (250, 210, 140),
-        (250, 170, 90),
-        (250, 130, 40),
-        (250, 93, 0),
-    ];
-
-    let header_lines = [
-        "▗▖ ▗▖ ▗▄▖ ▗▄▄▖ ▗▖  ▗▖",
-        "▐▌ ▐▌▐▌ ▐▌▐▌ ▐▌▐▌  ▐▌",
-        "▐▛▀▜▌▐▛▀▜▌▐▛▀▚▖▐▌  ▐▌",
-        "▐▌ ▐▌▐▌ ▐▌▐▌ ▐▌ ▝▚▞▘ ",
-    ];
 
     let version = env!("CARGO_PKG_VERSION");
     let version_text = format!("{} v{}", harv_core::t("tui-app-title"), version);
@@ -606,8 +458,8 @@ fn render_harv_header(area: Rect, f: &mut Frame, theme: &Theme, date: NaiveDate)
 
     let mut lines: Vec<Line> = Vec::new();
 
-    for (i, header_line) in header_lines.iter().enumerate() {
-        let (r, g, b) = shades[i];
+    for (i, header_line) in ASCII_LOGO.iter().enumerate() {
+        let (r, g, b) = LOGO_SHADES[i];
         lines.push(Line::from(Span::styled(
             header_line.to_string(),
             Style::new()
@@ -804,12 +656,10 @@ mod tests {
             ],
             0,
         );
-        d.table_state.select(Some(0));
+        d.selected_index = 0;
         assert_eq!(d.selected_entry().unwrap().id, 1);
-        d.table_state.select(Some(1));
+        d.selected_index = 1;
         assert_eq!(d.selected_entry().unwrap().id, 2);
-        d.table_state.select(None);
-        assert!(d.selected_entry().is_none());
     }
 
     #[test]
@@ -834,11 +684,11 @@ mod tests {
             0,
         );
         d.handle_key(&key_press(KeyCode::Char('j')));
-        assert_eq!(d.table_state.selected(), Some(1));
+        assert_eq!(d.selected_index, 1);
         d.handle_key(&key_press(KeyCode::Char('j')));
-        assert_eq!(d.table_state.selected(), Some(2));
+        assert_eq!(d.selected_index, 2);
         d.handle_key(&key_press(KeyCode::Char('j')));
-        assert_eq!(d.table_state.selected(), Some(2));
+        assert_eq!(d.selected_index, 2);
     }
 
     #[test]
@@ -851,11 +701,11 @@ mod tests {
             ],
             0,
         );
-        d.table_state.select(Some(1));
+        d.selected_index = 1;
         d.handle_key(&key_press(KeyCode::Char('k')));
-        assert_eq!(d.table_state.selected(), Some(0));
+        assert_eq!(d.selected_index, 0);
         d.handle_key(&key_press(KeyCode::Char('k')));
-        assert_eq!(d.table_state.selected(), Some(0));
+        assert_eq!(d.selected_index, 0);
     }
 
     #[test]
@@ -916,7 +766,6 @@ mod tests {
     fn test_e_opens_edit_form() {
         let mut d = Dashboard::default();
         d.update_entries(vec![entry(42, 10, 20, Some(2.0), false)], 0);
-        d.table_state.select(Some(0));
         let actions = d.handle_key(&key_press(KeyCode::Char('e')));
         assert!(matches!(
             actions[0],
@@ -932,7 +781,6 @@ mod tests {
     fn test_d_triggers_confirm_delete() {
         let mut d = Dashboard::default();
         d.update_entries(vec![entry(42, 10, 20, Some(2.0), false)], 0);
-        d.table_state.select(Some(0));
         let actions = d.handle_key(&key_press(KeyCode::Char('d')));
         assert!(matches!(
             actions[0],
@@ -980,7 +828,6 @@ mod tests {
     fn test_e_on_stopped_passes_is_running_false() {
         let mut d = Dashboard::default();
         d.update_entries(vec![entry(1, 10, 20, Some(2.0), false)], 0);
-        d.table_state.select(Some(0));
         let actions = d.handle_key(&key_press(KeyCode::Char('e')));
         assert!(matches!(
             actions[0],

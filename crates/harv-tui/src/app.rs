@@ -3,14 +3,17 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::NaiveDate;
+use crossterm::execute;
+use crossterm::terminal::SetTitle;
 use futures_util::StreamExt;
 use harv_core::CreateTimeEntry;
 use harv_sdk::{HarvClient, ResolvedConfig};
 use ratatui::Frame;
 use ratatui::crossterm::event::{Event, KeyCode, KeyEventKind};
 use ratatui::layout::Alignment;
-use ratatui::layout::{Constraint, Layout, Rect};
+use ratatui::layout::{Constraint, Layout, Rect, Spacing};
 use ratatui::style::{Modifier, Style};
+use ratatui::symbols::merge::MergeStrategy;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use tokio::sync::mpsc::{self, UnboundedSender};
@@ -88,6 +91,7 @@ impl App {
 
     pub async fn run(&mut self) -> color_eyre::eyre::Result<()> {
         let mut terminal = tui::terminal()?;
+        self.update_window_title();
         let (action_tx, mut action_rx) = mpsc::unbounded_channel();
 
         // Fetch user info asynchronously — dashboard shows loading animation
@@ -394,6 +398,7 @@ impl App {
                 d.prev_day();
                 let date = d.selected_date();
                 d.set_loading(harv_core::t("tui-app-loading-generic"));
+                self.update_window_title();
                 self.fetch_entries(tx, date);
             }
             Action::NavigateDayNext => {
@@ -401,6 +406,7 @@ impl App {
                 d.next_day();
                 let date = d.selected_date();
                 d.set_loading(harv_core::t("tui-app-loading-generic"));
+                self.update_window_title();
                 self.fetch_entries(tx, date);
             }
             Action::NavigateDayToday => {
@@ -408,6 +414,7 @@ impl App {
                 d.go_today();
                 let date = d.selected_date();
                 d.set_loading(harv_core::t("tui-app-loading-generic"));
+                self.update_window_title();
                 self.fetch_entries(tx, date);
             }
             Action::OpenDatePicker => {
@@ -430,6 +437,7 @@ impl App {
                     let View::Dashboard(d) = &mut self.current_view;
                     d.set_date(date);
                     d.set_loading(harv_core::t("tui-app-loading-generic"));
+                    self.update_window_title();
                     self.fetch_entries(tx, date);
                 }
                 self.date_picker = None;
@@ -629,17 +637,17 @@ impl App {
     fn render(&mut self, f: &mut Frame) {
         let area = f.area();
 
-        let layout = Layout::vertical([
-            Constraint::Length(1),
-            Constraint::Min(0),
-            Constraint::Length(2),
-        ])
-        .split(area);
+        let top_split = Layout::vertical([Constraint::Length(3), Constraint::Min(0)]).split(area);
+        let (top_bar, rest) = (top_split[0], top_split[1]);
 
-        self.render_top_bar(layout[0], f);
-        self.current_view
-            .render(layout[1], f, &self.theme, self.tick);
-        self.render_bottom_bar(layout[2], f);
+        let bottom_split = Layout::vertical([Constraint::Min(0), Constraint::Length(2)])
+            .spacing(Spacing::Overlap(1))
+            .split(rest);
+        let (main, bottom_bar) = (bottom_split[0], bottom_split[1]);
+
+        self.render_top_bar(top_bar, f);
+        self.current_view.render(main, f, &self.theme, self.tick);
+        self.render_bottom_bar(bottom_bar, f);
 
         self.help.render(area, f, &self.theme);
 
@@ -657,50 +665,85 @@ impl App {
     }
 
     fn render_top_bar(&self, area: Rect, f: &mut Frame) {
-        let layout = Layout::horizontal([Constraint::Min(0), Constraint::Length(12)]).split(area);
-
         let version = env!("CARGO_PKG_VERSION");
-        let mut spans = vec![Span::styled(
-            format!(" {} ", harv_core::t("tui-app-title")),
-            Style::new()
-                .fg(self.theme.primary)
-                .add_modifier(Modifier::BOLD),
-        )];
 
-        if let Some(ref name) = self.user_name {
-            spans.push(Span::styled(
-                format!("{} ", name),
-                Style::new().fg(self.theme.fg),
+        // Left: harv name + version
+        let left = Line::from(vec![
+            Span::styled(
+                format!(" {} ", harv_core::t("tui-app-title")),
+                Style::new()
+                    .fg(self.theme.primary)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(format!("v{} ", version), Style::new().fg(self.theme.muted)),
+        ]);
+
+        // Center: date nav with arrows
+        let date = self.current_view.selected_date();
+        let is_today = date == harv_core::datetime::today();
+        let date_formatted =
+            harv_core::datetime::format_date_header(date, &harv_core::current_langid());
+
+        let mut date_spans = vec![
+            Span::styled(" < ", Style::new().fg(self.theme.muted)),
+            Span::styled(
+                date_formatted,
+                Style::new().fg(self.theme.fg).add_modifier(Modifier::BOLD),
+            ),
+        ];
+        if is_today {
+            date_spans.push(Span::styled(
+                format!(" {} ", harv_core::t("tui-dash-today")),
+                Style::new().fg(self.theme.muted),
             ));
         }
+        date_spans.push(Span::styled(" > ", Style::new().fg(self.theme.muted)));
+        let center = Line::from(date_spans);
 
-        spans.push(Span::styled(
-            format!("v{} ", version),
-            Style::new().fg(self.theme.muted),
-        ));
-
-        let left = Line::from(spans);
-
+        // Right: timer status
         let status = if self.current_view.timer_running() {
             Span::styled(
-                format!(" {}", harv_core::t("tui-app-running")),
+                format!(" {} ", harv_core::t("tui-app-running")),
                 Style::new().fg(self.theme.success),
             )
         } else {
             Span::styled(
-                format!(" {}", harv_core::t("tui-app-idle")),
+                format!(" {} ", harv_core::t("tui-app-idle")),
                 Style::new().fg(self.theme.muted),
             )
         };
+        let right = Line::from(status);
+
+        // Fill entire bar area with background
+        f.render_widget(
+            Paragraph::new("").style(Style::new().bg(self.theme.bg)),
+            area,
+        );
+
+        // Content row centered vertically, 3-column layout horizontally
+        let content_row = area.centered_vertically(Constraint::Length(1));
+        let cols = Layout::horizontal([
+            Constraint::Fill(1),
+            Constraint::Fill(1),
+            Constraint::Fill(1),
+        ])
+        .split(content_row);
 
         f.render_widget(
             Paragraph::new(left).style(Style::new().bg(self.theme.bg)),
-            layout[0],
+            cols[0],
         );
-
         f.render_widget(
-            Paragraph::new(Line::from(status)).style(Style::new().bg(self.theme.bg)),
-            layout[1],
+            Paragraph::new(center)
+                .alignment(Alignment::Center)
+                .style(Style::new().bg(self.theme.bg)),
+            cols[1],
+        );
+        f.render_widget(
+            Paragraph::new(right)
+                .alignment(Alignment::Right)
+                .style(Style::new().bg(self.theme.bg)),
+            cols[2],
         );
     }
 
@@ -739,13 +782,27 @@ impl App {
 
         let block = Block::new()
             .borders(Borders::TOP)
-            .border_style(Style::new().fg(self.theme.border));
+            .border_style(Style::new().fg(self.theme.border))
+            .merge_borders(MergeStrategy::Exact);
 
-        let paragraph = Paragraph::new(Line::from(spans))
-            .block(block)
-            .alignment(Alignment::Center);
+        let inner = block.inner(area);
+        f.render_widget(block, area);
+        f.render_widget(
+            Paragraph::new(Line::from(spans)).alignment(Alignment::Center),
+            inner,
+        );
+    }
 
-        f.render_widget(paragraph, area);
+    fn update_window_title(&self) {
+        let version = env!("CARGO_PKG_VERSION");
+        let date = self.current_view.selected_date();
+        let title = if date == harv_core::datetime::today() {
+            format!("Harv {} — Today", version)
+        } else {
+            let d = harv_core::datetime::format_date_short(date, &harv_core::current_langid());
+            format!("Harv {} — {}", version, d)
+        };
+        let _ = execute!(std::io::stdout(), SetTitle(&title));
     }
 }
 
