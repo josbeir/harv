@@ -643,18 +643,17 @@ impl App {
             area,
         );
 
-        let layout = Layout::vertical([
-            Constraint::Length(3),
-            Constraint::Min(0),
-            Constraint::Length(2),
-        ])
-        .spacing(Spacing::Overlap(1))
-        .split(area);
+        let top_split = Layout::vertical([Constraint::Length(3), Constraint::Min(0)]).split(area);
+        let (top_bar, rest) = (top_split[0], top_split[1]);
 
-        self.render_top_bar(layout[0], f);
-        self.current_view
-            .render(layout[1], f, &self.theme, self.tick);
-        self.render_bottom_bar(layout[2], f);
+        let bottom_split = Layout::vertical([Constraint::Min(0), Constraint::Length(2)])
+            .spacing(Spacing::Overlap(1))
+            .split(rest);
+        let (main, bottom_bar) = (bottom_split[0], bottom_split[1]);
+
+        self.render_top_bar(top_bar, f);
+        self.current_view.render(main, f, &self.theme, self.tick);
+        self.render_bottom_bar(bottom_bar, f);
 
         self.help.render(area, f, &self.theme);
 
