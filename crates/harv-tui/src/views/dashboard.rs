@@ -99,24 +99,28 @@ impl Dashboard {
     }
 
     pub fn render(&mut self, area: Rect, f: &mut Frame, theme: &Theme, tick: u64) {
-        let body = Layout::vertical([Constraint::Min(0), Constraint::Length(3)])
-            .spacing(Spacing::Overlap(1))
-            .split(area);
+        let body = Layout::vertical([
+            Constraint::Length(1),
+            Constraint::Min(0),
+            Constraint::Length(3),
+        ])
+        .spacing(Spacing::Overlap(1))
+        .split(area);
 
         if !self.loaded {
-            crate::loading::render_harv_loading(body[0], f, tick, &self.loading_msg, theme);
-            self.render_stats_footer(body[1], f, theme);
+            crate::loading::render_harv_loading(body[1], f, tick, &self.loading_msg, theme);
+            self.render_stats_footer(body[2], f, theme);
             return;
         }
 
         if self.entries.is_empty() {
-            render_harv_header(body[0], f, theme, self.selected_date);
-            self.render_stats_footer(body[1], f, theme);
+            render_harv_header(body[1], f, theme, self.selected_date);
+            self.render_stats_footer(body[2], f, theme);
             return;
         }
 
-        self.render_entry_list(body[0], f, theme);
-        self.render_stats_footer(body[1], f, theme);
+        self.render_entry_list(body[1], f, theme);
+        self.render_stats_footer(body[2], f, theme);
     }
 
     fn render_entry_list(&mut self, area: Rect, f: &mut Frame, theme: &Theme) {
