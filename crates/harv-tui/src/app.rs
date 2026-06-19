@@ -3,6 +3,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::NaiveDate;
+use crossterm::execute;
+use crossterm::terminal::SetTitle;
 use futures_util::StreamExt;
 use harv_core::CreateTimeEntry;
 use harv_sdk::{HarvClient, ResolvedConfig};
@@ -89,6 +91,7 @@ impl App {
 
     pub async fn run(&mut self) -> color_eyre::eyre::Result<()> {
         let mut terminal = tui::terminal()?;
+        self.update_window_title();
         let (action_tx, mut action_rx) = mpsc::unbounded_channel();
 
         // Fetch user info asynchronously — dashboard shows loading animation
@@ -395,6 +398,7 @@ impl App {
                 d.prev_day();
                 let date = d.selected_date();
                 d.set_loading(harv_core::t("tui-app-loading-generic"));
+                self.update_window_title();
                 self.fetch_entries(tx, date);
             }
             Action::NavigateDayNext => {
@@ -402,6 +406,7 @@ impl App {
                 d.next_day();
                 let date = d.selected_date();
                 d.set_loading(harv_core::t("tui-app-loading-generic"));
+                self.update_window_title();
                 self.fetch_entries(tx, date);
             }
             Action::NavigateDayToday => {
@@ -409,6 +414,7 @@ impl App {
                 d.go_today();
                 let date = d.selected_date();
                 d.set_loading(harv_core::t("tui-app-loading-generic"));
+                self.update_window_title();
                 self.fetch_entries(tx, date);
             }
             Action::OpenDatePicker => {
@@ -431,6 +437,7 @@ impl App {
                     let View::Dashboard(d) = &mut self.current_view;
                     d.set_date(date);
                     d.set_loading(harv_core::t("tui-app-loading-generic"));
+                    self.update_window_title();
                     self.fetch_entries(tx, date);
                 }
                 self.date_picker = None;
@@ -785,6 +792,18 @@ impl App {
             Paragraph::new(Line::from(spans)).alignment(Alignment::Center),
             inner,
         );
+    }
+
+    fn update_window_title(&self) {
+        let version = env!("CARGO_PKG_VERSION");
+        let date = self.current_view.selected_date();
+        let title = if date == harv_core::datetime::today() {
+            format!("Harv {} — Today", version)
+        } else {
+            let d = harv_core::datetime::format_date_short(date, &harv_core::current_langid());
+            format!("Harv {} — {}", version, d)
+        };
+        let _ = execute!(std::io::stdout(), SetTitle(&title));
     }
 }
 
