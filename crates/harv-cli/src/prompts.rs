@@ -370,6 +370,54 @@ pub fn format_timer_display(
     }
 }
 
+pub(crate) fn pick_running_timer<'a>(
+    running: &'a [harv_core::TimeEntry],
+    prompt: &str,
+) -> color_eyre::eyre::Result<&'a harv_core::TimeEntry> {
+    if running.len() == 1 {
+        Ok(&running[0])
+    } else {
+        let items: Vec<String> = running
+            .iter()
+            .map(harv_core::text::format_timer_line)
+            .collect();
+        let items_str: Vec<&str> = items.iter().map(|s| s.as_str()).collect();
+        let selection = inquire::Select::new(prompt, items_str.clone()).prompt()?;
+        let idx = items_str.iter().position(|&s| s == selection).unwrap();
+        Ok(&running[idx])
+    }
+}
+
+pub(crate) fn resolve_entry_notes(
+    existing: &str,
+    notes: Option<&str>,
+    overwrite: bool,
+    editor: bool,
+) -> color_eyre::eyre::Result<Option<String>> {
+    if editor {
+        let input = inquire::Text::new("Notes (empty to keep current):")
+            .prompt_skippable()?
+            .filter(|s| !s.trim().is_empty());
+        Ok(input.map(|n| {
+            if overwrite || existing.is_empty() {
+                n
+            } else {
+                harv_core::text::append_notes(existing, &n)
+            }
+        }))
+    } else if let Some(n) = notes {
+        if n.is_empty() {
+            Ok(None)
+        } else if overwrite || existing.is_empty() {
+            Ok(Some(n.to_string()))
+        } else {
+            Ok(Some(harv_core::text::append_notes(existing, n)))
+        }
+    } else {
+        Ok(None)
+    }
+}
+
 #[allow(dead_code)]
 fn fuzzy_score(pattern: &str, text: &str) -> i32 {
     harv_core::text::fuzzy_score(pattern, text)
