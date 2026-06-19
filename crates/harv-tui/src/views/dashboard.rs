@@ -540,6 +540,11 @@ impl Dashboard {
     pub fn set_loaded(&mut self, v: bool) {
         self.loaded = v;
     }
+
+    #[doc(hidden)]
+    pub fn loading_msg_str(&self) -> &str {
+        &self.loading_msg
+    }
 }
 #[cfg(test)]
 mod tests {

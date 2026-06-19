@@ -1040,6 +1040,7 @@ mod tests {
         let mut app = make_app();
         let (_tx, _rx) = make_channel();
         app.dispatch(Action::SetLoadingMessage("syncing".into()), &_tx);
+        assert_eq!(app.dashboard().loading_msg_str(), "syncing");
     }
 
     #[test]
@@ -1048,6 +1049,7 @@ mod tests {
         let (tx, _rx) = make_channel();
         let assignments = vec![];
         app.dispatch(Action::FormAssignmentsUpdate(assignments), &tx);
+        assert!(!app.has_form());
     }
 
     #[test]
@@ -1085,6 +1087,7 @@ mod tests {
             updated_at: None,
         };
         app.dispatch(Action::TimerUpdate(vec![entry]), &tx);
+        assert!(app.dashboard().has_running());
     }
 
     #[tokio::test]
@@ -1113,6 +1116,8 @@ mod tests {
         let mut app = make_app();
         let (tx, _rx) = make_channel();
         app.dispatch(Action::Error("test error".into()), &tx);
+        assert!(!app.has_form());
+        assert!(!app.dashboard().has_running());
     }
 
     #[tokio::test]
@@ -1148,9 +1153,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_dispatch_refresh() {
+        harv_core::init_locale(Some("en"));
         let mut app = make_app();
         let (tx, _rx) = make_channel();
+        let before = app.dashboard().loading_msg_str().to_string();
         app.dispatch(Action::Refresh, &tx);
+        assert_ne!(app.dashboard().loading_msg_str(), before);
     }
 
     #[tokio::test]
@@ -1158,6 +1166,7 @@ mod tests {
         let mut app = make_app();
         let (tx, _rx) = make_channel();
         app.dispatch(Action::RefreshEntries, &tx);
+        assert_eq!(app.dashboard().entry_count(), 0);
     }
 
     #[test]

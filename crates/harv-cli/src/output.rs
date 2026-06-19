@@ -3,7 +3,6 @@ use tabled::builder::Builder;
 use tabled::settings::Style;
 
 /// Renders output as a table or JSON string.
-#[allow(dead_code)]
 pub(crate) fn render<H, R>(headers: &[H], rows: &[R], format: &OutputFormat) -> String
 where
     H: AsRef<str>,
