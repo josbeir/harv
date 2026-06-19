@@ -637,12 +637,6 @@ impl App {
     fn render(&mut self, f: &mut Frame) {
         let area = f.area();
 
-        // Fill entire frame with theme background
-        f.render_widget(
-            Paragraph::new("").style(Style::new().bg(self.theme.bg)),
-            area,
-        );
-
         let top_split = Layout::vertical([Constraint::Length(3), Constraint::Min(0)]).split(area);
         let (top_bar, rest) = (top_split[0], top_split[1]);
 
