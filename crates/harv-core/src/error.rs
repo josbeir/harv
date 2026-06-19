@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 /// Top-level error type for the harv ecosystem.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum HarvError {
     #[error("Authentication required. Run `harv connect` to log in.")]
     NotAuthenticated,

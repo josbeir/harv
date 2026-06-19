@@ -11,6 +11,7 @@ use ratatui::layout::Rect;
 use self::dashboard::Dashboard;
 
 #[allow(clippy::large_enum_variant)]
+#[non_exhaustive]
 pub enum View {
     Dashboard(Dashboard),
 }

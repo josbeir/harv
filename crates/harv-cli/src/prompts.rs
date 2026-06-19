@@ -120,12 +120,9 @@ pub fn ask_date(default: NaiveDate) -> color_eyre::eyre::Result<NaiveDate> {
         if input.is_empty() {
             return Ok(Validation::Valid);
         }
-        match NaiveDate::parse_from_str(input, "%Y-%m-%d") {
-            Ok(d) if d <= harv_core::datetime::today() => Ok(Validation::Valid),
-            Ok(_) => Ok(Validation::Invalid("Date cannot be in the future".into())),
-            Err(_) => Ok(Validation::Invalid(
-                "Invalid date format (YYYY-MM-DD)".into(),
-            )),
+        match harv_core::datetime::parse_date_not_future(input) {
+            Ok(_) => Ok(Validation::Valid),
+            Err(e) => Ok(Validation::Invalid(e.user_message().into())),
         }
     };
 
@@ -258,12 +255,9 @@ pub fn ask_date_with_default(default: NaiveDate) -> color_eyre::eyre::Result<Opt
         if input.is_empty() {
             return Ok(Validation::Valid);
         }
-        match NaiveDate::parse_from_str(input, "%Y-%m-%d") {
-            Ok(d) if d <= harv_core::datetime::today() => Ok(Validation::Valid),
-            Ok(_) => Ok(Validation::Invalid("Date cannot be in the future".into())),
-            Err(_) => Ok(Validation::Invalid(
-                "Invalid date format (YYYY-MM-DD)".into(),
-            )),
+        match harv_core::datetime::parse_date_not_future(input) {
+            Ok(_) => Ok(Validation::Valid),
+            Err(e) => Ok(Validation::Invalid(e.user_message().into())),
         }
     };
 

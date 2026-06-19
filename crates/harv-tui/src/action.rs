@@ -5,6 +5,7 @@ use crate::theme::ThemeMode;
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
+#[non_exhaustive]
 pub enum Action {
     Quit,
     Tick,
