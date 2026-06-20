@@ -901,4 +901,47 @@ mod tests {
         d.set_date(target);
         assert_eq!(d.selected_date(), target);
     }
+
+    #[test]
+    fn test_sort_created_at_desc_then_id_tiebreaker() {
+        use chrono::{TimeZone, Utc};
+        let mut d = Dashboard::default();
+
+        let mut e1 = make_time_entry(3, 10, 20, Some(1.0), false);
+        let mut e2 = make_time_entry(1, 10, 20, Some(1.0), false);
+        let mut e3 = make_time_entry(2, 10, 20, Some(1.0), false);
+
+        let t1 = Utc.with_ymd_and_hms(2026, 6, 19, 14, 0, 0).unwrap();
+        let t2 = Utc.with_ymd_and_hms(2026, 6, 19, 14, 0, 0).unwrap();
+
+        e1.created_at = Some(t1);
+        e2.created_at = Some(t2);
+        e3.created_at = Some(t1);
+
+        d.update_entries(vec![e1, e2, e3], 0);
+
+        let ids: Vec<u64> = d.entries.iter().map(|e| e.id).collect();
+        assert_eq!(ids, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_sort_none_created_at_goes_last() {
+        use chrono::{TimeZone, Utc};
+        let mut d = Dashboard::default();
+
+        let t1 = Utc.with_ymd_and_hms(2026, 6, 19, 14, 0, 0).unwrap();
+
+        let mut e1 = make_time_entry(1, 10, 20, Some(1.0), false);
+        let mut e2 = make_time_entry(2, 10, 20, Some(1.0), false);
+        let mut e3 = make_time_entry(3, 10, 20, Some(1.0), false);
+
+        e1.created_at = Some(t1);
+        e2.created_at = None;
+        e3.created_at = None;
+
+        d.update_entries(vec![e1, e2, e3], 0);
+
+        let ids: Vec<u64> = d.entries.iter().map(|e| e.id).collect();
+        assert_eq!(ids[0], 1);
+    }
 }
