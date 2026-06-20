@@ -67,6 +67,15 @@ async fn show() -> color_eyre::eyre::Result<()> {
                 .join(", ")
         }
     );
+    println!(
+        "  {:<20} {}",
+        t("cli-config-check-updates"),
+        if config.check_updates() {
+            t("text-yes")
+        } else {
+            t("text-no")
+        }
+    );
 
     Ok(())
 }
@@ -84,6 +93,7 @@ async fn get(setting: &str) -> color_eyre::eyre::Result<()> {
         "access-token" => println!("{}", redact_token(config.access_token())),
         "account-id" => println!("{}", config.account_id()),
         "locale" => println!("{}", config.locale().unwrap_or("")),
+        "check-updates" => println!("{}", config.check_updates()),
         "aliases" => {
             if config.aliases().is_empty() {
                 println!("{}", t("cli-config-none-bare"));
@@ -145,6 +155,19 @@ async fn set(setting: &str, value: &str) -> color_eyre::eyre::Result<()> {
                     ));
                 }
             }
+        }
+        "check-updates" => {
+            let val: bool = match value.to_lowercase().as_str() {
+                "true" | "yes" | "1" | "on" => true,
+                "false" | "no" | "0" | "off" => false,
+                _ => {
+                    return Err(color_eyre::eyre::eyre!(
+                        "{}",
+                        t("cli-config-check-updates-invalid")
+                    ));
+                }
+            };
+            config.set_check_updates(val);
         }
         other => {
             return Err(color_eyre::eyre::eyre!(

@@ -39,6 +39,7 @@ pub struct App {
     date_picker: Option<DatePicker>,
     project_codes: HashMap<u64, String>,
     resolved_config: ResolvedConfig,
+    update_available: Option<(String, String)>,
 }
 
 impl App {
@@ -56,6 +57,7 @@ impl App {
             date_picker: None,
             project_codes: HashMap::new(),
             resolved_config,
+            update_available: None,
         }
     }
 
@@ -106,6 +108,20 @@ impl App {
                     Err(e) => {
                         let _ = tx.send(Action::Error(e.user_message()));
                     }
+                }
+            });
+        }
+
+        if self.client.config().check_updates() {
+            let tx = action_tx.clone();
+            tokio::spawn(async move {
+                if let Some(info) =
+                    harv_sdk::updater::check_for_update(env!("CARGO_PKG_VERSION")).await
+                {
+                    let _ = tx.send(Action::UpdateAvailable {
+                        version: info.version,
+                        url: info.url,
+                    });
                 }
             });
         }
@@ -613,6 +629,9 @@ impl App {
             Action::StopAndStartNew { entry_id } => self.handle_stop_and_start_new(entry_id, tx),
             Action::SetLoadingMessage(msg) => self.handle_set_loading_message(msg),
             Action::Error(msg) => self.handle_error(msg),
+            Action::UpdateAvailable { version, url } => {
+                self.update_available = Some((version, url));
+            }
             _ => {}
         }
     }
@@ -775,7 +794,8 @@ impl App {
         date_spans.push(Span::styled(" > ", Style::new().fg(self.theme.muted)));
         let center = Line::from(date_spans);
 
-        // Right: timer status
+        // Right: timer status + update notification
+        let mut right_spans = vec![];
         let status = if self.current_view.timer_running() {
             Span::styled(
                 format!(" {} ", harv_core::t("tui-app-running")),
@@ -787,7 +807,21 @@ impl App {
                 Style::new().fg(self.theme.muted),
             )
         };
-        let right = Line::from(status);
+        right_spans.push(status);
+
+        if let Some((ref version, _)) = self.update_available {
+            right_spans.push(Span::styled(
+                format!(
+                    " {} ",
+                    harv_core::t_args("tui-app-update", &[("version", version.clone())])
+                ),
+                Style::new()
+                    .fg(self.theme.primary)
+                    .add_modifier(Modifier::BOLD),
+            ));
+        }
+
+        let right = Line::from(right_spans);
 
         // Fill entire bar area with background
         f.render_widget(

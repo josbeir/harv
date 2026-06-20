@@ -10,6 +10,7 @@ pub mod project_config;
 pub mod resolved_config;
 pub mod resources;
 pub mod template;
+pub mod updater;
 
 pub use cache::clear_cache;
 pub use client::HarvClient;

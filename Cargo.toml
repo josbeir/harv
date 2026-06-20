@@ -6,3 +6,9 @@ resolver = "2"
 version = "0.3.0"
 edition = "2024"
 license = "MIT"
+repository = "https://github.com/josbeir/harv"
+homepage = "https://github.com/josbeir/harv"
+
+[workspace.metadata.release]
+tag-prefix = "v"
+publish = false
