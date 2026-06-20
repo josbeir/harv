@@ -227,13 +227,8 @@ impl App {
         };
     }
 
-    fn handle_switch_view(&mut self, tx: &UnboundedSender<Action>) {
+    fn handle_switch_view(&mut self, _tx: &UnboundedSender<Action>) {
         self.form = None;
-        let date = {
-            let View::Dashboard(d) = &self.current_view;
-            d.selected_date()
-        };
-        self.fetch_dashboard_data(tx, false, date);
     }
 
     #[allow(clippy::too_many_arguments)]
