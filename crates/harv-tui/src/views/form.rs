@@ -7,6 +7,7 @@ use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListState, Paragraph};
+use unicode_width::UnicodeWidthStr;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Field {
@@ -35,6 +36,7 @@ pub struct TimeEntryForm {
     date: String,
     hours: String,
     notes: String,
+    cursor_pos: usize,
     active: Field,
     visible: bool,
     tasks_loading: bool,
@@ -80,6 +82,7 @@ impl TimeEntryForm {
             date,
             hours: entry_hours.unwrap_or_default(),
             notes: entry_notes.unwrap_or_default(),
+            cursor_pos: 0,
             active: Field::ProjectList,
             visible: true,
             tasks_loading: false,
@@ -334,6 +337,7 @@ impl TimeEntryForm {
             self.render_text_field(
                 &harv_core::t("tui-form-date-label"),
                 &self.date,
+                self.cursor_pos,
                 self.active == Field::Date,
                 Rect {
                     x: content_x,
@@ -347,6 +351,7 @@ impl TimeEntryForm {
             self.render_text_field(
                 &harv_core::t("tui-form-hours-label"),
                 &self.hours,
+                self.cursor_pos,
                 self.active == Field::Hours,
                 Rect {
                     x: content_x,
@@ -360,6 +365,7 @@ impl TimeEntryForm {
             self.render_text_field(
                 &harv_core::t("tui-form-notes-label"),
                 &self.notes,
+                self.cursor_pos,
                 self.active == Field::Notes,
                 Rect {
                     x: content_x,
@@ -391,6 +397,7 @@ impl TimeEntryForm {
             self.render_text_field(
                 &harv_core::t("tui-form-notes-label"),
                 &self.notes,
+                self.cursor_pos,
                 self.active == Field::Notes,
                 Rect {
                     x: content_x,
@@ -569,10 +576,12 @@ impl TimeEntryForm {
         f.render_stateful_widget(list, list_area, &mut self.task_list);
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn render_text_field(
         &self,
         label: &str,
         value: &str,
+        cursor_pos: usize,
         active: bool,
         area: Rect,
         f: &mut Frame,
@@ -603,11 +612,17 @@ impl TimeEntryForm {
         f.render_widget(Paragraph::new(display.clone()), inner);
 
         if active {
-            let cursor_x = if value.is_empty() {
-                inner.x
+            let visual_col = if value.is_char_boundary(cursor_pos) {
+                value[..cursor_pos].width()
             } else {
-                inner.x + display.width() as u16
+                let clamped = cursor_pos.min(value.len());
+                let boundary = (0..=clamped)
+                    .rev()
+                    .find(|&p| value.is_char_boundary(p))
+                    .unwrap_or(0);
+                value[..boundary].width()
             };
+            let cursor_x = inner.x.saturating_add(visual_col as u16);
             f.set_cursor_position((cursor_x.min(inner.right().saturating_sub(1)), inner.y));
         }
     }
@@ -679,6 +694,7 @@ impl TimeEntryForm {
                 } else {
                     Field::Notes
                 };
+                self.cursor_pos = self.active_text_field().len();
                 vec![]
             }
             KeyCode::BackTab => {
@@ -702,6 +718,7 @@ impl TimeEntryForm {
                 } else {
                     Field::Notes
                 };
+                self.cursor_pos = self.active_text_field().len();
                 vec![]
             }
             KeyCode::Backspace => {
@@ -743,6 +760,9 @@ impl TimeEntryForm {
                     Field::Notes => Field::ProjectList,
                     _ => Field::ProjectList,
                 };
+                if Self::is_text_field(self.active) {
+                    self.cursor_pos = self.active_text_field().len();
+                }
                 vec![]
             }
             KeyCode::BackTab => {
@@ -758,6 +778,9 @@ impl TimeEntryForm {
                     }
                     _ => Field::ProjectList,
                 };
+                if Self::is_text_field(self.active) {
+                    self.cursor_pos = self.active_text_field().len();
+                }
                 vec![]
             }
             KeyCode::Char('g') if self.active == Field::Date => {
@@ -769,17 +792,65 @@ impl TimeEntryForm {
                     Field::Hours => self.active = Field::Notes,
                     _ => return self.submit_entry(),
                 };
+                self.cursor_pos = self.active_text_field().len();
+                vec![]
+            }
+            KeyCode::Left => {
+                let s = self.active_text_field();
+                self.cursor_pos = Self::prev_char_boundary(s, self.cursor_pos);
+                vec![]
+            }
+            KeyCode::Right => {
+                let s = self.active_text_field();
+                self.cursor_pos = Self::next_char_boundary(s, self.cursor_pos);
+                vec![]
+            }
+            KeyCode::Home => {
+                self.cursor_pos = 0;
+                vec![]
+            }
+            KeyCode::End => {
+                self.cursor_pos = self.active_text_field().len();
                 vec![]
             }
             KeyCode::Backspace => {
-                self.active_text_field_mut().pop();
+                if self.cursor_pos > 0 {
+                    let s = self.active_text_field();
+                    let prev = Self::prev_char_boundary(s, self.cursor_pos);
+                    self.active_text_field_mut().remove(prev);
+                    self.cursor_pos = prev;
+                }
+                vec![]
+            }
+            KeyCode::Delete => {
+                let pos = self.cursor_pos;
+                let s = self.active_text_field_mut();
+                if pos < s.len() {
+                    let next = Self::next_char_boundary(s, pos);
+                    s.drain(pos..next);
+                }
                 vec![]
             }
             KeyCode::Char(c) => {
-                self.active_text_field_mut().push(c);
+                let pos = self.cursor_pos;
+                self.active_text_field_mut().insert(pos, c);
+                self.cursor_pos = pos + c.len_utf8();
                 vec![]
             }
             _ => vec![],
+        }
+    }
+
+    fn is_text_field(active: Field) -> bool {
+        matches!(active, Field::Date | Field::Hours | Field::Notes)
+    }
+
+    fn active_text_field(&self) -> &str {
+        match self.active {
+            Field::Date => &self.date,
+            Field::Hours => &self.hours,
+            Field::Notes => &self.notes,
+            _ => unreachable!(),
         }
     }
 
@@ -790,6 +861,28 @@ impl TimeEntryForm {
             Field::Notes => &mut self.notes,
             _ => unreachable!(),
         }
+    }
+
+    fn prev_char_boundary(s: &str, pos: usize) -> usize {
+        if pos == 0 {
+            return 0;
+        }
+        let mut p = pos - 1;
+        while p > 0 && !s.is_char_boundary(p) {
+            p -= 1;
+        }
+        p
+    }
+
+    fn next_char_boundary(s: &str, pos: usize) -> usize {
+        if pos >= s.len() {
+            return s.len();
+        }
+        s[pos..]
+            .chars()
+            .next()
+            .map(|c| pos + c.len_utf8())
+            .unwrap_or(s.len())
     }
 }
 
@@ -1527,5 +1620,162 @@ mod tests {
         );
         f.set_date("2025-01-15".into());
         assert_eq!(f.date(), "2025-01-15");
+    }
+
+    // --- Cursor movement tests ---
+
+    fn form_with_notes(notes: &str) -> TimeEntryForm {
+        let mut f = TimeEntryForm::new(
+            None,
+            None,
+            None,
+            FormMode::Create,
+            None,
+            None,
+            None,
+            None,
+            false,
+        );
+        f.active = Field::Notes;
+        f.notes = notes.into();
+        f.cursor_pos = notes.len();
+        f
+    }
+
+    #[test]
+    fn test_text_insert_at_cursor_ascii() {
+        let mut f = form_with_notes("ab");
+        f.cursor_pos = 1;
+        f.handle_key(&key_press(KeyCode::Char('x')));
+        assert_eq!(f.notes, "axb");
+        assert_eq!(f.cursor_pos, 2);
+    }
+
+    #[test]
+    fn test_text_left_right_ascii() {
+        let mut f = form_with_notes("abc");
+        f.cursor_pos = 3;
+        f.handle_key(&key_press(KeyCode::Left));
+        assert_eq!(f.cursor_pos, 2);
+        f.handle_key(&key_press(KeyCode::Left));
+        assert_eq!(f.cursor_pos, 1);
+        f.handle_key(&key_press(KeyCode::Right));
+        assert_eq!(f.cursor_pos, 2);
+    }
+
+    #[test]
+    fn test_text_left_at_start() {
+        let mut f = form_with_notes("abc");
+        f.cursor_pos = 0;
+        f.handle_key(&key_press(KeyCode::Left));
+        assert_eq!(f.cursor_pos, 0);
+    }
+
+    #[test]
+    fn test_text_right_at_end() {
+        let mut f = form_with_notes("abc");
+        f.cursor_pos = 3;
+        f.handle_key(&key_press(KeyCode::Right));
+        assert_eq!(f.cursor_pos, 3);
+    }
+
+    #[test]
+    fn test_text_home_end() {
+        let mut f = form_with_notes("abc");
+        f.cursor_pos = 2;
+        f.handle_key(&key_press(KeyCode::Home));
+        assert_eq!(f.cursor_pos, 0);
+        f.handle_key(&key_press(KeyCode::End));
+        assert_eq!(f.cursor_pos, 3);
+    }
+
+    #[test]
+    fn test_text_backspace_at_cursor() {
+        let mut f = form_with_notes("abc");
+        f.cursor_pos = 2;
+        f.handle_key(&key_press(KeyCode::Backspace));
+        assert_eq!(f.notes, "ac");
+        assert_eq!(f.cursor_pos, 1);
+    }
+
+    #[test]
+    fn test_text_backspace_at_start() {
+        let mut f = form_with_notes("abc");
+        f.cursor_pos = 0;
+        f.handle_key(&key_press(KeyCode::Backspace));
+        assert_eq!(f.notes, "abc");
+        assert_eq!(f.cursor_pos, 0);
+    }
+
+    #[test]
+    fn test_text_delete_at_cursor() {
+        let mut f = form_with_notes("abc");
+        f.cursor_pos = 1;
+        f.handle_key(&key_press(KeyCode::Delete));
+        assert_eq!(f.notes, "ac");
+        assert_eq!(f.cursor_pos, 1);
+    }
+
+    #[test]
+    fn test_text_delete_at_end() {
+        let mut f = form_with_notes("abc");
+        f.cursor_pos = 3;
+        f.handle_key(&key_press(KeyCode::Delete));
+        assert_eq!(f.notes, "abc");
+        assert_eq!(f.cursor_pos, 3);
+    }
+
+    #[test]
+    fn test_text_insert_non_ascii() {
+        let mut f = form_with_notes("ab");
+        f.cursor_pos = 1;
+        f.handle_key(&key_press(KeyCode::Char('e')));
+        f.handle_key(&key_press(KeyCode::Char('\u{00e9}')));
+        assert_eq!(f.notes, "ae\u{00e9}b");
+        assert_eq!(f.cursor_pos, 4);
+    }
+
+    #[test]
+    fn test_text_left_right_non_ascii() {
+        let mut f = form_with_notes("a\u{00e9}b");
+        f.cursor_pos = 4;
+        f.handle_key(&key_press(KeyCode::Left));
+        assert_eq!(f.cursor_pos, 3);
+        f.handle_key(&key_press(KeyCode::Left));
+        assert_eq!(f.cursor_pos, 1);
+        f.handle_key(&key_press(KeyCode::Right));
+        assert_eq!(f.cursor_pos, 3);
+    }
+
+    #[test]
+    fn test_text_backspace_non_ascii() {
+        let mut f = form_with_notes("a\u{00e9}b");
+        f.cursor_pos = 4;
+        f.handle_key(&key_press(KeyCode::Backspace));
+        assert_eq!(f.notes, "a\u{00e9}");
+        assert_eq!(f.cursor_pos, 3);
+        f.handle_key(&key_press(KeyCode::Backspace));
+        assert_eq!(f.notes, "a");
+        assert_eq!(f.cursor_pos, 1);
+    }
+
+    #[test]
+    fn test_text_delete_non_ascii() {
+        let mut f = form_with_notes("a\u{00e9}b");
+        f.cursor_pos = 1;
+        f.handle_key(&key_press(KeyCode::Delete));
+        assert_eq!(f.notes, "ab");
+        assert_eq!(f.cursor_pos, 1);
+    }
+
+    #[test]
+    fn test_cursor_reset_on_tab_to_text_field() {
+        let mut f = form_with_notes("hello");
+        f.active = Field::Date;
+        f.date = "2025".into();
+        f.cursor_pos = 0;
+        f.handle_key(&key_press(KeyCode::Tab));
+        assert_eq!(f.active, Field::Hours);
+        assert_eq!(f.cursor_pos, 0);
     }
 }

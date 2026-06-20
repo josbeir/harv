@@ -1523,6 +1523,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+ "unicode-width 0.2.2",
  "wiremock",
 ]
 
