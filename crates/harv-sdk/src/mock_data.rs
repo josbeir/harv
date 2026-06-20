@@ -18,6 +18,7 @@ pub fn test_config() -> HarvConfig {
         last_project_id: None,
         last_task_id: None,
         locale: None,
+        check_updates: true,
         aliases: HashMap::new(),
     }
 }

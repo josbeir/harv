@@ -172,6 +172,7 @@ cli-prompt-date-future-error = Datum { $date } ligt in de toekomst
 tui-app-title = HARV
 tui-app-running = ● Lopend
 tui-app-idle = ○ Inactief
+tui-app-update = v{ $version } beschikbaar
 tui-app-confirm-title = Bevestigen
 tui-app-confirm-prompt = y = bevestigen   andere toets = annuleren
 tui-app-confirm-delete = "{ $desc }" Deze invoer verwijderen?

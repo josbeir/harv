@@ -116,6 +116,7 @@ mod tests {
             last_project_id: Some(100),
             last_task_id: Some(200),
             locale: None,
+            check_updates: true,
             aliases: {
                 let mut m = HashMap::new();
                 m.insert(
@@ -212,6 +213,7 @@ mod tests {
             last_project_id: None,
             last_task_id: None,
             locale: None,
+            check_updates: true,
             aliases: HashMap::new(),
         };
 

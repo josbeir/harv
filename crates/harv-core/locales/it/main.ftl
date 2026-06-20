@@ -172,6 +172,7 @@ cli-prompt-date-future-error = La data { $date } è nel futuro
 tui-app-title = HARV
 tui-app-running = ● In esecuzione
 tui-app-idle = ○ Inattivo
+tui-app-update = v{ $version } disponibile
 tui-app-confirm-title = Conferma
 tui-app-confirm-prompt = y = conferma   altro tasto = annulla
 tui-app-confirm-delete = "{ $desc }" Eliminare questa registrazione?

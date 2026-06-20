@@ -17,8 +17,14 @@ pub struct HarvConfig {
     pub(crate) last_task_id: Option<u64>,
     #[serde(default)]
     pub(crate) locale: Option<String>,
+    #[serde(default = "default_check_updates")]
+    pub(crate) check_updates: bool,
     #[serde(default)]
     pub(crate) aliases: HashMap<String, Alias>,
+}
+
+fn default_check_updates() -> bool {
+    true
 }
 
 fn default_cache_ttl() -> u64 {
@@ -42,6 +48,7 @@ impl HarvConfig {
             last_project_id: None,
             last_task_id: None,
             locale: None,
+            check_updates: true,
             aliases: HashMap::new(),
         }
     }
@@ -72,6 +79,10 @@ impl HarvConfig {
 
     pub fn aliases(&self) -> &HashMap<String, Alias> {
         &self.aliases
+    }
+
+    pub fn check_updates(&self) -> bool {
+        self.check_updates
     }
 
     pub fn set_cache_ttl_hours(&mut self, hours: u64) {
@@ -165,6 +176,7 @@ mod tests {
             last_project_id: None,
             last_task_id: None,
             locale: None,
+            check_updates: true,
             aliases: HashMap::new(),
         }
     }

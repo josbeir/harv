@@ -69,6 +69,10 @@ pub enum Action {
     Error(String),
     ToggleHelp,
     ThemeChanged(ThemeMode),
+    UpdateAvailable {
+        version: String,
+        url: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -172,6 +172,7 @@ cli-prompt-date-future-error = Datum { $date } liegt in der Zukunft
 tui-app-title = HARV
 tui-app-running = ● Laufend
 tui-app-idle = ○ Inaktiv
+tui-app-update = v{ $version } verfügbar
 tui-app-confirm-title = Bestätigen
 tui-app-confirm-prompt = y = bestätigen   andere Taste = abbrechen
 tui-app-confirm-delete = "{ $desc }" Diesen Eintrag löschen?
