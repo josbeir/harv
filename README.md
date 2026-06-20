@@ -121,7 +121,7 @@ Running `harv` with no subcommand launches the full-screen terminal interface.
 
 ### Dashboard
 
-The dashboard shows time entries for the selected date with a live clock for running timers, daily hours total, and quick actions. The top bar displays `HARV v0.1.0  ● Running` or `HARV v0.1.0  ○ Idle`. A date navigation bar above the table lets you browse past days.
+The dashboard shows time entries for the selected date with a live clock for running timers, daily hours total, and quick actions. The top bar displays `HARV v0.3.0  ● Running` or `HARV v0.3.0  ○ Idle`. When a newer version is available on GitHub, a `v0.4.0 available` indicator appears next to the status. A date navigation bar above the table lets you browse past days.
 
 | Key | Action |
 |-----|--------|
@@ -167,6 +167,7 @@ View with `harv config`, modify with `harv config set`.
 |---------|---------|-------------|
 | `cache-ttl` | `24` | Cache lifetime in hours (0 = always fetch) |
 | `locale` | *(auto-detect)* | Display language: `en`, `nl`, `fr`, `de`, `es`, `it` |
+| `check-updates` | `true` | Check GitHub for newer releases on TUI startup |
 
 #### Localization
 
