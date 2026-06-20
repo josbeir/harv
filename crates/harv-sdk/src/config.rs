@@ -93,6 +93,10 @@ impl HarvConfig {
         self.locale = locale;
     }
 
+    pub fn set_check_updates(&mut self, enabled: bool) {
+        self.check_updates = enabled;
+    }
+
     /// Load config from `~/.config/harv/config.toml`.
     pub async fn load() -> Result<Self, HarvError> {
         let path = Self::path();
