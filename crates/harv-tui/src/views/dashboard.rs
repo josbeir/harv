@@ -339,13 +339,14 @@ impl Dashboard {
                         entry_desc: desc,
                     }]
                 } else {
+                    let date = harv_core::datetime::format_date(self.selected_date());
                     vec![Action::OpenForm {
                         last_project_id: None,
                         last_task_id: None,
                         project_name: None,
                         mode: FormMode::Start,
                         entry_id: None,
-                        entry_date: None,
+                        entry_date: Some(date),
                         entry_hours: None,
                         entry_notes: None,
                         is_running: false,
@@ -406,13 +407,14 @@ impl Dashboard {
                 None => vec![],
             },
             KeyCode::Char('n') | KeyCode::Char('t') => {
+                let date = harv_core::datetime::format_date(self.selected_date());
                 vec![Action::OpenForm {
                     last_project_id: None,
                     last_task_id: None,
                     project_name: None,
                     mode: FormMode::Create,
                     entry_id: None,
-                    entry_date: None,
+                    entry_date: Some(date),
                     entry_hours: None,
                     entry_notes: None,
                     is_running: false,
@@ -702,6 +704,11 @@ mod tests {
                 ..
             }
         ));
+        if let Action::OpenForm { entry_date, .. } = &actions[0] {
+            assert!(entry_date.is_some(), "entry_date should be prefilled");
+        } else {
+            panic!("Expected OpenForm action");
+        }
     }
 
     #[test]
@@ -731,6 +738,11 @@ mod tests {
                 ..
             }
         ));
+        if let Action::OpenForm { entry_date, .. } = &actions[0] {
+            assert!(entry_date.is_some(), "entry_date should be prefilled");
+        } else {
+            panic!("Expected OpenForm action");
+        }
     }
 
     #[test]
@@ -892,6 +904,41 @@ mod tests {
         d.next_day();
         d.go_today();
         assert_eq!(d.selected_date(), harv_core::datetime::today());
+    }
+
+    #[test]
+    fn test_create_form_prefills_selected_date() {
+        let mut d = Dashboard::default();
+        let date = NaiveDate::from_ymd_opt(2026, 6, 15).unwrap();
+        d.set_date(date);
+        let actions = d.handle_key(&key_press(KeyCode::Char('n')));
+        if let Action::OpenForm {
+            entry_date, mode, ..
+        } = &actions[0]
+        {
+            assert!(matches!(mode, FormMode::Create));
+            assert_eq!(entry_date.as_deref(), Some("2026-06-15"));
+        } else {
+            panic!("Expected OpenForm action");
+        }
+    }
+
+    #[test]
+    fn test_start_form_prefills_selected_date() {
+        let mut d = Dashboard::default();
+        let date = NaiveDate::from_ymd_opt(2026, 3, 2).unwrap();
+        d.set_date(date);
+        d.update_entries(vec![make_time_entry(1, 10, 20, Some(1.0), false)], 0);
+        let actions = d.handle_key(&key_press(KeyCode::Char('s')));
+        if let Action::OpenForm {
+            entry_date, mode, ..
+        } = &actions[0]
+        {
+            assert!(matches!(mode, FormMode::Start));
+            assert_eq!(entry_date.as_deref(), Some("2026-03-02"));
+        } else {
+            panic!("Expected OpenForm action");
+        }
     }
 
     #[test]

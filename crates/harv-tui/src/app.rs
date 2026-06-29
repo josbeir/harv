@@ -525,6 +525,8 @@ impl App {
     }
 
     fn handle_stop_and_start_new(&mut self, entry_id: u64, tx: &UnboundedSender<Action>) {
+        let date = self.current_view.selected_date();
+        let date_str = harv_core::datetime::format_date(date);
         let View::Dashboard(d) = &mut self.current_view;
         d.set_loading(harv_core::t("tui-app-loading-stop"));
         let client = Arc::clone(&self.client);
@@ -537,7 +539,7 @@ impl App {
                 project_name: None,
                 mode: crate::action::FormMode::Start,
                 entry_id: None,
-                entry_date: None,
+                entry_date: Some(date_str),
                 entry_hours: None,
                 entry_notes: None,
                 is_running: false,
