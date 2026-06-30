@@ -172,6 +172,8 @@ impl App {
         match event {
             Event::Key(key) if key.kind == KeyEventKind::Press => {
                 if self.error_message.take().is_some() {
+                    let View::Dashboard(d) = &mut self.current_view;
+                    d.set_loaded(true);
                     return vec![];
                 }
 
@@ -985,9 +987,9 @@ fn render_error_dialog(area: Rect, f: &mut Frame, msg: &str, theme: &Theme) {
     let popup_width = max_width.min(area.width.saturating_sub(4));
     let text_width = popup_width.saturating_sub(6) as usize;
     let wrapped = harv_core::text::count_wrapped_lines(msg, text_width);
-    let popup_height = ((wrapped + 5) as u16)
+    let popup_height = ((wrapped + 6) as u16)
         .min(area.height.saturating_sub(2))
-        .max(7);
+        .max(8);
 
     let centered = crate::popup::centered_rect_fixed(popup_width, popup_height, area);
     f.render_widget(Clear, centered);
@@ -1017,6 +1019,10 @@ fn render_error_dialog(area: Rect, f: &mut Frame, msg: &str, theme: &Theme) {
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
         format!(" {} ", harv_core::t("tui-app-error-dismiss")),
+        Style::new().fg(theme.muted),
+    )));
+    lines.push(Line::from(Span::styled(
+        format!(" {} ", harv_core::t("tui-app-error-help")),
         Style::new().fg(theme.muted),
     )));
 
