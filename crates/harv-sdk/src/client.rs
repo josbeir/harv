@@ -183,7 +183,7 @@ impl HarvClient {
                 .map_err(|e| HarvError::Http(format!("Failed to parse response: {}", e)))
         } else if status == reqwest::StatusCode::UNAUTHORIZED {
             let body = response.text().await.unwrap_or_default();
-            tracing::error!("401 Unauthorized: {}", body);
+            tracing::debug!("401 Unauthorized: {}", body);
             Err(HarvError::NotAuthenticated)
         } else {
             let body = response.text().await.unwrap_or_default();

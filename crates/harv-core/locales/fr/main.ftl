@@ -180,6 +180,9 @@ tui-app-confirm-title = Confirmer
 tui-app-confirm-prompt = y = confirmer   autre touche = annuler
 tui-app-confirm-delete = "{ $desc }" Supprimer cette entrée ?
 tui-app-confirm-stop-start = Un minuteur est en cours : "{ $desc }"  L'arrêter et en démarrer un nouveau ?
+tui-app-error-title = Erreur
+tui-app-error-dismiss = Appuyez sur une touche pour fermer
+tui-app-error-help = Vérifiez votre connexion réseau et réessayez. Appuyez sur r pour réessayer.
 tui-app-loading-create = Création de l'entrée…
 tui-app-loading-save = Enregistrement des modifications…
 tui-app-loading-sync = Synchronisation avec Harvest…

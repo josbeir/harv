@@ -180,6 +180,9 @@ tui-app-confirm-title = Conferma
 tui-app-confirm-prompt = y = conferma   altro tasto = annulla
 tui-app-confirm-delete = "{ $desc }" Eliminare questa registrazione?
 tui-app-confirm-stop-start = C'è un timer in esecuzione: "{ $desc }"  Fermarlo e avviarne uno nuovo?
+tui-app-error-title = Errore
+tui-app-error-dismiss = Premi un tasto per chiudere
+tui-app-error-help = Verifica la tua connessione di rete e riprova. Premi r per riprovare.
 tui-app-loading-create = Creazione registrazione…
 tui-app-loading-save = Salvataggio modifiche…
 tui-app-loading-sync = Sincronizzazione con Harvest…

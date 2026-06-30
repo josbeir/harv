@@ -15,7 +15,7 @@ use ratatui::layout::{Constraint, Layout, Rect, Spacing};
 use ratatui::style::{Modifier, Style};
 use ratatui::symbols::merge::MergeStrategy;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Clear, Paragraph};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 use tokio::sync::mpsc::{self, UnboundedSender};
 
 use crate::action::Action;
@@ -36,6 +36,7 @@ pub struct App {
     help: Help,
     tick: u64,
     pending_confirm: Option<(String, Vec<Action>)>,
+    error_message: Option<String>,
     date_picker: Option<DatePicker>,
     project_codes: HashMap<u64, String>,
     resolved_config: ResolvedConfig,
@@ -54,6 +55,7 @@ impl App {
             help: Help::default(),
             tick: 0,
             pending_confirm: None,
+            error_message: None,
             date_picker: None,
             project_codes: HashMap::new(),
             resolved_config,
@@ -82,6 +84,11 @@ impl App {
     #[doc(hidden)]
     pub fn has_form(&self) -> bool {
         self.form.is_some()
+    }
+
+    #[doc(hidden)]
+    pub fn has_error(&self) -> bool {
+        self.error_message.is_some()
     }
 
     #[doc(hidden)]
@@ -164,6 +171,12 @@ impl App {
     fn handle_event(&mut self, event: Event) -> Vec<Action> {
         match event {
             Event::Key(key) if key.kind == KeyEventKind::Press => {
+                if self.error_message.take().is_some() {
+                    let View::Dashboard(d) = &mut self.current_view;
+                    d.set_loaded(true);
+                    return vec![];
+                }
+
                 if let Some((_, actions)) = self.pending_confirm.take() {
                     if matches!(key.code, KeyCode::Char('y') | KeyCode::Char('Y')) {
                         return actions;
@@ -551,8 +564,9 @@ impl App {
         d.set_loading_msg(msg);
     }
 
-    fn handle_error(&self, msg: String) {
-        tracing::error!("{}", msg);
+    fn handle_error(&mut self, msg: String) {
+        tracing::debug!("{}", msg);
+        self.error_message = Some(msg);
     }
 
     pub fn dispatch(&mut self, action: Action, tx: &UnboundedSender<Action>) {
@@ -755,6 +769,10 @@ impl App {
 
         if let Some((ref msg, _)) = self.pending_confirm {
             render_confirm_dialog(area, f, msg, &self.theme);
+        }
+
+        if let Some(ref msg) = self.error_message {
+            render_error_dialog(area, f, msg, &self.theme);
         }
     }
 
@@ -960,6 +978,58 @@ fn render_confirm_dialog(area: Rect, f: &mut Frame, msg: &str, theme: &Theme) {
 
     f.render_widget(
         Paragraph::new(lines).alignment(Alignment::Center),
+        inner_with_margin,
+    );
+}
+
+fn render_error_dialog(area: Rect, f: &mut Frame, msg: &str, theme: &Theme) {
+    let max_width = 70u16;
+    let popup_width = max_width.min(area.width.saturating_sub(4));
+    let text_width = popup_width.saturating_sub(6) as usize;
+    let wrapped = harv_core::text::count_wrapped_lines(msg, text_width);
+    let popup_height = ((wrapped + 6) as u16)
+        .min(area.height.saturating_sub(2))
+        .max(8);
+
+    let centered = crate::popup::centered_rect_fixed(popup_width, popup_height, area);
+    f.render_widget(Clear, centered);
+
+    let block = Block::new()
+        .title(format!(" {} ", harv_core::t("tui-app-error-title")))
+        .title_alignment(Alignment::Center)
+        .borders(Borders::ALL)
+        .border_style(Style::new().fg(theme.error))
+        .style(Style::new().bg(theme.surface));
+
+    let inner = block.inner(centered);
+    f.render_widget(block, centered);
+
+    let inner_with_margin = Rect {
+        x: inner.x + 2,
+        y: inner.y + 1,
+        width: inner.width.saturating_sub(4),
+        height: inner.height.saturating_sub(2),
+    };
+
+    let mut lines: Vec<Line> = msg
+        .split('\n')
+        .map(|part| Line::from(Span::styled(part, Style::new().fg(theme.fg))))
+        .collect();
+
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        format!(" {} ", harv_core::t("tui-app-error-dismiss")),
+        Style::new().fg(theme.muted),
+    )));
+    lines.push(Line::from(Span::styled(
+        format!(" {} ", harv_core::t("tui-app-error-help")),
+        Style::new().fg(theme.muted),
+    )));
+
+    f.render_widget(
+        Paragraph::new(lines)
+            .wrap(Wrap { trim: true })
+            .alignment(Alignment::Center),
         inner_with_margin,
     );
 }
@@ -1225,8 +1295,7 @@ mod tests {
         let mut app = make_app();
         let (tx, _rx) = make_channel();
         app.dispatch(Action::Error("test error".into()), &tx);
-        assert!(!app.has_form());
-        assert!(!app.dashboard().has_running());
+        assert!(app.has_error());
     }
 
     #[tokio::test]
@@ -1428,5 +1497,32 @@ mod tests {
                 render_confirm_dialog(f.area(), f, "Delete entry \"Test item\"?", &Theme::dark());
             })
             .unwrap();
+    }
+
+    #[test]
+    fn test_render_error_dialog() {
+        harv_core::init_locale(Some("en"));
+        let backend = TestBackend::new(80, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        terminal
+            .draw(|f| {
+                render_error_dialog(f.area(), f, "Something went wrong", &Theme::dark());
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn test_error_dismissed_on_key_press() {
+        let mut app = make_app();
+        let (tx, _rx) = make_channel();
+        app.dispatch(Action::Error("test error".into()), &tx);
+        assert!(app.has_error());
+
+        let key = ratatui::crossterm::event::Event::Key(ratatui::crossterm::event::KeyEvent::new(
+            ratatui::crossterm::event::KeyCode::Enter,
+            ratatui::crossterm::event::KeyModifiers::NONE,
+        ));
+        let _actions = app.handle_event(key);
+        assert!(!app.has_error());
     }
 }

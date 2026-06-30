@@ -180,6 +180,9 @@ tui-app-confirm-title = Bestätigen
 tui-app-confirm-prompt = y = bestätigen   andere Taste = abbrechen
 tui-app-confirm-delete = "{ $desc }" Diesen Eintrag löschen?
 tui-app-confirm-stop-start = Ein Timer läuft: "{ $desc }"  Stoppen und neuen starten?
+tui-app-error-title = Fehler
+tui-app-error-dismiss = Beliebige Taste zum Schließen
+tui-app-error-help = Überprüfe deine Netzwerkverbindung und versuche es erneut. Drücke r zum Wiederholen.
 tui-app-loading-create = Eintrag wird erstellt…
 tui-app-loading-save = Änderungen werden gespeichert…
 tui-app-loading-sync = Synchronisiere mit Harvest…

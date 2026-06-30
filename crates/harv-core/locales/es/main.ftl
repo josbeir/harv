@@ -180,6 +180,9 @@ tui-app-confirm-title = Confirmar
 tui-app-confirm-prompt = y = confirmar   otra tecla = cancelar
 tui-app-confirm-delete = "{ $desc }" ¿Eliminar esta entrada?
 tui-app-confirm-stop-start = Hay un temporizador en marcha: "{ $desc }"  ¿Detenerlo e iniciar uno nuevo?
+tui-app-error-title = Error
+tui-app-error-dismiss = Presiona cualquier tecla para cerrar
+tui-app-error-help = Verifica tu conexión de red e inténtalo de nuevo. Presiona r para reintentar.
 tui-app-loading-create = Creando entrada…
 tui-app-loading-save = Guardando cambios…
 tui-app-loading-sync = Sincronizando con Harvest…

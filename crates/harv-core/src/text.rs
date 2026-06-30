@@ -14,6 +14,35 @@ pub fn truncate(s: &str, max_chars: usize) -> String {
     format!("{}...", s.chars().take(end).collect::<String>())
 }
 
+/// Count how many display lines a string will occupy when word-wrapped at `max_width`.
+///
+/// Respects explicit `\n` line breaks and wraps at word boundaries (space).
+pub fn count_wrapped_lines(text: &str, max_width: usize) -> usize {
+    let mut total = 0;
+    for logical_line in text.split('\n') {
+        if logical_line.is_empty() {
+            total += 1;
+            continue;
+        }
+        let mut current_len = 0;
+        for word in logical_line.split(' ') {
+            let word_len = word.chars().count();
+            if current_len == 0 {
+                current_len = word_len;
+            } else if current_len + 1 + word_len <= max_width {
+                current_len += 1 + word_len;
+            } else {
+                total += 1;
+                current_len = word_len;
+            }
+        }
+        if current_len > 0 {
+            total += 1;
+        }
+    }
+    total.max(1)
+}
+
 /// Format hours as a short string, e.g. `"2.50h"`.
 pub fn format_hours(hours: f64) -> String {
     format!("{:.2}h", hours)
@@ -389,5 +418,38 @@ mod tests {
             format_project_display("Some Project", Some("")),
             "Some Project"
         );
+    }
+
+    #[test]
+    fn test_count_wrapped_lines_single_line_fits() {
+        assert_eq!(count_wrapped_lines("Hello", 10), 1);
+    }
+
+    #[test]
+    fn test_count_wrapped_lines_wraps_at_width() {
+        assert_eq!(count_wrapped_lines("Hello world this is", 12), 2);
+    }
+
+    #[test]
+    fn test_count_wrapped_lines_respects_newlines() {
+        assert_eq!(count_wrapped_lines("Hello\nWorld", 20), 2);
+    }
+
+    #[test]
+    fn test_count_wrapped_lines_empty_input() {
+        assert_eq!(count_wrapped_lines("", 10), 1);
+    }
+
+    #[test]
+    fn test_count_wrapped_lines_multiple_newlines() {
+        assert_eq!(count_wrapped_lines("A\n\nB", 10), 3);
+    }
+
+    #[test]
+    fn test_count_wrapped_lines_long_error_message() {
+        let msg =
+            "You are not authenticated. Run `harv connect` to log in to your Harvest account.";
+        let lines = count_wrapped_lines(msg, 62);
+        assert!(lines > 1, "long message should wrap to multiple lines");
     }
 }

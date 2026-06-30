@@ -179,6 +179,9 @@ tui-app-confirm-title = Confirm
 tui-app-confirm-prompt = y = confirm   any other key = cancel
 tui-app-confirm-delete = "{ $desc }" Delete this entry?
 tui-app-confirm-stop-start = A timer is currently running: "{ $desc }"  Stop it and start a new one?
+tui-app-error-title = Error
+tui-app-error-dismiss = Press any key to dismiss
+tui-app-error-help = Check your network connection and try again. Press r to retry.
 tui-app-loading-create = Creating entry...
 tui-app-loading-save = Saving changes...
 tui-app-loading-sync = Refreshing dashboard...

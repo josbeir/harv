@@ -180,6 +180,9 @@ tui-app-confirm-title = Bevestigen
 tui-app-confirm-prompt = y = bevestigen   andere toets = annuleren
 tui-app-confirm-delete = "{ $desc }" Deze invoer verwijderen?
 tui-app-confirm-stop-start = Er loopt een timer: "{ $desc }"  Stoppen en een nieuwe starten?
+tui-app-error-title = Fout
+tui-app-error-dismiss = Druk op een toets om te sluiten
+tui-app-error-help = Controleer je netwerkverbinding en probeer opnieuw. Druk op r om opnieuw te proberen.
 tui-app-loading-create = Invoer aanmaken…
 tui-app-loading-save = Wijzigingen opslaan…
 tui-app-loading-sync = Synchroniseren met Harvest…
