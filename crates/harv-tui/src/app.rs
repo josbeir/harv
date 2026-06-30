@@ -15,7 +15,7 @@ use ratatui::layout::{Constraint, Layout, Rect, Spacing};
 use ratatui::style::{Modifier, Style};
 use ratatui::symbols::merge::MergeStrategy;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Clear, Paragraph};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 use tokio::sync::mpsc::{self, UnboundedSender};
 
 use crate::action::Action;
@@ -981,9 +981,13 @@ fn render_confirm_dialog(area: Rect, f: &mut Frame, msg: &str, theme: &Theme) {
 }
 
 fn render_error_dialog(area: Rect, f: &mut Frame, msg: &str, theme: &Theme) {
-    let max_width = 60u16;
+    let max_width = 70u16;
     let popup_width = max_width.min(area.width.saturating_sub(4));
-    let popup_height = 10u16.min(area.height.saturating_sub(2));
+    let text_width = popup_width.saturating_sub(6) as usize;
+    let wrapped = harv_core::text::count_wrapped_lines(msg, text_width);
+    let popup_height = ((wrapped + 5) as u16)
+        .min(area.height.saturating_sub(2))
+        .max(7);
 
     let centered = crate::popup::centered_rect_fixed(popup_width, popup_height, area);
     f.render_widget(Clear, centered);
@@ -1005,16 +1009,9 @@ fn render_error_dialog(area: Rect, f: &mut Frame, msg: &str, theme: &Theme) {
         height: inner.height.saturating_sub(2),
     };
 
-    let max_desc_width = inner_with_margin.width as usize;
-
     let mut lines: Vec<Line> = msg
         .split('\n')
-        .map(|part| {
-            Line::from(Span::styled(
-                harv_core::text::truncate(part, max_desc_width),
-                Style::new().fg(theme.fg),
-            ))
-        })
+        .map(|part| Line::from(Span::styled(part, Style::new().fg(theme.fg))))
         .collect();
 
     lines.push(Line::from(""));
@@ -1024,7 +1021,9 @@ fn render_error_dialog(area: Rect, f: &mut Frame, msg: &str, theme: &Theme) {
     )));
 
     f.render_widget(
-        Paragraph::new(lines).alignment(Alignment::Center),
+        Paragraph::new(lines)
+            .wrap(Wrap { trim: true })
+            .alignment(Alignment::Center),
         inner_with_margin,
     );
 }
