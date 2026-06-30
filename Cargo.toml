@@ -10,5 +10,5 @@ repository = "https://github.com/josbeir/harv"
 homepage = "https://github.com/josbeir/harv"
 
 [workspace.metadata.release]
-tag-prefix = "v"
+tag-name = "v{{version}}"
 publish = false
