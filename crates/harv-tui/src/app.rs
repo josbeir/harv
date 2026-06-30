@@ -563,7 +563,7 @@ impl App {
     }
 
     fn handle_error(&mut self, msg: String) {
-        tracing::error!("{}", msg);
+        tracing::debug!("{}", msg);
         self.error_message = Some(msg);
     }
 
