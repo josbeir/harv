@@ -698,17 +698,13 @@ mod tests {
         d.update_entries(vec![make_time_entry(1, 10, 20, Some(1.0), false)], 0);
         let actions = d.handle_key(&key_press(KeyCode::Char('s')));
         assert!(matches!(
-            actions[0],
-            Action::OpenForm {
+            actions.first(),
+            Some(Action::OpenForm {
                 mode: FormMode::Start,
+                entry_date: Some(_),
                 ..
-            }
+            })
         ));
-        if let Action::OpenForm { entry_date, .. } = &actions[0] {
-            assert!(entry_date.is_some(), "entry_date should be prefilled");
-        } else {
-            panic!("Expected OpenForm action");
-        }
     }
 
     #[test]
@@ -732,17 +728,13 @@ mod tests {
         let mut d = Dashboard::default();
         let actions = d.handle_key(&key_press(KeyCode::Char('n')));
         assert!(matches!(
-            actions[0],
-            Action::OpenForm {
+            actions.first(),
+            Some(Action::OpenForm {
                 mode: FormMode::Create,
+                entry_date: Some(_),
                 ..
-            }
+            })
         ));
-        if let Action::OpenForm { entry_date, .. } = &actions[0] {
-            assert!(entry_date.is_some(), "entry_date should be prefilled");
-        } else {
-            panic!("Expected OpenForm action");
-        }
     }
 
     #[test]
