@@ -2,12 +2,12 @@ use crate::action::{Action, FormMode};
 use crate::theme::Theme;
 use harv_core::{ProjectAssignment, TaskAssignment};
 use ratatui::Frame;
-use ratatui::crossterm::event::KeyCode;
+use ratatui::crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListState, Paragraph};
-use unicode_width::UnicodeWidthStr;
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Field {
@@ -36,6 +36,7 @@ pub struct TimeEntryForm {
     date: String,
     hours: String,
     notes: String,
+    notes_scroll: u16,
     cursor_pos: usize,
     active: Field,
     visible: bool,
@@ -82,6 +83,7 @@ impl TimeEntryForm {
             date,
             hours: entry_hours.unwrap_or_default(),
             notes: entry_notes.unwrap_or_default(),
+            notes_scroll: 0,
             cursor_pos: 0,
             active: Field::ProjectList,
             visible: true,
@@ -296,9 +298,9 @@ impl TimeEntryForm {
         }
 
         let popup = if self.is_full_layout() {
-            crate::popup::centered_rect_fixed(area.width.saturating_sub(6).min(72), 22, area)
+            crate::popup::centered_rect_fixed(area.width.saturating_sub(6).min(72), 24, area)
         } else {
-            crate::popup::centered_rect_fixed(area.width.saturating_sub(6).min(60), 17, area)
+            crate::popup::centered_rect_fixed(area.width.saturating_sub(6).min(60), 19, area)
         };
         f.render_widget(Clear, popup);
 
@@ -327,7 +329,7 @@ impl TimeEntryForm {
                 Constraint::Length(5),
                 Constraint::Length(3),
                 Constraint::Length(3),
-                Constraint::Length(3),
+                Constraint::Length(5),
                 Constraint::Length(1),
             ])
             .split(inner);
@@ -362,11 +364,8 @@ impl TimeEntryForm {
                 f,
                 theme,
             );
-            self.render_text_field(
+            self.render_notes_field(
                 &harv_core::t("tui-form-notes-label"),
-                &self.notes,
-                self.cursor_pos,
-                self.active == Field::Notes,
                 Rect {
                     x: content_x,
                     y: layout[4].y,
@@ -386,7 +385,7 @@ impl TimeEntryForm {
             let layout = Layout::vertical([
                 Constraint::Length(5),
                 Constraint::Length(5),
-                Constraint::Length(3),
+                Constraint::Length(5),
                 Constraint::Min(1),
                 Constraint::Length(1),
             ])
@@ -394,11 +393,8 @@ impl TimeEntryForm {
 
             self.render_project_section(layout[0], inner_width, content_x, f, theme, tick);
             self.render_task_section(layout[1], inner_width, content_x, f, theme, tick);
-            self.render_text_field(
+            self.render_notes_field(
                 &harv_core::t("tui-form-notes-label"),
-                &self.notes,
-                self.cursor_pos,
-                self.active == Field::Notes,
                 Rect {
                     x: content_x,
                     y: layout[2].y,
@@ -627,6 +623,171 @@ impl TimeEntryForm {
         }
     }
 
+    fn render_notes_field(&mut self, label: &str, area: Rect, f: &mut Frame, theme: &Theme) {
+        let active = self.active == Field::Notes;
+        let border_style = if active {
+            Style::new().fg(theme.primary)
+        } else {
+            Style::new().fg(theme.border)
+        };
+
+        let block = Block::new()
+            .title(label)
+            .borders(Borders::ALL)
+            .border_style(border_style);
+
+        let inner = block.inner(area);
+        f.render_widget(&block, area);
+
+        let visible_height = inner.height as usize;
+
+        if self.notes.is_empty() && !active {
+            let placeholder = Span::styled(
+                harv_core::t("tui-form-empty-field"),
+                Style::new().fg(theme.muted),
+            );
+            f.render_widget(Paragraph::new(placeholder), inner);
+            return;
+        }
+
+        let logical_lines: Vec<&str> = self.notes.split('\n').collect();
+        let total_logical = logical_lines.len();
+
+        let (cursor_row, cursor_col) = Self::cursor_logical_pos(&self.notes, self.cursor_pos);
+
+        self.notes_scroll = self
+            .notes_scroll
+            .min(total_logical.saturating_sub(1) as u16);
+
+        if active {
+            if cursor_row < self.notes_scroll {
+                self.notes_scroll = cursor_row;
+            } else if cursor_row >= self.notes_scroll + visible_height as u16 {
+                self.notes_scroll =
+                    cursor_row.saturating_sub((visible_height.saturating_sub(1)) as u16);
+            }
+        }
+
+        let scroll = self.notes_scroll as usize;
+        let end = (scroll + visible_height).min(total_logical);
+
+        let display_lines: Vec<Line> = logical_lines[scroll..end]
+            .iter()
+            .enumerate()
+            .map(|(i, line_text)| {
+                let line_num = scroll + i;
+                let is_cursor_line = active && cursor_row as usize == line_num;
+                if is_cursor_line && !line_text.is_empty() {
+                    Self::build_cursor_line(line_text, cursor_col, theme)
+                } else {
+                    Line::from(Span::styled(
+                        (*line_text).to_string(),
+                        Style::new().fg(theme.fg),
+                    ))
+                }
+            })
+            .collect();
+
+        if display_lines.is_empty() && !active {
+            let placeholder = Span::styled(
+                harv_core::t("tui-form-empty-field"),
+                Style::new().fg(theme.muted),
+            );
+            f.render_widget(Paragraph::new(placeholder), inner);
+            return;
+        }
+
+        f.render_widget(Paragraph::new(display_lines), inner);
+
+        if active {
+            let on_screen_row = cursor_row.saturating_sub(self.notes_scroll);
+            let cursor_x = inner
+                .x
+                .saturating_add(cursor_col.min(inner.width.saturating_sub(1)));
+            let cursor_y = inner.y.saturating_add(on_screen_row);
+            f.set_cursor_position((cursor_x, cursor_y));
+        }
+    }
+
+    fn cursor_logical_pos(text: &str, cursor_pos: usize) -> (u16, u16) {
+        let pos = cursor_pos.min(text.len());
+        let row = text[..pos].chars().filter(|&c| c == '\n').count() as u16;
+        let line_start = text[..pos].rfind('\n').map(|i| i + 1).unwrap_or(0);
+        let col = text[line_start..pos].width() as u16;
+        (row, col)
+    }
+
+    fn build_cursor_line(line_text: &str, cursor_col: u16, theme: &Theme) -> Line<'static> {
+        let col = cursor_col as usize;
+        if col >= line_text.len() {
+            return Line::from(vec![
+                Span::styled(line_text.to_string(), Style::new().fg(theme.fg)),
+                Span::styled(" ", Style::new().bg(theme.fg).fg(theme.surface)),
+            ]);
+        }
+        let (before, rest) = line_text.split_at(col);
+        let cursor_char = rest.chars().next().unwrap();
+        let after = &rest[cursor_char.len_utf8()..];
+        Line::from(vec![
+            Span::styled(before.to_string(), Style::new().fg(theme.fg)),
+            Span::styled(
+                cursor_char.to_string(),
+                Style::new().bg(theme.fg).fg(theme.surface),
+            ),
+            Span::styled(after.to_string(), Style::new().fg(theme.fg)),
+        ])
+    }
+
+    fn notes_prev_line_start(text: &str, cursor_pos: usize) -> usize {
+        let pos = cursor_pos.min(text.len());
+        let line_start = text[..pos].rfind('\n').map(|i| i + 1).unwrap_or(0);
+        if line_start == 0 {
+            return 0;
+        }
+        let col_offset = pos.saturating_sub(line_start);
+        let prev_line_end = line_start.saturating_sub(1);
+        let prev_line_start = text[..prev_line_end]
+            .rfind('\n')
+            .map(|i| i + 1)
+            .unwrap_or(0);
+        let prev_line = &text[prev_line_start..prev_line_end];
+        let bound = Self::char_offset_at_col(prev_line, col_offset);
+        prev_line_start + bound
+    }
+
+    fn notes_next_line_start(text: &str, cursor_pos: usize) -> usize {
+        let pos = cursor_pos.min(text.len());
+        let line_start = text[..pos].rfind('\n').map(|i| i + 1).unwrap_or(0);
+        let col_offset = pos.saturating_sub(line_start);
+        let line_end = text[pos..]
+            .find('\n')
+            .map(|i| pos + i)
+            .unwrap_or(text.len());
+        if line_end >= text.len() {
+            return pos;
+        }
+        let next_line_start = line_end + 1;
+        let next_line_end = text[next_line_start..]
+            .find('\n')
+            .map(|i| next_line_start + i)
+            .unwrap_or(text.len());
+        let next_line = &text[next_line_start..next_line_end];
+        let bound = Self::char_offset_at_col(next_line, col_offset);
+        next_line_start + bound
+    }
+
+    fn char_offset_at_col(line: &str, col: usize) -> usize {
+        let mut current_col = 0;
+        for (i, c) in line.char_indices() {
+            let cw = UnicodeWidthChar::width(c).unwrap_or(0);
+            if current_col + cw > col {
+                return i;
+            }
+            current_col += cw;
+        }
+        line.len()
+    }
+
     pub fn handle_key(&mut self, key: &ratatui::crossterm::event::KeyEvent) -> Vec<Action> {
         match self.active {
             Field::ProjectList => self.handle_project_key(key),
@@ -748,6 +909,9 @@ impl TimeEntryForm {
     }
 
     fn handle_text_key(&mut self, key: &ratatui::crossterm::event::KeyEvent) -> Vec<Action> {
+        if key.code == KeyCode::Enter && key.modifiers == KeyModifiers::CONTROL {
+            return self.submit_entry();
+        }
         match key.code {
             KeyCode::Esc => {
                 self.visible = false;
@@ -787,12 +951,34 @@ impl TimeEntryForm {
                 vec![Action::OpenDatePicker]
             }
             KeyCode::Enter => {
+                if self.active == Field::Notes && key.modifiers == KeyModifiers::NONE {
+                    let pos = self.cursor_pos;
+                    self.notes.insert(pos, '\n');
+                    self.cursor_pos = pos + 1;
+                    return vec![];
+                }
                 match self.active {
                     Field::Date => self.active = Field::Hours,
                     Field::Hours => self.active = Field::Notes,
                     _ => return self.submit_entry(),
                 };
                 self.cursor_pos = self.active_text_field().len();
+                vec![]
+            }
+            KeyCode::Up if self.active == Field::Notes => {
+                self.cursor_pos = Self::notes_prev_line_start(&self.notes, self.cursor_pos);
+                vec![]
+            }
+            KeyCode::Down if self.active == Field::Notes => {
+                self.cursor_pos = Self::notes_next_line_start(&self.notes, self.cursor_pos);
+                vec![]
+            }
+            KeyCode::PageUp if self.active == Field::Notes => {
+                self.notes_scroll = self.notes_scroll.saturating_sub(5);
+                vec![]
+            }
+            KeyCode::PageDown if self.active == Field::Notes => {
+                self.notes_scroll = self.notes_scroll.saturating_add(5);
                 vec![]
             }
             KeyCode::Left => {
@@ -1531,7 +1717,7 @@ mod tests {
     }
 
     #[test]
-    fn test_notes_enter_submits_when_running() {
+    fn test_notes_enter_inserts_newline_when_running() {
         let mut f = TimeEntryForm::new(
             None,
             None,
@@ -1544,10 +1730,95 @@ mod tests {
             true,
         );
         f.active = Field::Notes;
+        f.notes = "hello world".into();
+        f.cursor_pos = 5;
         let actions = f.handle_key(&key_press(KeyCode::Enter));
-        // Submit requires project + task, so returns empty
-        // but it did try to submit rather than advance to another field
+        assert_eq!(f.notes, "hello\n world");
+        assert_eq!(f.cursor_pos, 6);
         assert!(actions.is_empty());
+    }
+
+    #[test]
+    fn test_notes_ctrl_enter_submits() {
+        let mut f = TimeEntryForm::new(
+            Some(10),
+            Some(20),
+            None,
+            FormMode::Start,
+            None,
+            None,
+            None,
+            Some("notes text".into()),
+            false,
+        );
+        f.assignments = vec![project_assignment(10, "Beta")];
+        f.filtered_assignments = vec![0];
+        f.project_list.select(Some(0));
+        f.selected_project_id = Some(10);
+        f.tasks = vec![task_assignment(20, "Development")];
+        f.filter_tasks();
+        f.task_list.select(Some(0));
+        f.active = Field::Notes;
+
+        let key = ratatui::crossterm::event::KeyEvent::new(KeyCode::Enter, KeyModifiers::CONTROL);
+        let actions = f.handle_key(&key);
+        assert_eq!(actions.len(), 2);
+        assert!(matches!(actions[0], Action::CreateEntry { .. }));
+    }
+
+    #[test]
+    fn test_notes_up_down_navigation() {
+        let mut f = form_with_notes("line one\nline two\nline three");
+        f.cursor_pos = 20; // end of "line three"
+        f.handle_key(&key_press(KeyCode::Up));
+        assert!(f.cursor_pos < 20, "cursor should move up from line three");
+        f.handle_key(&key_press(KeyCode::Up));
+        assert!(f.cursor_pos < 9, "cursor should move up to line one");
+        f.handle_key(&key_press(KeyCode::Down));
+        assert!(f.cursor_pos >= 9, "cursor should move down to line two");
+    }
+
+    #[test]
+    fn test_notes_pageup_pagedown() {
+        let mut f = form_with_notes("a\nb\nc\nd\ne\nf\ng\nh\ni\nj");
+        f.active = Field::Notes;
+        f.notes_scroll = 0;
+        f.handle_key(&key_press(KeyCode::PageDown));
+        assert_eq!(f.notes_scroll, 5);
+        f.handle_key(&key_press(KeyCode::PageDown));
+        assert_eq!(f.notes_scroll, 10);
+        f.handle_key(&key_press(KeyCode::PageUp));
+        assert_eq!(f.notes_scroll, 5);
+        f.handle_key(&key_press(KeyCode::PageUp));
+        assert_eq!(f.notes_scroll, 0);
+    }
+
+    #[test]
+    fn test_cursor_logical_pos_basic() {
+        let (row, col) = TimeEntryForm::cursor_logical_pos("abc\ndef", 5);
+        assert_eq!(row, 1);
+        assert_eq!(col, 1);
+    }
+
+    #[test]
+    fn test_cursor_logical_pos_empty() {
+        let (row, col) = TimeEntryForm::cursor_logical_pos("", 0);
+        assert_eq!(row, 0);
+        assert_eq!(col, 0);
+    }
+
+    #[test]
+    fn test_cursor_logical_pos_newline() {
+        let (row, col) = TimeEntryForm::cursor_logical_pos("\n", 1);
+        assert_eq!(row, 1);
+        assert_eq!(col, 0);
+    }
+
+    #[test]
+    fn test_cursor_logical_pos_wide_chars() {
+        let (row, col) = TimeEntryForm::cursor_logical_pos("a\u{00e9}b", 3);
+        assert_eq!(row, 0);
+        assert_eq!(col, 2);
     }
 
     #[test]
