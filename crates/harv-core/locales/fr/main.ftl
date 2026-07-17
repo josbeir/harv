@@ -237,9 +237,9 @@ tui-form-project-empty = Aucune affectation de projet
 tui-form-task-empty = Aucune tâche disponible
 tui-form-task-select-first = Sélectionnez d'abord un projet
 tui-form-empty-field = (vide)
-tui-form-help-create = Tab: champ suivant │ Entrée: suivant/envoyer │ Échap: annuler
-tui-form-help-start = Tab: champ suivant │ Entrée: démarrer │ Échap: annuler
-tui-form-help-edit = Tab: champ suivant │ Entrée: enregistrer │ Échap: annuler
+tui-form-help-create = Tab: champ suivant │ Alt+Entrée: envoyer │ Échap: annuler
+tui-form-help-start = Tab: champ suivant │ Alt+Entrée: démarrer │ Échap: annuler
+tui-form-help-edit = Tab: champ suivant │ Alt+Entrée: enregistrer │ Échap: annuler
 
 # TUI — Help
 tui-help-title = Aide

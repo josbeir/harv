@@ -237,9 +237,9 @@ tui-form-project-empty = Nessuna assegnazione di progetto
 tui-form-task-empty = Nessuna attività disponibile
 tui-form-task-select-first = Seleziona prima un progetto
 tui-form-empty-field = (vuoto)
-tui-form-help-create = Tab: campo successivo │ Invio: avanti/invia │ Esc: annulla
-tui-form-help-start = Tab: campo successivo │ Invio: avvia timer │ Esc: annulla
-tui-form-help-edit = Tab: campo successivo │ Invio: salva │ Esc: annulla
+tui-form-help-create = Tab: campo successivo │ Alt+Invio: invia │ Esc: annulla
+tui-form-help-start = Tab: campo successivo │ Alt+Invio: avvia timer │ Esc: annulla
+tui-form-help-edit = Tab: campo successivo │ Alt+Invio: salva │ Esc: annulla
 
 # TUI — Help
 tui-help-title = Aiuto

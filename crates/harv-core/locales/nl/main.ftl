@@ -237,9 +237,9 @@ tui-form-project-empty = Geen projecttoewijzingen
 tui-form-task-empty = Geen taken beschikbaar
 tui-form-task-select-first = Selecteer eerst een project
 tui-form-empty-field = (leeg)
-tui-form-help-create = Tab: volgend veld │ Enter: volgende/verzend │ Esc: annuleren
-tui-form-help-start = Tab: volgend veld │ Enter: timer starten │ Esc: annuleren
-tui-form-help-edit = Tab: volgend veld │ Enter: opslaan │ Esc: annuleren
+tui-form-help-create = Tab: volgend veld │ Alt+Enter: verzenden │ Esc: annuleren
+tui-form-help-start = Tab: volgend veld │ Alt+Enter: timer starten │ Esc: annuleren
+tui-form-help-edit = Tab: volgend veld │ Alt+Enter: opslaan │ Esc: annuleren
 
 # TUI — Help
 tui-help-title = Help
