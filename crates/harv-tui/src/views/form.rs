@@ -765,7 +765,7 @@ impl TimeEntryForm {
         is_date: bool,
     ) -> Vec<Action> {
         if key.code == KeyCode::Enter {
-            if key.modifiers != KeyModifiers::NONE {
+            if key.modifiers == KeyModifiers::ALT {
                 return self.submit_entry();
             }
             if let Some(field) = enter_field {
@@ -875,8 +875,8 @@ mod tests {
         )
     }
 
-    fn ctrl_enter() -> ratatui::crossterm::event::KeyEvent {
-        ratatui::crossterm::event::KeyEvent::new(KeyCode::Enter, KeyModifiers::CONTROL)
+    fn alt_enter() -> ratatui::crossterm::event::KeyEvent {
+        ratatui::crossterm::event::KeyEvent::new(KeyCode::Enter, KeyModifiers::ALT)
     }
 
     fn form_with_notes(notes: &str) -> TimeEntryForm {
@@ -1551,7 +1551,7 @@ mod tests {
     }
 
     #[test]
-    fn test_notes_ctrl_enter_submits() {
+    fn test_notes_alt_enter_submits() {
         let mut f = TimeEntryForm::new(
             Some(10),
             Some(20),
@@ -1572,7 +1572,7 @@ mod tests {
         f.task_list.select(Some(0));
         f.active = Field::Notes;
 
-        let actions = f.handle_key(&ctrl_enter());
+        let actions = f.handle_key(&alt_enter());
         assert_eq!(actions.len(), 2);
         assert!(matches!(actions[0], Action::CreateEntry { .. }));
     }
