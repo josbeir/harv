@@ -2,12 +2,12 @@ use crate::action::{Action, FormMode};
 use crate::theme::Theme;
 use harv_core::{ProjectAssignment, TaskAssignment};
 use ratatui::Frame;
-use ratatui::crossterm::event::KeyCode;
+use ratatui::crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListState, Paragraph};
-use unicode_width::UnicodeWidthStr;
+use ratatui_textarea::TextArea;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Field {
@@ -33,10 +33,9 @@ pub struct TimeEntryForm {
     selected_project_id: Option<u64>,
     project_search: String,
     task_search: String,
-    date: String,
-    hours: String,
-    notes: String,
-    cursor_pos: usize,
+    date: TextArea<'static>,
+    hours: TextArea<'static>,
+    notes: TextArea<'static>,
     active: Field,
     visible: bool,
     tasks_loading: bool,
@@ -79,15 +78,22 @@ impl TimeEntryForm {
             selected_project_id: last_project_id,
             project_search: project_name.unwrap_or_default(),
             task_search: String::new(),
-            date,
-            hours: entry_hours.unwrap_or_default(),
-            notes: entry_notes.unwrap_or_default(),
-            cursor_pos: 0,
+            date: Self::make_textarea(date),
+            hours: Self::make_textarea(entry_hours.unwrap_or_default()),
+            notes: Self::make_textarea(entry_notes.unwrap_or_default()),
             active: Field::ProjectList,
             visible: true,
             tasks_loading: false,
             assignments_loading: true,
         }
+    }
+
+    fn make_textarea(text: String) -> TextArea<'static> {
+        if text.is_empty() {
+            return TextArea::default();
+        }
+        let lines: Vec<String> = text.split('\n').map(String::from).collect();
+        TextArea::new(lines)
     }
 
     pub fn update_assignments(&mut self, assignments: Vec<ProjectAssignment>) {
@@ -137,12 +143,12 @@ impl TimeEntryForm {
         }
     }
 
-    pub fn date(&self) -> &str {
-        &self.date
+    pub fn date(&self) -> String {
+        self.date.lines().join("\n")
     }
 
     pub fn set_date(&mut self, d: String) {
-        self.date = d;
+        self.date = Self::make_textarea(d);
     }
 
     fn filter_projects(&mut self) {
@@ -221,23 +227,26 @@ impl TimeEntryForm {
             _ => return vec![],
         };
 
+        let hours_text = self.hours.lines().join("\n");
+        let notes_text = self.notes.lines().join("\n");
+
         let (hours, notes) = if self.is_full_layout() {
-            let h = if self.hours.trim().is_empty() {
+            let h = if hours_text.trim().is_empty() {
                 None
             } else {
-                harv_core::datetime::parse_hours(self.hours.trim()).ok()
+                harv_core::datetime::parse_hours(hours_text.trim()).ok()
             };
-            let n = if self.notes.is_empty() {
+            let n = if notes_text.is_empty() {
                 None
             } else {
-                Some(self.notes.clone())
+                Some(notes_text)
             };
             (h, n)
         } else {
-            let n = if self.notes.is_empty() {
+            let n = if notes_text.is_empty() {
                 None
             } else {
-                Some(self.notes.clone())
+                Some(notes_text)
             };
             (None, n)
         };
@@ -250,7 +259,7 @@ impl TimeEntryForm {
                         entry_id: eid,
                         project_id: pid,
                         task_id: tid,
-                        spent_date: self.date.clone(),
+                        spent_date: self.date(),
                         hours,
                         notes,
                     },
@@ -264,7 +273,7 @@ impl TimeEntryForm {
                 Action::CreateEntry {
                     project_id: pid,
                     task_id: tid,
-                    spent_date: self.date.clone(),
+                    spent_date: self.date(),
                     hours,
                     notes,
                 },
@@ -296,9 +305,9 @@ impl TimeEntryForm {
         }
 
         let popup = if self.is_full_layout() {
-            crate::popup::centered_rect_fixed(area.width.saturating_sub(6).min(72), 22, area)
+            crate::popup::centered_rect_fixed(area.width.saturating_sub(6).min(72), 24, area)
         } else {
-            crate::popup::centered_rect_fixed(area.width.saturating_sub(6).min(60), 17, area)
+            crate::popup::centered_rect_fixed(area.width.saturating_sub(6).min(60), 19, area)
         };
         f.render_widget(Clear, popup);
 
@@ -327,17 +336,16 @@ impl TimeEntryForm {
                 Constraint::Length(5),
                 Constraint::Length(3),
                 Constraint::Length(3),
-                Constraint::Length(3),
+                Constraint::Length(5),
                 Constraint::Length(1),
             ])
             .split(inner);
 
             self.render_project_section(layout[0], inner_width, content_x, f, theme, tick);
             self.render_task_section(layout[1], inner_width, content_x, f, theme, tick);
-            self.render_text_field(
+            render_textarea_field(
                 &harv_core::t("tui-form-date-label"),
-                &self.date,
-                self.cursor_pos,
+                &mut self.date,
                 self.active == Field::Date,
                 Rect {
                     x: content_x,
@@ -348,10 +356,9 @@ impl TimeEntryForm {
                 f,
                 theme,
             );
-            self.render_text_field(
+            render_textarea_field(
                 &harv_core::t("tui-form-hours-label"),
-                &self.hours,
-                self.cursor_pos,
+                &mut self.hours,
                 self.active == Field::Hours,
                 Rect {
                     x: content_x,
@@ -362,10 +369,9 @@ impl TimeEntryForm {
                 f,
                 theme,
             );
-            self.render_text_field(
+            render_textarea_field(
                 &harv_core::t("tui-form-notes-label"),
-                &self.notes,
-                self.cursor_pos,
+                &mut self.notes,
                 self.active == Field::Notes,
                 Rect {
                     x: content_x,
@@ -386,7 +392,7 @@ impl TimeEntryForm {
             let layout = Layout::vertical([
                 Constraint::Length(5),
                 Constraint::Length(5),
-                Constraint::Length(3),
+                Constraint::Length(5),
                 Constraint::Min(1),
                 Constraint::Length(1),
             ])
@@ -394,10 +400,9 @@ impl TimeEntryForm {
 
             self.render_project_section(layout[0], inner_width, content_x, f, theme, tick);
             self.render_task_section(layout[1], inner_width, content_x, f, theme, tick);
-            self.render_text_field(
+            render_textarea_field(
                 &harv_core::t("tui-form-notes-label"),
-                &self.notes,
-                self.cursor_pos,
+                &mut self.notes,
                 self.active == Field::Notes,
                 Rect {
                     x: content_x,
@@ -575,63 +580,49 @@ impl TimeEntryForm {
 
         f.render_stateful_widget(list, list_area, &mut self.task_list);
     }
+}
 
-    #[allow(clippy::too_many_arguments)]
-    fn render_text_field(
-        &self,
-        label: &str,
-        value: &str,
-        cursor_pos: usize,
-        active: bool,
-        area: Rect,
-        f: &mut Frame,
-        theme: &Theme,
-    ) {
-        let border_style = if active {
-            Style::new().fg(theme.primary)
-        } else {
-            Style::new().fg(theme.border)
-        };
+fn render_textarea_field(
+    label: &str,
+    textarea: &mut TextArea<'static>,
+    active: bool,
+    area: Rect,
+    f: &mut Frame,
+    theme: &Theme,
+) {
+    let border_style = if active {
+        Style::new().fg(theme.primary)
+    } else {
+        Style::new().fg(theme.border)
+    };
 
-        let block = Block::new()
-            .title(label)
-            .borders(Borders::ALL)
-            .border_style(border_style);
+    let block = Block::new()
+        .title(label.to_string())
+        .borders(Borders::ALL)
+        .border_style(border_style);
 
-        let display = if value.is_empty() {
-            Span::styled(
-                harv_core::t("tui-form-empty-field"),
-                Style::new().fg(theme.muted),
-            )
-        } else {
-            Span::styled(value.to_string(), Style::new().fg(theme.fg))
-        };
-
-        let inner = block.inner(area);
-        f.render_widget(&block, area);
-        f.render_widget(Paragraph::new(display.clone()), inner);
-
-        if active {
-            let visual_col = if value.is_char_boundary(cursor_pos) {
-                value[..cursor_pos].width()
-            } else {
-                let clamped = cursor_pos.min(value.len());
-                let boundary = (0..=clamped)
-                    .rev()
-                    .find(|&p| value.is_char_boundary(p))
-                    .unwrap_or(0);
-                value[..boundary].width()
-            };
-            let cursor_x = inner.x.saturating_add(visual_col as u16);
-            f.set_cursor_position((cursor_x.min(inner.right().saturating_sub(1)), inner.y));
-        }
+    if active {
+        textarea.set_cursor_line_style(Style::new().bg(theme.surface));
+        textarea.set_cursor_style(Style::new().bg(theme.fg).fg(theme.surface));
+        textarea.set_style(Style::new().fg(theme.fg));
+    } else {
+        textarea.set_cursor_style(Style::reset());
+        textarea.set_cursor_line_style(Style::reset());
+        textarea.set_style(Style::new().fg(theme.muted));
     }
+    textarea.set_block(block);
 
+    f.render_widget(&*textarea, area);
+}
+
+impl TimeEntryForm {
     pub fn handle_key(&mut self, key: &ratatui::crossterm::event::KeyEvent) -> Vec<Action> {
         match self.active {
             Field::ProjectList => self.handle_project_key(key),
             Field::TaskList => self.handle_task_key(key),
-            Field::Date | Field::Hours | Field::Notes => self.handle_text_key(key),
+            Field::Date => self.handle_date_key(key),
+            Field::Hours => self.handle_hours_key(key),
+            Field::Notes => self.handle_notes_key(key),
         }
     }
 
@@ -645,14 +636,14 @@ impl TimeEntryForm {
                 self.active = Field::TaskList;
                 vec![]
             }
-            KeyCode::Char('j') | KeyCode::Down => {
+            KeyCode::Down => {
                 let max = self.filtered_assignments.len().saturating_sub(1);
                 let i = self.project_list.selected().map_or(0, |i| (i + 1).min(max));
                 self.project_list.select(Some(i));
                 self.select_project_inner();
                 vec![]
             }
-            KeyCode::Char('k') | KeyCode::Up => {
+            KeyCode::Up => {
                 let i = self
                     .project_list
                     .selected()
@@ -694,20 +685,19 @@ impl TimeEntryForm {
                 } else {
                     Field::Notes
                 };
-                self.cursor_pos = self.active_text_field().len();
                 vec![]
             }
             KeyCode::BackTab => {
                 self.active = Field::ProjectList;
                 vec![]
             }
-            KeyCode::Char('j') | KeyCode::Down => {
+            KeyCode::Down => {
                 let max = self.filtered_tasks.len().saturating_sub(1);
                 let i = self.task_list.selected().map_or(0, |i| (i + 1).min(max));
                 self.task_list.select(Some(i));
                 vec![]
             }
-            KeyCode::Char('k') | KeyCode::Up => {
+            KeyCode::Up => {
                 let i = self.task_list.selected().map_or(0, |i| i.saturating_sub(1));
                 self.task_list.select(Some(i));
                 vec![]
@@ -718,7 +708,6 @@ impl TimeEntryForm {
                 } else {
                     Field::Notes
                 };
-                self.cursor_pos = self.active_text_field().len();
                 vec![]
             }
             KeyCode::Backspace => {
@@ -747,142 +736,102 @@ impl TimeEntryForm {
         }
     }
 
-    fn handle_text_key(&mut self, key: &ratatui::crossterm::event::KeyEvent) -> Vec<Action> {
+    fn handle_date_key(&mut self, key: &ratatui::crossterm::event::KeyEvent) -> Vec<Action> {
+        self.handle_single_line_textarea_key(
+            key,
+            Field::Hours,
+            Field::TaskList,
+            Some(Field::Hours),
+            true,
+        )
+    }
+
+    fn handle_hours_key(&mut self, key: &ratatui::crossterm::event::KeyEvent) -> Vec<Action> {
+        self.handle_single_line_textarea_key(
+            key,
+            Field::Notes,
+            Field::Date,
+            Some(Field::Notes),
+            false,
+        )
+    }
+
+    fn handle_single_line_textarea_key(
+        &mut self,
+        key: &ratatui::crossterm::event::KeyEvent,
+        tab_field: Field,
+        backtab_field: Field,
+        enter_field: Option<Field>,
+        is_date: bool,
+    ) -> Vec<Action> {
+        if key.code == KeyCode::Enter {
+            if key.modifiers == KeyModifiers::ALT {
+                return self.submit_entry();
+            }
+            if let Some(field) = enter_field {
+                self.active = field;
+            }
+            return vec![];
+        }
         match key.code {
             KeyCode::Esc => {
                 self.visible = false;
                 vec![Action::SwitchView(crate::action::ViewId::Dashboard)]
             }
             KeyCode::Tab => {
-                self.active = match self.active {
-                    Field::Date => Field::Hours,
-                    Field::Hours => Field::Notes,
-                    Field::Notes => Field::ProjectList,
-                    _ => Field::ProjectList,
-                };
-                if Self::is_text_field(self.active) {
-                    self.cursor_pos = self.active_text_field().len();
-                }
+                self.active = tab_field;
                 vec![]
             }
             KeyCode::BackTab => {
-                self.active = match self.active {
-                    Field::Date => Field::TaskList,
-                    Field::Hours => Field::Date,
-                    Field::Notes => {
-                        if self.is_full_layout() {
-                            Field::Hours
-                        } else {
-                            Field::TaskList
-                        }
-                    }
-                    _ => Field::ProjectList,
-                };
-                if Self::is_text_field(self.active) {
-                    self.cursor_pos = self.active_text_field().len();
-                }
+                self.active = backtab_field;
                 vec![]
             }
-            KeyCode::Char('g') if self.active == Field::Date => {
+            KeyCode::Char('g') if is_date => {
                 vec![Action::OpenDatePicker]
             }
-            KeyCode::Enter => {
+            _ => {
+                let input = ratatui_textarea::Input::from(*key);
                 match self.active {
-                    Field::Date => self.active = Field::Hours,
-                    Field::Hours => self.active = Field::Notes,
-                    _ => return self.submit_entry(),
+                    Field::Date => {
+                        self.date.input(input);
+                    }
+                    Field::Hours => {
+                        self.hours.input(input);
+                    }
+                    _ => {}
+                }
+                vec![]
+            }
+        }
+    }
+
+    fn handle_notes_key(&mut self, key: &ratatui::crossterm::event::KeyEvent) -> Vec<Action> {
+        match key.code {
+            KeyCode::Esc => {
+                self.visible = false;
+                vec![Action::SwitchView(crate::action::ViewId::Dashboard)]
+            }
+            KeyCode::Tab => {
+                self.active = Field::ProjectList;
+                vec![]
+            }
+            KeyCode::BackTab => {
+                self.active = if self.is_full_layout() {
+                    Field::Hours
+                } else {
+                    Field::TaskList
                 };
-                self.cursor_pos = self.active_text_field().len();
                 vec![]
             }
-            KeyCode::Left => {
-                let s = self.active_text_field();
-                self.cursor_pos = Self::prev_char_boundary(s, self.cursor_pos);
-                vec![]
-            }
-            KeyCode::Right => {
-                let s = self.active_text_field();
-                self.cursor_pos = Self::next_char_boundary(s, self.cursor_pos);
-                vec![]
-            }
-            KeyCode::Home => {
-                self.cursor_pos = 0;
-                vec![]
-            }
-            KeyCode::End => {
-                self.cursor_pos = self.active_text_field().len();
-                vec![]
-            }
-            KeyCode::Backspace => {
-                if self.cursor_pos > 0 {
-                    let s = self.active_text_field();
-                    let prev = Self::prev_char_boundary(s, self.cursor_pos);
-                    self.active_text_field_mut().remove(prev);
-                    self.cursor_pos = prev;
+            _ => {
+                if key.code == KeyCode::Enter && key.modifiers != KeyModifiers::NONE {
+                    return self.submit_entry();
                 }
+                let input = ratatui_textarea::Input::from(*key);
+                self.notes.input(input);
                 vec![]
             }
-            KeyCode::Delete => {
-                let pos = self.cursor_pos;
-                let s = self.active_text_field_mut();
-                if pos < s.len() {
-                    let next = Self::next_char_boundary(s, pos);
-                    s.drain(pos..next);
-                }
-                vec![]
-            }
-            KeyCode::Char(c) => {
-                let pos = self.cursor_pos;
-                self.active_text_field_mut().insert(pos, c);
-                self.cursor_pos = pos + c.len_utf8();
-                vec![]
-            }
-            _ => vec![],
         }
-    }
-
-    fn is_text_field(active: Field) -> bool {
-        matches!(active, Field::Date | Field::Hours | Field::Notes)
-    }
-
-    fn active_text_field(&self) -> &str {
-        match self.active {
-            Field::Date => &self.date,
-            Field::Hours => &self.hours,
-            Field::Notes => &self.notes,
-            _ => unreachable!(),
-        }
-    }
-
-    fn active_text_field_mut(&mut self) -> &mut String {
-        match self.active {
-            Field::Date => &mut self.date,
-            Field::Hours => &mut self.hours,
-            Field::Notes => &mut self.notes,
-            _ => unreachable!(),
-        }
-    }
-
-    fn prev_char_boundary(s: &str, pos: usize) -> usize {
-        if pos == 0 {
-            return 0;
-        }
-        let mut p = pos - 1;
-        while p > 0 && !s.is_char_boundary(p) {
-            p -= 1;
-        }
-        p
-    }
-
-    fn next_char_boundary(s: &str, pos: usize) -> usize {
-        if pos >= s.len() {
-            return s.len();
-        }
-        s[pos..]
-            .chars()
-            .next()
-            .map(|c| pos + c.len_utf8())
-            .unwrap_or(s.len())
     }
 }
 
@@ -926,6 +875,32 @@ mod tests {
         )
     }
 
+    fn alt_enter() -> ratatui::crossterm::event::KeyEvent {
+        ratatui::crossterm::event::KeyEvent::new(KeyCode::Enter, KeyModifiers::ALT)
+    }
+
+    fn form_with_notes(notes: &str) -> TimeEntryForm {
+        TimeEntryForm::new(
+            None,
+            None,
+            None,
+            FormMode::Create,
+            None,
+            None,
+            None,
+            Some(notes.to_string()),
+            false,
+        )
+    }
+
+    fn notes_text(form: &TimeEntryForm) -> String {
+        form.notes.lines().join("\n")
+    }
+
+    fn textarea_text(ta: &TextArea<'static>) -> String {
+        ta.lines().join("\n")
+    }
+
     #[test]
     fn test_new_start_form() {
         let f = TimeEntryForm::new(
@@ -941,8 +916,8 @@ mod tests {
         );
         assert!(matches!(f.mode, FormMode::Start));
         assert!(f.selected_project_id.is_none());
-        assert!(f.hours.is_empty());
-        assert!(f.notes.is_empty());
+        assert!(textarea_text(&f.hours).is_empty());
+        assert!(notes_text(&f).is_empty());
     }
 
     #[test]
@@ -976,11 +951,43 @@ mod tests {
         );
         assert!(matches!(f.mode, FormMode::Edit));
         assert_eq!(f.entry_id, Some(42));
-        assert_eq!(f.date, "2026-06-09");
-        assert_eq!(f.hours, "1.5");
-        assert_eq!(f.notes, "my notes");
+        assert_eq!(textarea_text(&f.date), "2026-06-09");
+        assert_eq!(textarea_text(&f.hours), "1.5");
+        assert_eq!(notes_text(&f), "my notes");
         assert_eq!(f.last_project_id, Some(10));
         assert_eq!(f.last_task_id, Some(20));
+    }
+
+    #[test]
+    fn test_new_edit_form_multiline_notes() {
+        let f = TimeEntryForm::new(
+            Some(10),
+            Some(20),
+            None,
+            FormMode::Edit,
+            Some(42),
+            Some("2026-06-09".into()),
+            Some("1.5".into()),
+            Some("line one\nline two".into()),
+            false,
+        );
+        assert_eq!(notes_text(&f), "line one\nline two");
+    }
+
+    #[test]
+    fn test_new_edit_form_empty_notes() {
+        let f = TimeEntryForm::new(
+            Some(10),
+            Some(20),
+            None,
+            FormMode::Edit,
+            Some(42),
+            Some("2026-06-09".into()),
+            Some("1.5".into()),
+            None,
+            false,
+        );
+        assert!(notes_text(&f).is_empty());
     }
 
     #[test]
@@ -1019,7 +1026,7 @@ mod tests {
         );
         let assignments = vec![project_assignment(5, "Alpha")];
         f.update_assignments(assignments);
-        assert_eq!(f.project_list.selected(), Some(0)); // unchanged
+        assert_eq!(f.project_list.selected(), Some(0));
     }
 
     #[test]
@@ -1092,7 +1099,7 @@ mod tests {
         ];
         f.update_tasks(tasks);
         assert!(!f.tasks_loading);
-        assert_eq!(f.task_list.selected(), Some(1)); // task 30 at index 1
+        assert_eq!(f.task_list.selected(), Some(1));
     }
 
     #[test]
@@ -1137,7 +1144,7 @@ mod tests {
 
         f.project_search = "bet".into();
         f.filter_projects();
-        assert_eq!(f.filtered_assignments.len(), 2); // Beta and Alphabet
+        assert_eq!(f.filtered_assignments.len(), 2);
     }
 
     #[test]
@@ -1155,19 +1162,15 @@ mod tests {
         );
         assert_eq!(f.active, Field::ProjectList);
 
-        // ProjectList Tab -> TaskList
         let _ = f.handle_key(&key_press(KeyCode::Tab));
         assert_eq!(f.active, Field::TaskList);
 
-        // TaskList Tab -> Notes
         let _ = f.handle_key(&key_press(KeyCode::Tab));
         assert_eq!(f.active, Field::Notes);
 
-        // Notes Tab -> ProjectList
         let _ = f.handle_key(&key_press(KeyCode::Tab));
         assert_eq!(f.active, Field::ProjectList);
 
-        // Notes BackTab -> TaskList
         f.active = Field::Notes;
         let _ = f.handle_key(&key_press(KeyCode::BackTab));
         assert_eq!(f.active, Field::TaskList);
@@ -1237,7 +1240,7 @@ mod tests {
             false,
         );
         let actions = f.submit_entry();
-        assert!(actions.is_empty()); // no project/task selected
+        assert!(actions.is_empty());
     }
 
     #[test]
@@ -1334,6 +1337,37 @@ mod tests {
     }
 
     #[test]
+    fn test_submit_multiline_notes() {
+        let mut f = TimeEntryForm::new(
+            Some(10),
+            Some(20),
+            None,
+            FormMode::Start,
+            None,
+            None,
+            None,
+            Some("line one\nline two".into()),
+            false,
+        );
+        f.assignments = vec![project_assignment(10, "Beta")];
+        f.filtered_assignments = vec![0];
+        f.project_list.select(Some(0));
+        f.selected_project_id = Some(10);
+        f.tasks = vec![task_assignment(20, "Development")];
+        f.filter_tasks();
+        f.task_list.select(Some(0));
+
+        let actions = f.submit_entry();
+        assert!(matches!(
+            actions[0],
+            Action::CreateEntry {
+                notes: Some(ref n),
+                ..
+            } if n == "line one\nline two"
+        ));
+    }
+
+    #[test]
     fn test_task_search_filters() {
         let mut f = TimeEntryForm::new(
             Some(10),
@@ -1353,26 +1387,21 @@ mod tests {
             task_assignment(40, "Deployment"),
         ]);
 
-        // No filter — all three
         assert_eq!(f.filtered_tasks.len(), 3);
 
-        // Filter by "dev" — should match "Development" only
         f.task_search = "dev".into();
         f.filter_tasks();
         assert_eq!(f.filtered_tasks.len(), 1);
         assert_eq!(f.tasks[f.filtered_tasks[0]].task.id, 20);
 
-        // Filter by "de" — matches all three (Development, Design, Deployment)
         f.task_search = "de".into();
         f.filter_tasks();
         assert_eq!(f.filtered_tasks.len(), 3);
 
-        // Filter by "xyz" — no match
         f.task_search = "xyz".into();
         f.filter_tasks();
         assert!(f.filtered_tasks.is_empty());
 
-        // Backspace clears
         f.task_search = "".into();
         f.filter_tasks();
         assert_eq!(f.filtered_tasks.len(), 3);
@@ -1380,7 +1409,6 @@ mod tests {
 
     #[test]
     fn test_is_full_layout() {
-        // Start mode: always restricted (no date/hours)
         let form = TimeEntryForm::new(
             None,
             None,
@@ -1394,7 +1422,6 @@ mod tests {
         );
         assert!(!form.is_full_layout());
 
-        // Create mode: always full layout
         let form = TimeEntryForm::new(
             None,
             None,
@@ -1408,7 +1435,6 @@ mod tests {
         );
         assert!(form.is_full_layout());
 
-        // Edit + stopped: full layout
         let form = TimeEntryForm::new(
             None,
             None,
@@ -1422,7 +1448,6 @@ mod tests {
         );
         assert!(form.is_full_layout());
 
-        // Edit + running: restricted layout
         let form = TimeEntryForm::new(
             None,
             None,
@@ -1469,7 +1494,6 @@ mod tests {
                 ..
             }
         ));
-        // Notes still passed through
         assert!(matches!(
             actions[0],
             Action::EditEntry {
@@ -1494,19 +1518,15 @@ mod tests {
         );
         assert_eq!(f.active, Field::ProjectList);
 
-        // ProjectList Tab → TaskList
         f.handle_key(&key_press(KeyCode::Tab));
         assert_eq!(f.active, Field::TaskList);
 
-        // TaskList Tab → Notes (no Date/Hours when running)
         f.handle_key(&key_press(KeyCode::Tab));
         assert_eq!(f.active, Field::Notes);
 
-        // Notes Tab → ProjectList
         f.handle_key(&key_press(KeyCode::Tab));
         assert_eq!(f.active, Field::ProjectList);
 
-        // Notes BackTab → TaskList
         f.active = Field::Notes;
         f.handle_key(&key_press(KeyCode::BackTab));
         assert_eq!(f.active, Field::TaskList);
@@ -1531,23 +1551,78 @@ mod tests {
     }
 
     #[test]
-    fn test_notes_enter_submits_when_running() {
+    fn test_notes_alt_enter_submits() {
         let mut f = TimeEntryForm::new(
+            Some(10),
+            Some(20),
+            None,
+            FormMode::Start,
             None,
             None,
             None,
-            FormMode::Edit,
-            Some(1),
-            None,
-            None,
-            None,
-            true,
+            Some("notes text".into()),
+            false,
         );
+        f.assignments = vec![project_assignment(10, "Beta")];
+        f.filtered_assignments = vec![0];
+        f.project_list.select(Some(0));
+        f.selected_project_id = Some(10);
+        f.tasks = vec![task_assignment(20, "Development")];
+        f.filter_tasks();
+        f.task_list.select(Some(0));
         f.active = Field::Notes;
-        let actions = f.handle_key(&key_press(KeyCode::Enter));
-        // Submit requires project + task, so returns empty
-        // but it did try to submit rather than advance to another field
-        assert!(actions.is_empty());
+
+        let actions = f.handle_key(&alt_enter());
+        assert_eq!(actions.len(), 2);
+        assert!(matches!(actions[0], Action::CreateEntry { .. }));
+    }
+
+    #[test]
+    fn test_notes_esc_cancels() {
+        let mut f = form_with_notes("hello");
+        f.active = Field::Notes;
+        assert!(f.visible);
+        let actions = f.handle_key(&key_press(KeyCode::Esc));
+        assert!(!f.visible);
+        assert_eq!(actions.len(), 1);
+    }
+
+    #[test]
+    fn test_notes_textarea_typing_integration() {
+        let mut f = form_with_notes("");
+        f.active = Field::Notes;
+
+        f.handle_key(&key_press(KeyCode::Char('h')));
+        f.handle_key(&key_press(KeyCode::Char('i')));
+        assert_eq!(notes_text(&f), "hi");
+    }
+
+    #[test]
+    fn test_notes_textarea_newline_integration() {
+        let mut f = form_with_notes("");
+        f.active = Field::Notes;
+
+        f.handle_key(&key_press(KeyCode::Char('a')));
+        f.handle_key(&key_press(KeyCode::Enter));
+        f.handle_key(&key_press(KeyCode::Char('b')));
+        assert_eq!(notes_text(&f), "a\nb");
+    }
+
+    #[test]
+    fn test_notes_textarea_backspace_integration() {
+        let mut f = form_with_notes("");
+        f.active = Field::Notes;
+
+        f.handle_key(&key_press(KeyCode::Char('a')));
+        f.handle_key(&key_press(KeyCode::Char('b')));
+        f.handle_key(&key_press(KeyCode::Char('c')));
+        assert_eq!(notes_text(&f), "abc");
+
+        f.handle_key(&key_press(KeyCode::Backspace));
+        assert_eq!(notes_text(&f), "ab");
+
+        f.handle_key(&key_press(KeyCode::Backspace));
+        assert_eq!(notes_text(&f), "a");
     }
 
     #[test]
@@ -1622,9 +1697,48 @@ mod tests {
         assert_eq!(f.date(), "2025-01-15");
     }
 
-    // --- Cursor movement tests ---
+    #[test]
+    fn test_date_text_field_insert() {
+        let mut f = TimeEntryForm::new(
+            None,
+            None,
+            None,
+            FormMode::Create,
+            None,
+            Some("".into()),
+            None,
+            None,
+            false,
+        );
+        f.active = Field::Date;
 
-    fn form_with_notes(notes: &str) -> TimeEntryForm {
+        f.handle_key(&key_press(KeyCode::Char('2')));
+        f.handle_key(&key_press(KeyCode::Char('0')));
+        assert_eq!(textarea_text(&f.date), "20");
+    }
+
+    #[test]
+    fn test_date_text_backspace() {
+        let mut f = TimeEntryForm::new(
+            None,
+            None,
+            None,
+            FormMode::Create,
+            None,
+            Some("2025".into()),
+            None,
+            None,
+            false,
+        );
+        f.active = Field::Date;
+
+        f.handle_key(&key_press(KeyCode::End));
+        f.handle_key(&key_press(KeyCode::Backspace));
+        assert_eq!(textarea_text(&f.date), "202");
+    }
+
+    #[test]
+    fn test_tab_from_date_advances_to_hours() {
         let mut f = TimeEntryForm::new(
             None,
             None,
@@ -1636,146 +1750,8 @@ mod tests {
             None,
             false,
         );
-        f.active = Field::Notes;
-        f.notes = notes.into();
-        f.cursor_pos = notes.len();
-        f
-    }
-
-    #[test]
-    fn test_text_insert_at_cursor_ascii() {
-        let mut f = form_with_notes("ab");
-        f.cursor_pos = 1;
-        f.handle_key(&key_press(KeyCode::Char('x')));
-        assert_eq!(f.notes, "axb");
-        assert_eq!(f.cursor_pos, 2);
-    }
-
-    #[test]
-    fn test_text_left_right_ascii() {
-        let mut f = form_with_notes("abc");
-        f.cursor_pos = 3;
-        f.handle_key(&key_press(KeyCode::Left));
-        assert_eq!(f.cursor_pos, 2);
-        f.handle_key(&key_press(KeyCode::Left));
-        assert_eq!(f.cursor_pos, 1);
-        f.handle_key(&key_press(KeyCode::Right));
-        assert_eq!(f.cursor_pos, 2);
-    }
-
-    #[test]
-    fn test_text_left_at_start() {
-        let mut f = form_with_notes("abc");
-        f.cursor_pos = 0;
-        f.handle_key(&key_press(KeyCode::Left));
-        assert_eq!(f.cursor_pos, 0);
-    }
-
-    #[test]
-    fn test_text_right_at_end() {
-        let mut f = form_with_notes("abc");
-        f.cursor_pos = 3;
-        f.handle_key(&key_press(KeyCode::Right));
-        assert_eq!(f.cursor_pos, 3);
-    }
-
-    #[test]
-    fn test_text_home_end() {
-        let mut f = form_with_notes("abc");
-        f.cursor_pos = 2;
-        f.handle_key(&key_press(KeyCode::Home));
-        assert_eq!(f.cursor_pos, 0);
-        f.handle_key(&key_press(KeyCode::End));
-        assert_eq!(f.cursor_pos, 3);
-    }
-
-    #[test]
-    fn test_text_backspace_at_cursor() {
-        let mut f = form_with_notes("abc");
-        f.cursor_pos = 2;
-        f.handle_key(&key_press(KeyCode::Backspace));
-        assert_eq!(f.notes, "ac");
-        assert_eq!(f.cursor_pos, 1);
-    }
-
-    #[test]
-    fn test_text_backspace_at_start() {
-        let mut f = form_with_notes("abc");
-        f.cursor_pos = 0;
-        f.handle_key(&key_press(KeyCode::Backspace));
-        assert_eq!(f.notes, "abc");
-        assert_eq!(f.cursor_pos, 0);
-    }
-
-    #[test]
-    fn test_text_delete_at_cursor() {
-        let mut f = form_with_notes("abc");
-        f.cursor_pos = 1;
-        f.handle_key(&key_press(KeyCode::Delete));
-        assert_eq!(f.notes, "ac");
-        assert_eq!(f.cursor_pos, 1);
-    }
-
-    #[test]
-    fn test_text_delete_at_end() {
-        let mut f = form_with_notes("abc");
-        f.cursor_pos = 3;
-        f.handle_key(&key_press(KeyCode::Delete));
-        assert_eq!(f.notes, "abc");
-        assert_eq!(f.cursor_pos, 3);
-    }
-
-    #[test]
-    fn test_text_insert_non_ascii() {
-        let mut f = form_with_notes("ab");
-        f.cursor_pos = 1;
-        f.handle_key(&key_press(KeyCode::Char('e')));
-        f.handle_key(&key_press(KeyCode::Char('\u{00e9}')));
-        assert_eq!(f.notes, "ae\u{00e9}b");
-        assert_eq!(f.cursor_pos, 4);
-    }
-
-    #[test]
-    fn test_text_left_right_non_ascii() {
-        let mut f = form_with_notes("a\u{00e9}b");
-        f.cursor_pos = 4;
-        f.handle_key(&key_press(KeyCode::Left));
-        assert_eq!(f.cursor_pos, 3);
-        f.handle_key(&key_press(KeyCode::Left));
-        assert_eq!(f.cursor_pos, 1);
-        f.handle_key(&key_press(KeyCode::Right));
-        assert_eq!(f.cursor_pos, 3);
-    }
-
-    #[test]
-    fn test_text_backspace_non_ascii() {
-        let mut f = form_with_notes("a\u{00e9}b");
-        f.cursor_pos = 4;
-        f.handle_key(&key_press(KeyCode::Backspace));
-        assert_eq!(f.notes, "a\u{00e9}");
-        assert_eq!(f.cursor_pos, 3);
-        f.handle_key(&key_press(KeyCode::Backspace));
-        assert_eq!(f.notes, "a");
-        assert_eq!(f.cursor_pos, 1);
-    }
-
-    #[test]
-    fn test_text_delete_non_ascii() {
-        let mut f = form_with_notes("a\u{00e9}b");
-        f.cursor_pos = 1;
-        f.handle_key(&key_press(KeyCode::Delete));
-        assert_eq!(f.notes, "ab");
-        assert_eq!(f.cursor_pos, 1);
-    }
-
-    #[test]
-    fn test_cursor_reset_on_tab_to_text_field() {
-        let mut f = form_with_notes("hello");
         f.active = Field::Date;
-        f.date = "2025".into();
-        f.cursor_pos = 0;
         f.handle_key(&key_press(KeyCode::Tab));
         assert_eq!(f.active, Field::Hours);
-        assert_eq!(f.cursor_pos, 0);
     }
 }

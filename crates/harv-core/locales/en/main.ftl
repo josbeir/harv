@@ -238,9 +238,9 @@ tui-form-project-empty = No project assignments
 tui-form-task-empty = No tasks available
 tui-form-task-select-first = Select a project first
 tui-form-empty-field = (empty)
-tui-form-help-create = Tab: next field │ Enter: next/send │ Esc: cancel
-tui-form-help-start = Tab: next field │ Enter: start timer │ Esc: cancel
-tui-form-help-edit = Tab: next field │ Enter: save │ Esc: cancel
+tui-form-help-create = Tab: next field │ Alt+Enter: submit │ Esc: cancel
+tui-form-help-start = Tab: next field │ Alt+Enter: start timer │ Esc: cancel
+tui-form-help-edit = Tab: next field │ Alt+Enter: save │ Esc: cancel
 
 # TUI — Help
 tui-help-title = Help

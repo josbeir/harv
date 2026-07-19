@@ -467,7 +467,7 @@ impl App {
 
     fn handle_open_date_picker(&mut self) {
         let initial = if let Some(ref form) = self.form {
-            harv_core::datetime::parse_date(form.date())
+            harv_core::datetime::parse_date(&form.date())
                 .unwrap_or_else(|_| harv_core::datetime::today())
         } else {
             let View::Dashboard(d) = &self.current_view;
