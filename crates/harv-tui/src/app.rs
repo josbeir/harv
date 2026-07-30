@@ -40,6 +40,7 @@ pub struct App {
     date_picker: Option<DatePicker>,
     project_codes: HashMap<u64, String>,
     resolved_config: ResolvedConfig,
+    session_last_used: Option<(u64, u64)>,
     update_available: Option<(String, String)>,
     timer_poller: Option<TimerPoller>,
 }
@@ -60,6 +61,7 @@ impl App {
             date_picker: None,
             project_codes: HashMap::new(),
             resolved_config,
+            session_last_used: None,
             update_available: None,
             timer_poller: None,
         }
@@ -259,6 +261,34 @@ impl App {
         self.form = None;
     }
 
+    fn form_defaults(
+        &self,
+        project_id: Option<u64>,
+        task_id: Option<u64>,
+    ) -> (Option<u64>, Option<u64>) {
+        let session_project_id = self.session_last_used.map(|(project_id, _)| project_id);
+        let session_task_id = self.session_last_used.map(|(_, task_id)| task_id);
+        (
+            project_id
+                .or(session_project_id)
+                .or(self.resolved_config.default_project_id),
+            task_id
+                .or(session_task_id)
+                .or(self.resolved_config.default_task_id),
+        )
+    }
+
+    fn remember_last_used(&mut self, project_id: u64, task_id: u64) {
+        self.session_last_used = Some((project_id, task_id));
+
+        let mut config = self.client.config().clone();
+        tokio::spawn(async move {
+            if let Err(error) = config.save_last_used(project_id, task_id).await {
+                tracing::debug!(%error, "failed to persist last used project and task");
+            }
+        });
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn handle_open_form(
         &mut self,
@@ -273,8 +303,7 @@ impl App {
         is_running: bool,
         tx: &UnboundedSender<Action>,
     ) {
-        let pid = last_project_id.or(self.resolved_config.default_project_id);
-        let tid = last_task_id.or(self.resolved_config.default_task_id);
+        let (pid, tid) = self.form_defaults(last_project_id, last_task_id);
         let form = TimeEntryForm::new(
             pid,
             tid,
@@ -320,14 +349,7 @@ impl App {
         let View::Dashboard(d) = &mut self.current_view;
         d.set_loading(harv_core::t("tui-app-loading-create"));
 
-        {
-            let mut config = self.client.config().clone();
-            config.set_last_used(project_id, task_id);
-            let config = config;
-            tokio::spawn(async move {
-                let _ = config.save().await;
-            });
-        }
+        self.remember_last_used(project_id, task_id);
 
         let client = Arc::clone(&self.client);
         let tx = tx.clone();
@@ -365,14 +387,7 @@ impl App {
         let View::Dashboard(d) = &mut self.current_view;
         d.set_loading(harv_core::t("tui-app-loading-save"));
 
-        {
-            let mut config = self.client.config().clone();
-            config.set_last_used(project_id, task_id);
-            let config = config;
-            tokio::spawn(async move {
-                let _ = config.save().await;
-            });
-        }
+        self.remember_last_used(project_id, task_id);
 
         let client = Arc::clone(&self.client);
         let tx = tx.clone();
@@ -1118,6 +1133,17 @@ mod tests {
         assert_eq!(app.user_id, 0);
         assert!(app.user_name.is_none());
         assert!(!app.has_form());
+    }
+
+    #[test]
+    fn test_form_defaults_prefer_session_last_used() {
+        let mut app = make_app();
+        app.resolved_config.default_project_id = Some(1);
+        app.resolved_config.default_task_id = Some(2);
+        app.session_last_used = Some((10, 20));
+
+        assert_eq!(app.form_defaults(None, None), (Some(10), Some(20)));
+        assert_eq!(app.form_defaults(Some(30), Some(40)), (Some(30), Some(40)));
     }
 
     #[test]
