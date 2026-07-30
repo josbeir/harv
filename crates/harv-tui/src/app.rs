@@ -1055,15 +1055,15 @@ async fn watch_theme_changes(tx: tokio::sync::mpsc::UnboundedSender<Action>) {
         let mut current = dark_light::detect().unwrap_or(dark_light::Mode::Dark);
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-            if let Ok(detected) = dark_light::detect() {
-                if detected != current {
-                    current = detected;
-                    let mode = match current {
-                        dark_light::Mode::Dark => ThemeMode::Dark,
-                        dark_light::Mode::Light | dark_light::Mode::Unspecified => ThemeMode::Light,
-                    };
-                    let _ = tx.send(Action::ThemeChanged(mode));
-                }
+            if let Ok(detected) = dark_light::detect()
+                && detected != current
+            {
+                current = detected;
+                let mode = match current {
+                    dark_light::Mode::Dark => ThemeMode::Dark,
+                    dark_light::Mode::Light | dark_light::Mode::Unspecified => ThemeMode::Light,
+                };
+                let _ = tx.send(Action::ThemeChanged(mode));
             }
         }
     }
