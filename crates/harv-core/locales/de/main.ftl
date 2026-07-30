@@ -4,6 +4,7 @@ err-config-not-found = Konfigurationsdatei nicht gefunden. Führen Sie `harv con
 err-config-malformed = Konfigurationsdatei ist fehlerhaft: { $msg }
 err-http = HTTP-Fehler: { $msg }
 err-api = Harvest API hat einen Fehler zurückgegeben ({ $status }): { $message }
+err-rate-limited = Die Harvest-API ist vorübergehend rate-limitiert. Bitte versuchen Sie es in Kürze erneut.
 err-io = IO-Fehler: { $msg }
 err-invalid-date = Ungültiges Datum: { $msg }
 err-invalid-time = Ungültige Uhrzeit: { $msg }

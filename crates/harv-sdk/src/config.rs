@@ -112,13 +112,9 @@ impl HarvConfig {
     /// Save config to `~/.config/harv/config.toml`. Creates the directory if needed.
     pub async fn save(&self) -> Result<(), HarvError> {
         let path = Self::path();
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).await?;
-        }
         let toml =
             toml::to_string_pretty(self).map_err(|e| HarvError::ConfigMalformed(e.to_string()))?;
-        fs::write(&path, toml).await?;
-        Ok(())
+        crate::storage::atomic_write(&path, toml.into_bytes()).await
     }
 
     /// Returns the path to the config file: `~/.config/harv/config.toml`.

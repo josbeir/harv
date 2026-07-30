@@ -7,7 +7,7 @@ use crossterm::execute;
 use crossterm::terminal::SetTitle;
 use futures_util::StreamExt;
 use harv_core::CreateTimeEntry;
-use harv_sdk::{HarvClient, ResolvedConfig};
+use harv_sdk::{HarvClient, ResolvedConfig, TimerPoller};
 use ratatui::Frame;
 use ratatui::crossterm::event::{Event, KeyCode, KeyEventKind};
 use ratatui::layout::Alignment;
@@ -41,6 +41,7 @@ pub struct App {
     project_codes: HashMap<u64, String>,
     resolved_config: ResolvedConfig,
     update_available: Option<(String, String)>,
+    timer_poller: Option<TimerPoller>,
 }
 
 impl App {
@@ -60,6 +61,7 @@ impl App {
             project_codes: HashMap::new(),
             resolved_config,
             update_available: None,
+            timer_poller: None,
         }
     }
 
@@ -225,20 +227,13 @@ impl App {
         self.user_id = user.id;
         self.user_name = Some(format!("{} {}", user.first_name, user.last_name));
 
-        let poll_client = Arc::clone(&self.client);
-        let poll_tx = tx.clone();
-        let poll_user_id = user.id;
+        let (poll_tx, mut poll_rx) = mpsc::unbounded_channel();
+        self.timer_poller = Some(TimerPoller::start((*self.client).clone(), user.id, poll_tx));
+
+        let action_tx = tx.clone();
         tokio::spawn(async move {
-            loop {
-                match poll_client.time_entries().running(poll_user_id).await {
-                    Ok(entries) => {
-                        let _ = poll_tx.send(Action::TimerUpdate(entries));
-                    }
-                    Err(e) => {
-                        let _ = poll_tx.send(Action::Error(e.user_message()));
-                    }
-                }
-                tokio::time::sleep(Duration::from_secs(2)).await;
+            while let Some(entries) = poll_rx.recv().await {
+                let _ = action_tx.send(Action::TimerUpdate(entries));
             }
         });
 

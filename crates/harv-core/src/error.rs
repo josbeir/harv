@@ -19,6 +19,9 @@ pub enum HarvError {
     #[error("API error ({status}): {message}")]
     Api { status: u16, message: String },
 
+    #[error("Harvest API rate limit reached. Retry after {retry_after_secs:?} seconds.")]
+    RateLimited { retry_after_secs: Option<u64> },
+
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
@@ -57,6 +60,7 @@ impl HarvError {
                 "err-api",
                 &[("status", status.to_string()), ("message", message.clone())],
             ),
+            Self::RateLimited { .. } => crate::locale::t("err-rate-limited"),
             Self::NoRunningTimer => crate::locale::t("err-no-running-timer"),
             Self::NoProjectAssignments => crate::locale::t("err-no-project-assignments"),
             Self::NoTaskAssignments { project_id } => crate::locale::t_args(

@@ -53,13 +53,9 @@ impl ProjectConfig {
     /// Save this project config to a specific file path.
     /// Creates parent directories if they don't exist.
     pub async fn save_to(&self, path: &Path) -> Result<(), HarvError> {
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).await?;
-        }
         let toml =
             toml::to_string_pretty(self).map_err(|e| HarvError::ConfigMalformed(e.to_string()))?;
-        fs::write(path, toml).await?;
-        Ok(())
+        crate::storage::atomic_write(path, toml.into_bytes()).await
     }
 
     /// Discover a `harv.toml` by walking up from the current working directory.
