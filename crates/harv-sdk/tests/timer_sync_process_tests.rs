@@ -2,8 +2,9 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::time::Duration;
 
+use harv_core::HarvError;
 use harv_sdk::mock_data;
-use harv_sdk::{HarvClient, TimerPoller};
+use harv_sdk::{HarvClient, TimerPollUpdate, TimerPoller};
 use tokio::sync::mpsc;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -34,7 +35,10 @@ async fn timer_sync_worker() {
             .await
             .expect("shared timer update arrived")
             .expect("poller sender remains connected");
-        assert_eq!(update.len(), 1);
+        let TimerPollUpdate::Entries(entries) = update else {
+            panic!("expected shared timer entries");
+        };
+        assert_eq!(entries.len(), 1);
 
         if mode == "success" {
             // Keep the elected leader alive until followers have consumed its
@@ -42,6 +46,16 @@ async fn timer_sync_worker() {
             tokio::time::sleep(Duration::from_secs(2)).await;
         }
     } else {
+        let update = tokio::time::timeout(Duration::from_secs(3), rx.recv())
+            .await
+            .expect("rate-limit error arrived")
+            .expect("poller sender remains connected");
+        assert!(matches!(
+            update,
+            TimerPollUpdate::Error(HarvError::RateLimited {
+                retry_after_secs: Some(2)
+            })
+        ));
         tokio::time::sleep(Duration::from_millis(500)).await;
         assert!(rx.try_recv().is_err());
     }

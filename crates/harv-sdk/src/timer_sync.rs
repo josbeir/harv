@@ -30,13 +30,22 @@ pub struct TimerPoller {
     task: tokio::task::JoinHandle<()>,
 }
 
+/// A timer polling update delivered to the TUI.
+#[derive(Debug)]
+pub enum TimerPollUpdate {
+    /// The current running time entries.
+    Entries(Vec<TimeEntry>),
+    /// A recoverable polling failure suitable for display to the user.
+    Error(HarvError),
+}
+
 impl TimerPoller {
     /// Starts a worker that either polls Harvest as the elected leader or
     /// follows a snapshot written by another local Harv process.
     pub fn start(
         client: HarvClient,
         user_id: u64,
-        updates: UnboundedSender<Vec<TimeEntry>>,
+        updates: UnboundedSender<TimerPollUpdate>,
     ) -> Self {
         Self::start_in_directory(client, user_id, updates, state_directory())
     }
@@ -49,7 +58,7 @@ impl TimerPoller {
     pub fn start_in_directory(
         client: HarvClient,
         user_id: u64,
-        updates: UnboundedSender<Vec<TimeEntry>>,
+        updates: UnboundedSender<TimerPollUpdate>,
         directory: PathBuf,
     ) -> Self {
         let paths = PollPaths::new(client.config().account_id(), user_id, directory);
@@ -115,10 +124,11 @@ impl TimerSnapshot {
 async fn run_poller(
     client: HarvClient,
     paths: PollPaths,
-    updates: UnboundedSender<Vec<TimeEntry>>,
+    updates: UnboundedSender<TimerPollUpdate>,
 ) {
     if let Err(error) = tokio::fs::create_dir_all(&paths.directory).await {
         tracing::warn!("Unable to create shared timer state directory: {error}");
+        let _ = updates.send(TimerPollUpdate::Error(error.into()));
         return;
     }
 
@@ -131,14 +141,15 @@ async fn run_poller(
             }
             Ok(None) => {
                 if let Some(snapshot) = load_snapshot(&paths.snapshot).await
-                    && snapshot.sequence > delivered_sequence
+                    && snapshot.sequence != delivered_sequence
                 {
                     delivered_sequence = snapshot.sequence;
-                    let _ = updates.send(snapshot.entries);
+                    let _ = updates.send(TimerPollUpdate::Entries(snapshot.entries));
                 }
             }
             Err(error) => {
                 tracing::warn!("Unable to acquire shared timer poll lock: {error}");
+                let _ = updates.send(TimerPollUpdate::Error(error));
             }
         }
 
@@ -149,7 +160,7 @@ async fn run_poller(
 async fn run_leader(
     client: HarvClient,
     paths: PollPaths,
-    updates: UnboundedSender<Vec<TimeEntry>>,
+    updates: UnboundedSender<TimerPollUpdate>,
     _leader_lock: File,
 ) {
     let mut snapshot = load_snapshot(&paths.snapshot)
@@ -176,10 +187,10 @@ async fn run_leader(
                 if let Err(error) = save_snapshot(&paths.snapshot, &snapshot).await {
                     tracing::warn!("Unable to save shared timer snapshot: {error}");
                 }
-                let _ = updates.send(entries);
+                let _ = updates.send(TimerPollUpdate::Entries(entries));
                 tokio::time::sleep(POLL_INTERVAL).await;
             }
-            Err(HarvError::RateLimited { retry_after_secs }) => {
+            Err(error @ HarvError::RateLimited { retry_after_secs }) => {
                 let retry_after_secs = retry_after_secs
                     .unwrap_or(DEFAULT_RETRY_AFTER_SECS)
                     .clamp(1, MAX_RETRY_AFTER_SECS);
@@ -191,9 +202,11 @@ async fn run_leader(
                 tracing::warn!(
                     "Harvest timer polling rate limited; retrying in {retry_after_secs} seconds"
                 );
+                let _ = updates.send(TimerPollUpdate::Error(error));
             }
             Err(error) => {
                 tracing::warn!("Harvest timer polling failed: {error}");
+                let _ = updates.send(TimerPollUpdate::Error(error));
                 tokio::time::sleep(POLL_INTERVAL).await;
             }
         }

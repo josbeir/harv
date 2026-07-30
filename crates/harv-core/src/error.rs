@@ -19,7 +19,7 @@ pub enum HarvError {
     #[error("API error ({status}): {message}")]
     Api { status: u16, message: String },
 
-    #[error("Harvest API rate limit reached. Retry after {retry_after_secs:?} seconds.")]
+    #[error("Harvest API rate limit reached.")]
     RateLimited { retry_after_secs: Option<u64> },
 
     #[error("IO error: {0}")]
@@ -134,6 +134,16 @@ mod tests {
         };
         assert!(err.user_message().contains("404"));
         assert!(err.user_message().contains("Not found"));
+    }
+
+    #[serial]
+    #[test]
+    fn test_rate_limited_display_is_generic() {
+        ensure_locale();
+        let err = HarvError::RateLimited {
+            retry_after_secs: Some(17),
+        };
+        assert_eq!(err.to_string(), "Harvest API rate limit reached.");
     }
 
     #[serial]

@@ -7,7 +7,7 @@ use crossterm::execute;
 use crossterm::terminal::SetTitle;
 use futures_util::StreamExt;
 use harv_core::CreateTimeEntry;
-use harv_sdk::{HarvClient, ResolvedConfig, TimerPoller};
+use harv_sdk::{HarvClient, ResolvedConfig, TimerPollUpdate, TimerPoller};
 use ratatui::Frame;
 use ratatui::crossterm::event::{Event, KeyCode, KeyEventKind};
 use ratatui::layout::Alignment;
@@ -232,8 +232,12 @@ impl App {
 
         let action_tx = tx.clone();
         tokio::spawn(async move {
-            while let Some(entries) = poll_rx.recv().await {
-                let _ = action_tx.send(Action::TimerUpdate(entries));
+            while let Some(update) = poll_rx.recv().await {
+                let action = match update {
+                    TimerPollUpdate::Entries(entries) => Action::TimerUpdate(entries),
+                    TimerPollUpdate::Error(error) => Action::Error(error.user_message()),
+                };
+                let _ = action_tx.send(action);
             }
         });
 

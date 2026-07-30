@@ -21,4 +21,4 @@ pub use config::{Alias, HarvConfig};
 pub use project_config::{NoteTemplate, PROJECT_CONFIG_FILENAME, ProjectConfig};
 pub use resolved_config::ResolvedConfig;
 pub use template::TemplateContext;
-pub use timer_sync::TimerPoller;
+pub use timer_sync::{TimerPollUpdate, TimerPoller};
