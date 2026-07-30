@@ -283,9 +283,10 @@ impl App {
         self.session_last_used = Some((project_id, task_id));
 
         let mut config = self.client.config().clone();
-        config.set_last_used(project_id, task_id);
         tokio::spawn(async move {
-            let _ = config.save().await;
+            if let Err(error) = config.save_last_used(project_id, task_id).await {
+                tracing::debug!(%error, "failed to persist last used project and task");
+            }
         });
     }
 
