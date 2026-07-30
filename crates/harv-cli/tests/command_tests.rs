@@ -8,6 +8,12 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 
 static ENV_MUTEX: Mutex<()> = Mutex::const_new(());
 
+fn test_harv_dir(tmp: &tempfile::TempDir) -> std::path::PathBuf {
+    let config_dir = tmp.path().join(".config");
+    unsafe { std::env::set_var("HARV_CONFIG_DIR", &config_dir) };
+    config_dir.join("harv")
+}
+
 fn ensure_locale() {
     harv_core::init_locale(None);
 }
@@ -247,8 +253,7 @@ async fn test_config_execute_no_file() {
     let _guard = ENV_MUTEX.lock().await;
     ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
-    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
-    unsafe { std::env::set_var("HOME", tmp.path()) };
+    let _harv_dir = test_harv_dir(&tmp);
     commands::config_cmd::execute(&harv_cli::ConfigArgs { action: None })
         .await
         .unwrap();
@@ -259,9 +264,7 @@ async fn test_config_show_with_file() {
     let _guard = ENV_MUTEX.lock().await;
     ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
-    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
-    unsafe { std::env::set_var("HOME", tmp.path()) };
-    let harv_dir = tmp.path().join(".config").join("harv");
+    let harv_dir = test_harv_dir(&tmp);
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
         harv_dir.join("config.toml"),
@@ -281,9 +284,7 @@ async fn test_config_get_cache_ttl() {
     let _guard = ENV_MUTEX.lock().await;
     ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
-    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
-    unsafe { std::env::set_var("HOME", tmp.path()) };
-    let harv_dir = tmp.path().join(".config").join("harv");
+    let harv_dir = test_harv_dir(&tmp);
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
         harv_dir.join("config.toml"),
@@ -307,9 +308,7 @@ async fn test_config_get_invalid() {
     let _guard = ENV_MUTEX.lock().await;
     ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
-    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
-    unsafe { std::env::set_var("HOME", tmp.path()) };
-    let harv_dir = tmp.path().join(".config").join("harv");
+    let harv_dir = test_harv_dir(&tmp);
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
         harv_dir.join("config.toml"),
@@ -332,9 +331,7 @@ async fn test_config_set_cache_ttl() {
     let _guard = ENV_MUTEX.lock().await;
     ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
-    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
-    unsafe { std::env::set_var("HOME", tmp.path()) };
-    let harv_dir = tmp.path().join(".config").join("harv");
+    let harv_dir = test_harv_dir(&tmp);
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
         harv_dir.join("config.toml"),
@@ -361,9 +358,7 @@ async fn test_config_set_invalid() {
     let _guard = ENV_MUTEX.lock().await;
     ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
-    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
-    unsafe { std::env::set_var("HOME", tmp.path()) };
-    let harv_dir = tmp.path().join(".config").join("harv");
+    let harv_dir = test_harv_dir(&tmp);
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
         harv_dir.join("config.toml"),
@@ -389,8 +384,7 @@ async fn test_track_with_ids() {
     let _guard = ENV_MUTEX.lock().await;
     ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
-    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
-    unsafe { std::env::set_var("HOME", tmp.path()) };
+    let _harv_dir = test_harv_dir(&tmp);
     let server = MockServer::start().await;
     let c = client(&server.uri());
 
@@ -426,9 +420,7 @@ async fn test_track_with_last_used_auto_task() {
     let _guard = ENV_MUTEX.lock().await;
     ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
-    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
-    unsafe { std::env::set_var("HOME", tmp.path()) };
-    let harv_dir = tmp.path().join(".config").join("harv");
+    let harv_dir = test_harv_dir(&tmp);
     std::fs::create_dir_all(&harv_dir).unwrap();
 
     let server = MockServer::start().await;
@@ -466,9 +458,7 @@ async fn test_track_no_project_assignments() {
     let _guard = ENV_MUTEX.lock().await;
     ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
-    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
-    unsafe { std::env::set_var("HOME", tmp.path()) };
-    let harv_dir = tmp.path().join(".config").join("harv");
+    let harv_dir = test_harv_dir(&tmp);
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
         harv_dir.join("config.toml"),
@@ -504,9 +494,7 @@ async fn test_track_alias_not_found() {
     let _guard = ENV_MUTEX.lock().await;
     ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
-    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
-    unsafe { std::env::set_var("HOME", tmp.path()) };
-    let harv_dir = tmp.path().join(".config").join("harv");
+    let harv_dir = test_harv_dir(&tmp);
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
         harv_dir.join("config.toml"),
@@ -595,9 +583,7 @@ async fn test_alias_list_empty() {
     let _guard = ENV_MUTEX.lock().await;
     ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
-    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
-    unsafe { std::env::set_var("HOME", tmp.path()) };
-    let harv_dir = tmp.path().join(".config").join("harv");
+    let harv_dir = test_harv_dir(&tmp);
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
         harv_dir.join("config.toml"),
@@ -617,9 +603,7 @@ async fn test_alias_delete_not_found() {
     let _guard = ENV_MUTEX.lock().await;
     ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
-    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
-    unsafe { std::env::set_var("HOME", tmp.path()) };
-    let harv_dir = tmp.path().join(".config").join("harv");
+    let harv_dir = test_harv_dir(&tmp);
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
         harv_dir.join("config.toml"),
@@ -958,8 +942,7 @@ async fn test_disconnect_no_config() {
     let _guard = ENV_MUTEX.lock().await;
     ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
-    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
-    unsafe { std::env::set_var("HOME", tmp.path()) };
+    let _harv_dir = test_harv_dir(&tmp);
 
     commands::disconnect::run().await.unwrap();
 }
@@ -969,10 +952,7 @@ async fn test_disconnect_with_config() {
     let _guard = ENV_MUTEX.lock().await;
     ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
-    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
-    unsafe { std::env::set_var("HOME", tmp.path()) };
-
-    let harv_dir = tmp.path().join(".config").join("harv");
+    let harv_dir = test_harv_dir(&tmp);
     std::fs::create_dir_all(&harv_dir).unwrap();
     let config_path = harv_dir.join("config.toml");
     std::fs::write(
@@ -1253,9 +1233,7 @@ async fn test_config_get_locale() {
     let _guard = ENV_MUTEX.lock().await;
     ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
-    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
-    unsafe { std::env::set_var("HOME", tmp.path()) };
-    let harv_dir = tmp.path().join(".config").join("harv");
+    let harv_dir = test_harv_dir(&tmp);
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
         harv_dir.join("config.toml"),
@@ -1279,9 +1257,7 @@ async fn test_config_get_account_id() {
     let _guard = ENV_MUTEX.lock().await;
     ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
-    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
-    unsafe { std::env::set_var("HOME", tmp.path()) };
-    let harv_dir = tmp.path().join(".config").join("harv");
+    let harv_dir = test_harv_dir(&tmp);
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
         harv_dir.join("config.toml"),
@@ -1304,9 +1280,7 @@ async fn test_config_get_aliases_empty() {
     let _guard = ENV_MUTEX.lock().await;
     ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
-    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
-    unsafe { std::env::set_var("HOME", tmp.path()) };
-    let harv_dir = tmp.path().join(".config").join("harv");
+    let harv_dir = test_harv_dir(&tmp);
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
         harv_dir.join("config.toml"),
@@ -1329,9 +1303,7 @@ async fn test_config_set_locale_valid() {
     let _guard = ENV_MUTEX.lock().await;
     ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
-    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
-    unsafe { std::env::set_var("HOME", tmp.path()) };
-    let harv_dir = tmp.path().join(".config").join("harv");
+    let harv_dir = test_harv_dir(&tmp);
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
         harv_dir.join("config.toml"),
@@ -1358,9 +1330,7 @@ async fn test_config_set_locale_auto() {
     let _guard = ENV_MUTEX.lock().await;
     ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
-    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
-    unsafe { std::env::set_var("HOME", tmp.path()) };
-    let harv_dir = tmp.path().join(".config").join("harv");
+    let harv_dir = test_harv_dir(&tmp);
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
         harv_dir.join("config.toml"),
@@ -1388,9 +1358,7 @@ async fn test_config_set_locale_invalid() {
     let _guard = ENV_MUTEX.lock().await;
     ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
-    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
-    unsafe { std::env::set_var("HOME", tmp.path()) };
-    let harv_dir = tmp.path().join(".config").join("harv");
+    let harv_dir = test_harv_dir(&tmp);
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
         harv_dir.join("config.toml"),
@@ -1414,9 +1382,7 @@ async fn test_config_set_cache_ttl_invalid() {
     let _guard = ENV_MUTEX.lock().await;
     ensure_locale();
     let tmp = tempfile::tempdir().unwrap();
-    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
-    unsafe { std::env::set_var("HOME", tmp.path()) };
-    let harv_dir = tmp.path().join(".config").join("harv");
+    let harv_dir = test_harv_dir(&tmp);
     std::fs::create_dir_all(&harv_dir).unwrap();
     std::fs::write(
         harv_dir.join("config.toml"),

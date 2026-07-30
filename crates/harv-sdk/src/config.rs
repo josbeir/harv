@@ -118,8 +118,12 @@ impl HarvConfig {
     }
 
     /// Returns the path to the config file: `~/.config/harv/config.toml`.
+    ///
+    /// `HARV_CONFIG_DIR` overrides the platform config directory when set.
     pub fn path() -> PathBuf {
-        dirs::config_dir()
+        std::env::var_os("HARV_CONFIG_DIR")
+            .map(PathBuf::from)
+            .or_else(dirs::config_dir)
             .unwrap_or_else(|| PathBuf::from("."))
             .join("harv")
             .join("config.toml")
@@ -168,6 +172,10 @@ mod tests {
 
     static ENV_MUTEX: Mutex<()> = Mutex::const_new(());
 
+    fn set_test_config_dir(dir: &std::path::Path) {
+        unsafe { std::env::set_var("HARV_CONFIG_DIR", dir.join(".config")) };
+    }
+
     fn test_config() -> HarvConfig {
         HarvConfig {
             access_token: "test-token".into(),
@@ -185,8 +193,7 @@ mod tests {
     async fn test_load_nonexistent() {
         let _guard = ENV_MUTEX.lock().await;
         let dir = tempdir().unwrap();
-        unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
-        unsafe { std::env::set_var("HOME", dir.path()) };
+        set_test_config_dir(dir.path());
         let _ = dirs::config_dir();
 
         let path = HarvConfig::path();
@@ -278,11 +285,21 @@ account_id = "1"
     }
 
     #[tokio::test]
+    async fn test_path_uses_config_dir_override() {
+        let _guard = ENV_MUTEX.lock().await;
+        let dir = tempdir().unwrap();
+        set_test_config_dir(dir.path());
+        assert_eq!(
+            HarvConfig::path(),
+            dir.path().join(".config").join("harv").join("config.toml")
+        );
+    }
+
+    #[tokio::test]
     async fn test_save_load_with_tempdir() {
         let _guard = ENV_MUTEX.lock().await;
         let tmp = tempdir().unwrap();
-        unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
-        unsafe { std::env::set_var("HOME", tmp.path()) };
+        set_test_config_dir(tmp.path());
         let harv_dir = tmp.path().join(".config").join("harv");
         std::fs::create_dir_all(&harv_dir).unwrap();
 
@@ -298,8 +315,7 @@ account_id = "1"
     async fn test_save_set_and_remove_alias() {
         let _guard = ENV_MUTEX.lock().await;
         let tmp = tempdir().unwrap();
-        unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
-        unsafe { std::env::set_var("HOME", tmp.path()) };
+        set_test_config_dir(tmp.path());
         let harv_dir = tmp.path().join(".config").join("harv");
         std::fs::create_dir_all(&harv_dir).unwrap();
 
@@ -329,8 +345,7 @@ account_id = "1"
     async fn test_load_malformed_config() {
         let _guard = ENV_MUTEX.lock().await;
         let tmp = tempdir().unwrap();
-        unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
-        unsafe { std::env::set_var("HOME", tmp.path()) };
+        set_test_config_dir(tmp.path());
         let harv_dir = tmp.path().join(".config").join("harv");
         std::fs::create_dir_all(&harv_dir).unwrap();
         std::fs::write(harv_dir.join("config.toml"), "not valid toml = = =").unwrap();
