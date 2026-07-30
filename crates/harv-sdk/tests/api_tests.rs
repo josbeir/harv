@@ -15,6 +15,28 @@ fn json_response(body: serde_json::Value) -> ResponseTemplate {
 }
 
 #[tokio::test]
+async fn test_rate_limit_includes_retry_after() {
+    let server = MockServer::start().await;
+    let client = HarvClient::new(test_config())
+        .unwrap()
+        .with_base_url(&server.uri());
+
+    Mock::given(method("GET"))
+        .and(path("/time_entries"))
+        .respond_with(ResponseTemplate::new(429).insert_header("Retry-After", "17"))
+        .mount(&server)
+        .await;
+
+    let error = client.time_entries().running(1).await.unwrap_err();
+    assert!(matches!(
+        error,
+        harv_core::HarvError::RateLimited {
+            retry_after_secs: Some(17)
+        }
+    ));
+}
+
+#[tokio::test]
 async fn test_time_entries_list() {
     let server = MockServer::start().await;
     let client = HarvClient::new(test_config())

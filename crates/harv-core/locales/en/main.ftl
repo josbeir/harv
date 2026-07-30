@@ -4,6 +4,7 @@ err-config-not-found = Config file not found. Run `harv connect` to log in to yo
 err-config-malformed = Config file is malformed: { $msg }
 err-http = HTTP error: { $msg }
 err-api = Harvest API returned error ({ $status }): { $message }
+err-rate-limited = Harvest API is temporarily rate limited. Please try again shortly.
 err-io = IO error: { $msg }
 err-invalid-date = Invalid date: { $msg }
 err-invalid-time = Invalid time: { $msg }

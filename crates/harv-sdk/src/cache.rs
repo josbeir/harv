@@ -225,12 +225,9 @@ impl ProjectsCache {
 
     async fn save(&self, account_id: &str) -> Result<(), HarvError> {
         let path = Self::path(account_id);
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).await?;
-        }
         let bytes =
             rmp_serde::to_vec_named(self).map_err(|e| HarvError::ConfigMalformed(e.to_string()))?;
-        fs::write(&path, bytes).await?;
+        crate::storage::atomic_write(&path, bytes).await?;
         // Clean up legacy JSON after successful save
         Self::remove_legacy(account_id).await;
         Ok(())

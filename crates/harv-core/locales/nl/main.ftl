@@ -4,6 +4,7 @@ err-config-not-found = Configuratiebestand niet gevonden. Voer `harv connect` ui
 err-config-malformed = Configuratiebestand is ongeldig: { $msg }
 err-http = HTTP-fout: { $msg }
 err-api = Harvest API retourneerde een fout ({ $status }): { $message }
+err-rate-limited = De Harvest API is tijdelijk beperkt. Probeer het binnenkort opnieuw.
 err-io = IO-fout: { $msg }
 err-invalid-date = Ongeldige datum: { $msg }
 err-invalid-time = Ongeldige tijd: { $msg }

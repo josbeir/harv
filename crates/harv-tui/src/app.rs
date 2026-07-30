@@ -7,7 +7,7 @@ use crossterm::execute;
 use crossterm::terminal::SetTitle;
 use futures_util::StreamExt;
 use harv_core::CreateTimeEntry;
-use harv_sdk::{HarvClient, ResolvedConfig};
+use harv_sdk::{HarvClient, ResolvedConfig, TimerPollUpdate, TimerPoller};
 use ratatui::Frame;
 use ratatui::crossterm::event::{Event, KeyCode, KeyEventKind};
 use ratatui::layout::Alignment;
@@ -41,6 +41,7 @@ pub struct App {
     project_codes: HashMap<u64, String>,
     resolved_config: ResolvedConfig,
     update_available: Option<(String, String)>,
+    timer_poller: Option<TimerPoller>,
 }
 
 impl App {
@@ -60,6 +61,7 @@ impl App {
             project_codes: HashMap::new(),
             resolved_config,
             update_available: None,
+            timer_poller: None,
         }
     }
 
@@ -225,20 +227,17 @@ impl App {
         self.user_id = user.id;
         self.user_name = Some(format!("{} {}", user.first_name, user.last_name));
 
-        let poll_client = Arc::clone(&self.client);
-        let poll_tx = tx.clone();
-        let poll_user_id = user.id;
+        let (poll_tx, mut poll_rx) = mpsc::unbounded_channel();
+        self.timer_poller = Some(TimerPoller::start((*self.client).clone(), user.id, poll_tx));
+
+        let action_tx = tx.clone();
         tokio::spawn(async move {
-            loop {
-                match poll_client.time_entries().running(poll_user_id).await {
-                    Ok(entries) => {
-                        let _ = poll_tx.send(Action::TimerUpdate(entries));
-                    }
-                    Err(e) => {
-                        let _ = poll_tx.send(Action::Error(e.user_message()));
-                    }
-                }
-                tokio::time::sleep(Duration::from_secs(2)).await;
+            while let Some(update) = poll_rx.recv().await {
+                let action = match update {
+                    TimerPollUpdate::Entries(entries) => Action::TimerUpdate(entries),
+                    TimerPollUpdate::Error(error) => Action::Error(error.user_message()),
+                };
+                let _ = action_tx.send(action);
             }
         });
 
@@ -1060,15 +1059,15 @@ async fn watch_theme_changes(tx: tokio::sync::mpsc::UnboundedSender<Action>) {
         let mut current = dark_light::detect().unwrap_or(dark_light::Mode::Dark);
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-            if let Ok(detected) = dark_light::detect() {
-                if detected != current {
-                    current = detected;
-                    let mode = match current {
-                        dark_light::Mode::Dark => ThemeMode::Dark,
-                        dark_light::Mode::Light | dark_light::Mode::Unspecified => ThemeMode::Light,
-                    };
-                    let _ = tx.send(Action::ThemeChanged(mode));
-                }
+            if let Ok(detected) = dark_light::detect()
+                && detected != current
+            {
+                current = detected;
+                let mode = match current {
+                    dark_light::Mode::Dark => ThemeMode::Dark,
+                    dark_light::Mode::Light | dark_light::Mode::Unspecified => ThemeMode::Light,
+                };
+                let _ = tx.send(Action::ThemeChanged(mode));
             }
         }
     }

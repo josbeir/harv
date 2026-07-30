@@ -4,6 +4,7 @@ err-config-not-found = File di configurazione non trovato. Esegui `harv connect`
 err-config-malformed = Il file di configurazione non è valido: { $msg }
 err-http = Errore HTTP: { $msg }
 err-api = L'API Harvest ha restituito un errore ({ $status }): { $message }
+err-rate-limited = L’API Harvest è temporaneamente soggetta a limitazione. Riprova tra poco.
 err-io = Errore I/O: { $msg }
 err-invalid-date = Data non valida: { $msg }
 err-invalid-time = Ora non valida: { $msg }

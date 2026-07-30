@@ -1,6 +1,8 @@
 use crate::config::HarvConfig;
 use harv_core::HarvError;
-use reqwest::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue, USER_AGENT};
+use reqwest::header::{
+    ACCEPT, AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue, RETRY_AFTER, USER_AGENT,
+};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
@@ -161,6 +163,10 @@ impl HarvClient {
 
         if response.status().is_success() {
             Ok(())
+        } else if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            Err(HarvError::RateLimited {
+                retry_after_secs: retry_after(&response),
+            })
         } else {
             let status = response.status().as_u16();
             let body = response.text().await.unwrap_or_default();
@@ -185,6 +191,10 @@ impl HarvClient {
             let body = response.text().await.unwrap_or_default();
             tracing::debug!("401 Unauthorized: {}", body);
             Err(HarvError::NotAuthenticated)
+        } else if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            Err(HarvError::RateLimited {
+                retry_after_secs: retry_after(&response),
+            })
         } else {
             let body = response.text().await.unwrap_or_default();
             Err(HarvError::Api {
@@ -219,4 +229,12 @@ impl HarvClient {
     pub fn users(&self) -> UsersApi<'_> {
         UsersApi::new(self)
     }
+}
+
+fn retry_after(response: &reqwest::Response) -> Option<u64> {
+    response
+        .headers()
+        .get(RETRY_AFTER)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse().ok())
 }
