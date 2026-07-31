@@ -4,6 +4,7 @@ use harv_core::{ProjectAssignment, TimeEntry, User};
 use crate::theme::ThemeMode;
 
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum Action {
     Quit,
     Tick,

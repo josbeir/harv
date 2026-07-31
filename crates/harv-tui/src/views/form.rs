@@ -616,7 +616,7 @@ fn render_textarea_field(
 }
 
 impl TimeEntryForm {
-    pub fn is_loading(&self) -> bool {
+    pub(crate) fn is_loading(&self) -> bool {
         self.assignments_loading || self.tasks_loading
     }
 

@@ -542,7 +542,7 @@ impl Dashboard {
         self.running_entry.is_some()
     }
 
-    pub fn is_loaded(&self) -> bool {
+    pub(crate) fn is_loaded(&self) -> bool {
         self.loaded
     }
 
