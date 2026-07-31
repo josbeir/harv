@@ -52,15 +52,16 @@ fn parse_page<T: DeserializeOwned>(
 ) -> Result<(Vec<T>, u64), HarvError> {
     let items = response
         .get_mut(items_key)
-        .ok_or_else(|| HarvError::Other(format!("Harvest response missing `{items_key}`")))?
+        .ok_or_else(|| HarvError::InvalidApiResponse(format!("missing `{items_key}`")))?
         .take();
-    let items = serde_json::from_value(items)
-        .map_err(|error| HarvError::Other(format!("Unable to parse `{items_key}`: {error}")))?;
+    let items = serde_json::from_value(items).map_err(|error| {
+        HarvError::InvalidApiResponse(format!("unable to parse `{items_key}`: {error}"))
+    })?;
     let total_pages = response
         .get("total_pages")
         .and_then(serde_json::Value::as_u64)
         .filter(|pages| *pages > 0)
-        .ok_or_else(|| HarvError::Other("Harvest response has an invalid `total_pages`".into()))?;
+        .ok_or_else(|| HarvError::InvalidApiResponse("invalid `total_pages`".into()))?;
 
     Ok((items, total_pages))
 }
@@ -125,6 +126,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::parse_page;
+    use harv_core::HarvError;
 
     #[test]
     fn parses_valid_page() {
@@ -137,30 +139,31 @@ mod tests {
 
     #[test]
     fn rejects_missing_or_malformed_items() {
-        assert!(
-            parse_page::<serde_json::Value>(serde_json::json!({"total_pages": 1}), "items")
-                .is_err()
-        );
-        assert!(
+        assert!(matches!(
+            parse_page::<serde_json::Value>(serde_json::json!({"total_pages": 1}), "items"),
+            Err(HarvError::InvalidApiResponse(_))
+        ));
+        assert!(matches!(
             parse_page::<u64>(
                 serde_json::json!({"items": "bad", "total_pages": 1}),
                 "items"
-            )
-            .is_err()
-        );
+            ),
+            Err(HarvError::InvalidApiResponse(_))
+        ));
     }
 
     #[test]
     fn rejects_missing_or_invalid_total_pages() {
-        assert!(
-            parse_page::<serde_json::Value>(serde_json::json!({"items": []}), "items").is_err()
-        );
-        assert!(
+        assert!(matches!(
+            parse_page::<serde_json::Value>(serde_json::json!({"items": []}), "items"),
+            Err(HarvError::InvalidApiResponse(_))
+        ));
+        assert!(matches!(
             parse_page::<serde_json::Value>(
                 serde_json::json!({"items": [], "total_pages": 0}),
                 "items"
-            )
-            .is_err()
-        );
+            ),
+            Err(HarvError::InvalidApiResponse(_))
+        ));
     }
 }

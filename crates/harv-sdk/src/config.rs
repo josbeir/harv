@@ -168,9 +168,6 @@ impl HarvConfig {
 mod tests {
     use super::*;
     use tempfile::tempdir;
-    use tokio::sync::Mutex;
-
-    static ENV_MUTEX: Mutex<()> = Mutex::const_new(());
 
     fn set_test_config_dir(dir: &std::path::Path) {
         unsafe { std::env::set_var("HARV_CONFIG_DIR", dir.join(".config")) };
@@ -191,7 +188,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_load_nonexistent() {
-        let _guard = ENV_MUTEX.lock().await;
+        let _guard = crate::TEST_PROCESS_MUTEX.lock().await;
         let dir = tempdir().unwrap();
         set_test_config_dir(dir.path());
         let _ = dirs::config_dir();
@@ -277,8 +274,9 @@ account_id = "1"
         assert!(config.aliases.is_empty());
     }
 
-    #[test]
-    fn test_path_ends_with_config_toml() {
+    #[tokio::test]
+    async fn test_path_ends_with_config_toml() {
+        let _guard = crate::TEST_PROCESS_MUTEX.lock().await;
         let path = HarvConfig::path();
         assert!(path.to_string_lossy().contains("harv"));
         assert!(path.ends_with("config.toml"));
@@ -286,7 +284,7 @@ account_id = "1"
 
     #[tokio::test]
     async fn test_path_uses_config_dir_override() {
-        let _guard = ENV_MUTEX.lock().await;
+        let _guard = crate::TEST_PROCESS_MUTEX.lock().await;
         let dir = tempdir().unwrap();
         set_test_config_dir(dir.path());
         assert_eq!(
@@ -297,7 +295,7 @@ account_id = "1"
 
     #[tokio::test]
     async fn test_save_load_with_tempdir() {
-        let _guard = ENV_MUTEX.lock().await;
+        let _guard = crate::TEST_PROCESS_MUTEX.lock().await;
         let tmp = tempdir().unwrap();
         set_test_config_dir(tmp.path());
         let harv_dir = tmp.path().join(".config").join("harv");
@@ -313,7 +311,7 @@ account_id = "1"
 
     #[tokio::test]
     async fn test_save_set_and_remove_alias() {
-        let _guard = ENV_MUTEX.lock().await;
+        let _guard = crate::TEST_PROCESS_MUTEX.lock().await;
         let tmp = tempdir().unwrap();
         set_test_config_dir(tmp.path());
         let harv_dir = tmp.path().join(".config").join("harv");
@@ -343,7 +341,7 @@ account_id = "1"
 
     #[tokio::test]
     async fn test_load_malformed_config() {
-        let _guard = ENV_MUTEX.lock().await;
+        let _guard = crate::TEST_PROCESS_MUTEX.lock().await;
         let tmp = tempdir().unwrap();
         set_test_config_dir(tmp.path());
         let harv_dir = tmp.path().join(".config").join("harv");
