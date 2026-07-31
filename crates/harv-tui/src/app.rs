@@ -182,7 +182,7 @@ impl App {
         for task in background_tasks {
             task.abort();
         }
-        self.cancel_dashboard_request();
+        drop(self.cancel_dashboard_request());
         self.timer_poller = None;
         result
     }
@@ -719,10 +719,10 @@ impl App {
         }
     }
 
-    fn cancel_dashboard_request(&mut self) {
-        if let Some(request) = self.dashboard_request.take() {
-            request.abort();
-        }
+    fn cancel_dashboard_request(&mut self) -> Option<JoinHandle<()>> {
+        let request = self.dashboard_request.take()?;
+        request.abort();
+        Some(request)
     }
 
     fn fetch_dashboard_data(
@@ -739,7 +739,7 @@ impl App {
         let client = Arc::clone(&self.client);
         let tx = tx.clone();
 
-        self.cancel_dashboard_request();
+        drop(self.cancel_dashboard_request());
         self.dashboard_request = Some(tokio::spawn(async move {
             use harv_sdk::resources::time_entries::TimeEntryListParams;
 
@@ -808,7 +808,7 @@ impl App {
         let client = Arc::clone(&self.client);
         let tx = tx.clone();
 
-        self.cancel_dashboard_request();
+        drop(self.cancel_dashboard_request());
         self.dashboard_request = Some(tokio::spawn(async move {
             use harv_sdk::resources::time_entries::TimeEntryListParams;
 
@@ -1027,7 +1027,7 @@ impl App {
 
 impl Drop for App {
     fn drop(&mut self) {
-        self.cancel_dashboard_request();
+        drop(self.cancel_dashboard_request());
     }
 }
 
@@ -1414,7 +1414,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_fetch_entries_cancels_the_previous_request() {
+    async fn test_cancel_dashboard_request_aborts_in_flight_request() {
         let (mut app, server) = make_app_with_server().await;
         let (tx, _rx) = make_channel();
         app.set_user_id(1);
@@ -1430,15 +1430,14 @@ mod tests {
             .await;
 
         app.fetch_entries(&tx, date);
-        let first_request = app
-            .dashboard_request
-            .as_ref()
-            .expect("fetch should start a request")
-            .abort_handle();
-        app.fetch_entries(&tx, date.succ_opt().unwrap());
-        tokio::task::yield_now().await;
+        let cancelled_request = app
+            .cancel_dashboard_request()
+            .expect("fetch should start a request");
+        let error = cancelled_request
+            .await
+            .expect_err("aborted request should not complete successfully");
 
-        assert!(first_request.is_finished());
+        assert!(error.is_cancelled());
     }
 
     #[tokio::test]
