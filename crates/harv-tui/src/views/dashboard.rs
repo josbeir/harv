@@ -542,6 +542,10 @@ impl Dashboard {
         self.running_entry.is_some()
     }
 
+    pub(crate) fn is_loaded(&self) -> bool {
+        self.loaded
+    }
+
     #[doc(hidden)]
     pub fn set_loaded(&mut self, v: bool) {
         self.loaded = v;

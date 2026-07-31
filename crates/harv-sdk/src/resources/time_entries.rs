@@ -1,4 +1,4 @@
-use crate::client::HarvClient;
+use crate::{client::HarvClient, pagination};
 use harv_core::{CreateTimeEntry, TimeEntry, UpdateTimeEntry};
 
 /// Parameters for listing time entries.
@@ -9,7 +9,6 @@ pub struct TimeEntryListParams {
     pub is_running: Option<bool>,
     pub from: Option<chrono::NaiveDate>,
     pub to: Option<chrono::NaiveDate>,
-    pub page: Option<u64>,
 }
 
 impl TimeEntryListParams {
@@ -29,9 +28,6 @@ impl TimeEntryListParams {
         }
         if let Some(v) = self.to {
             params.push(("to", v.format("%Y-%m-%d").to_string()));
-        }
-        if let Some(v) = self.page {
-            params.push(("page", v.to_string()));
         }
         params
     }
@@ -59,15 +55,7 @@ impl<'c> TimeEntriesApi<'c> {
         let query: Vec<(&str, String)> = params.to_query();
         let query_refs: Vec<(&str, &str)> = query.iter().map(|(k, v)| (*k, v.as_str())).collect();
 
-        // Use the paginated endpoint
-        let response: serde_json::Value = self.client.get("/time_entries", &query_refs).await?;
-
-        let entries: Vec<TimeEntry> = response
-            .get("time_entries")
-            .and_then(|v| serde_json::from_value(v.clone()).ok())
-            .unwrap_or_default();
-
-        Ok(entries)
+        pagination::fetch_all_pages(self.client, "/time_entries", &query_refs, "time_entries").await
     }
 
     /// Retrieve a single time entry by ID.
@@ -154,9 +142,8 @@ mod tests {
             is_running: Some(false),
             from: Some(NaiveDate::from_ymd_opt(2026, 6, 1).unwrap()),
             to: Some(NaiveDate::from_ymd_opt(2026, 6, 8).unwrap()),
-            page: Some(1),
         };
         let query = params.to_query();
-        assert_eq!(query.len(), 6);
+        assert_eq!(query.len(), 5);
     }
 }

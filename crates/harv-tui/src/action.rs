@@ -4,16 +4,19 @@ use harv_core::{ProjectAssignment, TimeEntry, User};
 use crate::theme::ThemeMode;
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 #[non_exhaustive]
 pub enum Action {
     Quit,
     Tick,
-    SwitchView(ViewId),
+    CloseForm,
     Refresh,
     RefreshEntries,
     TimerUpdate(Vec<TimeEntry>),
-    TodayEntriesUpdate(Vec<TimeEntry>, f64, usize),
+    TodayEntriesUpdate {
+        date: NaiveDate,
+        entries: Vec<TimeEntry>,
+        project_count: usize,
+    },
     UserLoaded(User),
     NavigateDayPrev,
     NavigateDayNext,
@@ -33,6 +36,10 @@ pub enum Action {
         is_running: bool,
     },
     FormAssignmentsUpdate(Vec<ProjectAssignment>),
+    RememberLastUsed {
+        project_id: u64,
+        task_id: u64,
+    },
     CreateEntry {
         project_id: u64,
         task_id: u64,
@@ -82,11 +89,6 @@ pub enum FormMode {
     Edit,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ViewId {
-    Dashboard,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -96,11 +98,6 @@ mod tests {
         assert_eq!(FormMode::Start, FormMode::Start);
         assert_ne!(FormMode::Start, FormMode::Create);
         assert_ne!(FormMode::Create, FormMode::Edit);
-    }
-
-    #[test]
-    fn test_view_id_equality() {
-        assert_eq!(ViewId::Dashboard, ViewId::Dashboard);
     }
 
     #[test]
