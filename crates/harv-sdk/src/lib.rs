@@ -15,6 +15,9 @@ pub mod updater;
 
 mod storage;
 
+#[cfg(test)]
+pub(crate) static TEST_PROCESS_MUTEX: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 pub use cache::clear_cache;
 pub use client::HarvClient;
 pub use config::{Alias, HarvConfig};

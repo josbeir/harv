@@ -127,9 +127,6 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
     use tempfile::TempDir;
-    use tokio::sync::Mutex;
-
-    static ENV_MUTEX: Mutex<()> = Mutex::const_new(());
 
     fn sample_config_toml() -> String {
         r#"default_project_id = 12345
@@ -151,7 +148,7 @@ pattern = "Daily standup — {date} — Branch: {branch_name}"
     }
 
     /// Helper to set CWD for discovery tests. Must be called within
-    /// an ENV_MUTEX-guarded context.
+    /// the workspace test-process lock.
     fn set_cwd(dir: &TempDir) {
         std::env::set_current_dir(dir.path()).unwrap();
     }
@@ -355,7 +352,7 @@ pattern = "Daily standup — {date} — Branch: {branch_name}"
 
     #[tokio::test]
     async fn test_discover_finds_in_cwd() {
-        let _guard = ENV_MUTEX.lock().await;
+        let _guard = crate::TEST_PROCESS_MUTEX.lock().await;
         let dir = tempfile::tempdir().unwrap();
         write_harv_toml(&dir, "default_project_id = 7\n").await;
         with_temp_cwd(&dir, async {
@@ -368,7 +365,7 @@ pattern = "Daily standup — {date} — Branch: {branch_name}"
 
     #[tokio::test]
     async fn test_discover_walks_up() {
-        let _guard = ENV_MUTEX.lock().await;
+        let _guard = crate::TEST_PROCESS_MUTEX.lock().await;
         let dir = tempfile::tempdir().unwrap();
         write_harv_toml(&dir, "default_project_id = 7\n").await;
 
@@ -382,7 +379,7 @@ pattern = "Daily standup — {date} — Branch: {branch_name}"
 
     #[tokio::test]
     async fn test_discover_returns_none_when_not_found() {
-        let _guard = ENV_MUTEX.lock().await;
+        let _guard = crate::TEST_PROCESS_MUTEX.lock().await;
         let dir = tempfile::tempdir().unwrap();
         with_temp_cwd(&dir, async {
             let found = ProjectConfig::discover().await.unwrap();
@@ -408,7 +405,7 @@ pattern = "Daily standup — {date} — Branch: {branch_name}"
 
     #[tokio::test]
     async fn test_discover_stops_at_root() {
-        let _guard = ENV_MUTEX.lock().await;
+        let _guard = crate::TEST_PROCESS_MUTEX.lock().await;
         // Create a temp dir that has no harv.toml anywhere up to root.
         // But we can't put harv.toml at /. So just test that we don't
         // infinite-loop by starting from root.
@@ -418,7 +415,7 @@ pattern = "Daily standup — {date} — Branch: {branch_name}"
 
     #[tokio::test]
     async fn test_discover_uses_nearest_config() {
-        let _guard = ENV_MUTEX.lock().await;
+        let _guard = crate::TEST_PROCESS_MUTEX.lock().await;
         let dir = tempfile::tempdir().unwrap();
         write_harv_toml(&dir, "default_project_id = 1\n").await;
 

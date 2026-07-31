@@ -17,6 +17,7 @@ use ratatui::symbols::merge::MergeStrategy;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 use tokio::sync::mpsc::{self, UnboundedSender};
+use tokio::task::JoinHandle;
 
 use crate::action::Action;
 use crate::theme::{Theme, ThemeMode};
@@ -43,6 +44,7 @@ pub struct App {
     session_last_used: Option<(u64, u64)>,
     update_available: Option<(String, String)>,
     timer_poller: Option<TimerPoller>,
+    dashboard_request: Option<JoinHandle<()>>,
 }
 
 impl App {
@@ -64,6 +66,7 @@ impl App {
             session_last_used: None,
             update_available: None,
             timer_poller: None,
+            dashboard_request: None,
         }
     }
 
@@ -106,12 +109,13 @@ impl App {
         let mut terminal = tui::terminal()?;
         self.update_window_title();
         let (action_tx, mut action_rx) = mpsc::unbounded_channel();
+        let mut background_tasks = Vec::with_capacity(4);
 
         // Fetch user info asynchronously — dashboard shows loading animation
         {
             let client = Arc::clone(&self.client);
             let tx = action_tx.clone();
-            tokio::spawn(async move {
+            background_tasks.push(tokio::spawn(async move {
                 match client.users().me().await {
                     Ok(user) => {
                         let _ = tx.send(Action::UserLoaded(user));
@@ -120,12 +124,12 @@ impl App {
                         let _ = tx.send(Action::Error(e.user_message()));
                     }
                 }
-            });
+            }));
         }
 
         if self.client.config().check_updates() {
             let tx = action_tx.clone();
-            tokio::spawn(async move {
+            background_tasks.push(tokio::spawn(async move {
                 if let Some(info) =
                     harv_sdk::updater::check_for_update(env!("CARGO_PKG_VERSION")).await
                 {
@@ -134,32 +138,32 @@ impl App {
                         url: info.url,
                     });
                 }
-            });
+            }));
         }
 
         let tick_tx = action_tx.clone();
-        tokio::spawn(async move {
+        background_tasks.push(tokio::spawn(async move {
             loop {
                 tokio::time::sleep(Duration::from_millis(80)).await;
                 let _ = tick_tx.send(Action::Tick);
             }
-        });
+        }));
 
         // Spawn OS theme change watcher
         let theme_tx = action_tx.clone();
-        tokio::spawn(async move {
+        background_tasks.push(tokio::spawn(async move {
             watch_theme_changes(theme_tx).await;
-        });
+        }));
 
         let mut reader = tui::event_stream();
 
-        loop {
+        let result = 'event_loop: loop {
             let should_render = tokio::select! {
                 Some(Ok(event)) = reader.next() => {
                     let actions = self.handle_event(event);
                     for action in actions {
                         if matches!(action, Action::Quit) {
-                            return Ok(());
+                            break 'event_loop Ok(());
                         }
                         self.dispatch(action, &action_tx);
                     }
@@ -171,10 +175,16 @@ impl App {
                     !is_tick || self.should_animate()
                 }
             };
-            if should_render {
-                terminal.draw(|f| self.render(f))?;
+            if should_render && let Err(error) = terminal.draw(|f| self.render(f)) {
+                break Err(error.into());
             }
+        };
+        for task in background_tasks {
+            task.abort();
         }
+        self.cancel_dashboard_request();
+        self.timer_poller = None;
+        result
     }
 
     fn handle_event(&mut self, event: Event) -> Vec<Action> {
@@ -473,7 +483,7 @@ impl App {
         self.fetch_dashboard_data(tx, true, date);
     }
 
-    fn handle_refresh_entries(&self, tx: &UnboundedSender<Action>) {
+    fn handle_refresh_entries(&mut self, tx: &UnboundedSender<Action>) {
         let View::Dashboard(d) = &self.current_view;
         let date = d.selected_date();
         self.fetch_entries(tx, date);
@@ -709,8 +719,14 @@ impl App {
         }
     }
 
+    fn cancel_dashboard_request(&mut self) {
+        if let Some(request) = self.dashboard_request.take() {
+            request.abort();
+        }
+    }
+
     fn fetch_dashboard_data(
-        &self,
+        &mut self,
         tx: &UnboundedSender<Action>,
         force_assignments: bool,
         date: NaiveDate,
@@ -723,7 +739,8 @@ impl App {
         let client = Arc::clone(&self.client);
         let tx = tx.clone();
 
-        tokio::spawn(async move {
+        self.cancel_dashboard_request();
+        self.dashboard_request = Some(tokio::spawn(async move {
             use harv_sdk::resources::time_entries::TimeEntryListParams;
 
             let params = TimeEntryListParams {
@@ -779,10 +796,10 @@ impl App {
                     });
                 }
             };
-        });
+        }));
     }
 
-    fn fetch_entries(&self, tx: &UnboundedSender<Action>, date: NaiveDate) {
+    fn fetch_entries(&mut self, tx: &UnboundedSender<Action>, date: NaiveDate) {
         let user_id = self.user_id;
         if user_id == 0 {
             return;
@@ -791,7 +808,8 @@ impl App {
         let client = Arc::clone(&self.client);
         let tx = tx.clone();
 
-        tokio::spawn(async move {
+        self.cancel_dashboard_request();
+        self.dashboard_request = Some(tokio::spawn(async move {
             use harv_sdk::resources::time_entries::TimeEntryListParams;
 
             let params = TimeEntryListParams {
@@ -813,7 +831,7 @@ impl App {
                     let _ = tx.send(Action::Error(e.user_message()));
                 }
             }
-        });
+        }));
     }
 
     fn render(&mut self, f: &mut Frame) {
@@ -1007,6 +1025,12 @@ impl App {
     }
 }
 
+impl Drop for App {
+    fn drop(&mut self) {
+        self.cancel_dashboard_request();
+    }
+}
+
 fn render_confirm_dialog(area: Rect, f: &mut Frame, msg: &str, theme: &Theme) {
     let max_width = 60u16;
     let popup_width = max_width.min(area.width.saturating_sub(4));
@@ -1156,6 +1180,8 @@ mod tests {
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
     use tokio::sync::mpsc;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     fn make_client() -> HarvClient {
         HarvClient::new(mock_data::test_config()).unwrap()
@@ -1163,6 +1189,14 @@ mod tests {
 
     fn make_app() -> App {
         App::new_for_testing(make_client())
+    }
+
+    async fn make_app_with_server() -> (App, MockServer) {
+        let server = MockServer::start().await;
+        let client = HarvClient::new(mock_data::test_config())
+            .unwrap()
+            .with_base_url(&server.uri());
+        (App::new_for_testing(client), server)
     }
 
     fn make_channel() -> (
@@ -1377,6 +1411,34 @@ mod tests {
         );
 
         assert_eq!(app.dashboard().entry_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_fetch_entries_cancels_the_previous_request() {
+        let (mut app, server) = make_app_with_server().await;
+        let (tx, _rx) = make_channel();
+        app.set_user_id(1);
+        let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
+        Mock::given(method("GET"))
+            .and(path("/time_entries"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_delay(Duration::from_secs(1))
+                    .set_body_json(serde_json::json!({"time_entries": [], "total_pages": 1})),
+            )
+            .mount(&server)
+            .await;
+
+        app.fetch_entries(&tx, date);
+        let first_request = app
+            .dashboard_request
+            .as_ref()
+            .expect("fetch should start a request")
+            .abort_handle();
+        app.fetch_entries(&tx, date.succ_opt().unwrap());
+        tokio::task::yield_now().await;
+
+        assert!(first_request.is_finished());
     }
 
     #[tokio::test]

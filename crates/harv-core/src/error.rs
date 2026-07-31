@@ -19,6 +19,9 @@ pub enum HarvError {
     #[error("API error ({status}): {message}")]
     Api { status: u16, message: String },
 
+    #[error("Invalid Harvest API response: {0}")]
+    InvalidApiResponse(String),
+
     #[error("Harvest API rate limit reached.")]
     RateLimited { retry_after_secs: Option<u64> },
 
@@ -134,6 +137,15 @@ mod tests {
         };
         assert!(err.user_message().contains("404"));
         assert!(err.user_message().contains("Not found"));
+    }
+
+    #[test]
+    fn test_invalid_api_response_display() {
+        let err = HarvError::InvalidApiResponse("missing `total_pages`".into());
+        assert_eq!(
+            err.to_string(),
+            "Invalid Harvest API response: missing `total_pages`"
+        );
     }
 
     #[serial]
