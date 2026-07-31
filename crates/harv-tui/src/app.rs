@@ -154,7 +154,7 @@ impl App {
         let mut reader = tui::event_stream();
 
         loop {
-            tokio::select! {
+            let should_render = tokio::select! {
                 Some(Ok(event)) = reader.next() => {
                     let actions = self.handle_event(event);
                     for action in actions {
@@ -163,12 +163,17 @@ impl App {
                         }
                         self.dispatch(action, &action_tx);
                     }
+                    true
                 }
                 Some(action) = action_rx.recv() => {
+                    let is_tick = matches!(action, Action::Tick);
                     self.dispatch(action, &action_tx);
+                    !is_tick || self.should_animate()
                 }
+            };
+            if should_render {
+                terminal.draw(|f| self.render(f))?;
             }
-            terminal.draw(|f| self.render(f))?;
         }
     }
 
@@ -223,6 +228,13 @@ impl App {
 
     fn handle_tick(&mut self) {
         self.tick = self.tick.wrapping_add(1);
+    }
+
+    fn should_animate(&self) -> bool {
+        let View::Dashboard(dashboard) = &self.current_view;
+        !dashboard.is_loaded()
+            || dashboard.has_running()
+            || self.form.as_ref().is_some_and(TimeEntryForm::is_loading)
     }
 
     fn handle_user_loaded(&mut self, user: harv_core::User, tx: &UnboundedSender<Action>) {
@@ -349,8 +361,6 @@ impl App {
         let View::Dashboard(d) = &mut self.current_view;
         d.set_loading(harv_core::t("tui-app-loading-create"));
 
-        self.remember_last_used(project_id, task_id);
-
         let client = Arc::clone(&self.client);
         let tx = tx.clone();
         tokio::spawn(async move {
@@ -366,10 +376,18 @@ impl App {
                 started_time: None,
                 ended_time: None,
             };
-            if let Err(e) = client.time_entries().create(&entry).await {
-                let _ = tx.send(Action::Error(e.user_message()));
+            match client.time_entries().create(&entry).await {
+                Ok(_) => {
+                    let _ = tx.send(Action::RememberLastUsed {
+                        project_id,
+                        task_id,
+                    });
+                    let _ = tx.send(Action::RefreshEntries);
+                }
+                Err(e) => {
+                    let _ = tx.send(Action::Error(e.user_message()));
+                }
             }
-            let _ = tx.send(Action::RefreshEntries);
         });
     }
 
@@ -387,8 +405,6 @@ impl App {
         let View::Dashboard(d) = &mut self.current_view;
         d.set_loading(harv_core::t("tui-app-loading-save"));
 
-        self.remember_last_used(project_id, task_id);
-
         let client = Arc::clone(&self.client);
         let tx = tx.clone();
         tokio::spawn(async move {
@@ -403,10 +419,18 @@ impl App {
                 notes,
                 ..Default::default()
             };
-            if let Err(e) = client.time_entries().update(entry_id, &update).await {
-                let _ = tx.send(Action::Error(e.user_message()));
+            match client.time_entries().update(entry_id, &update).await {
+                Ok(_) => {
+                    let _ = tx.send(Action::RememberLastUsed {
+                        project_id,
+                        task_id,
+                    });
+                    let _ = tx.send(Action::RefreshEntries);
+                }
+                Err(e) => {
+                    let _ = tx.send(Action::Error(e.user_message()));
+                }
             }
-            let _ = tx.send(Action::RefreshEntries);
         });
     }
 
@@ -420,10 +444,13 @@ impl App {
 
     fn handle_today_entries_update(
         &mut self,
+        date: NaiveDate,
         mut entries: Vec<harv_core::TimeEntry>,
-        _total: f64,
         project_count: usize,
     ) {
+        if self.current_view.selected_date() != date {
+            return;
+        }
         for e in &entries {
             if let Some(ref code) = e.project_code {
                 self.project_codes.insert(e.project.id, code.clone());
@@ -513,10 +540,14 @@ impl App {
         let client = Arc::clone(&self.client);
         let tx = tx.clone();
         tokio::spawn(async move {
-            if let Err(e) = client.time_entries().stop(entry_id).await {
-                let _ = tx.send(Action::Error(e.user_message()));
+            match client.time_entries().stop(entry_id).await {
+                Ok(_) => {
+                    let _ = tx.send(Action::RefreshEntries);
+                }
+                Err(e) => {
+                    let _ = tx.send(Action::Error(e.user_message()));
+                }
             }
-            let _ = tx.send(Action::RefreshEntries);
         });
     }
 
@@ -559,19 +590,25 @@ impl App {
         let client = Arc::clone(&self.client);
         let tx = tx.clone();
         tokio::spawn(async move {
-            let _ = client.time_entries().stop(entry_id).await;
-            let _ = tx.send(Action::OpenForm {
-                last_project_id: None,
-                last_task_id: None,
-                project_name: None,
-                mode: crate::action::FormMode::Start,
-                entry_id: None,
-                entry_date: Some(date_str),
-                entry_hours: None,
-                entry_notes: None,
-                is_running: false,
-            });
-            let _ = tx.send(Action::RefreshEntries);
+            match client.time_entries().stop(entry_id).await {
+                Ok(_) => {
+                    let _ = tx.send(Action::OpenForm {
+                        last_project_id: None,
+                        last_task_id: None,
+                        project_name: None,
+                        mode: crate::action::FormMode::Start,
+                        entry_id: None,
+                        entry_date: Some(date_str),
+                        entry_hours: None,
+                        entry_notes: None,
+                        is_running: false,
+                    });
+                    let _ = tx.send(Action::RefreshEntries);
+                }
+                Err(e) => {
+                    let _ = tx.send(Action::Error(e.user_message()));
+                }
+            }
         });
     }
 
@@ -591,7 +628,7 @@ impl App {
             Action::UserLoaded(user) => self.handle_user_loaded(user, tx),
             Action::ToggleHelp => self.handle_toggle_help(),
             Action::ThemeChanged(mode) => self.handle_theme_changed(mode),
-            Action::SwitchView(_) => self.handle_switch_view(tx),
+            Action::CloseForm => self.handle_switch_view(tx),
             Action::OpenForm {
                 last_project_id,
                 last_task_id,
@@ -617,6 +654,10 @@ impl App {
             Action::FormAssignmentsUpdate(assignments) => {
                 self.handle_form_assignments_update(assignments)
             }
+            Action::RememberLastUsed {
+                project_id,
+                task_id,
+            } => self.remember_last_used(project_id, task_id),
             Action::CreateEntry {
                 project_id,
                 task_id,
@@ -635,9 +676,11 @@ impl App {
                 self.handle_edit_entry(entry_id, project_id, task_id, spent_date, hours, notes, tx)
             }
             Action::TimerUpdate(entries) => self.handle_timer_update(entries),
-            Action::TodayEntriesUpdate(entries, total, project_count) => {
-                self.handle_today_entries_update(entries, total, project_count)
-            }
+            Action::TodayEntriesUpdate {
+                date,
+                entries,
+                project_count,
+            } => self.handle_today_entries_update(date, entries, project_count),
             Action::Refresh => self.handle_refresh(tx),
             Action::RefreshEntries => self.handle_refresh_entries(tx),
             Action::NavigateDayPrev => self.handle_navigate_day_prev(tx),
@@ -693,35 +736,47 @@ impl App {
             let _ = tx.send(Action::SetLoadingMessage(harv_core::t(
                 "tui-app-loading-entries",
             )));
-            let entries_result = client.time_entries().list(&params).await;
+            let time_entries = client.time_entries();
+            let projects = client.projects();
+            let (entries_result, assignments_result) = tokio::join!(
+                time_entries.list(&params),
+                projects.my_assignments(force_assignments)
+            );
 
             match entries_result {
                 Ok(mut entries) => {
-                    let _ = tx.send(Action::SetLoadingMessage(harv_core::t(
-                        "tui-app-loading-assignments",
-                    )));
-                    let assignments_result =
-                        client.projects().my_assignments(force_assignments).await;
-
                     let mut project_count = 0usize;
-                    if let Ok((assignments, total_projects)) = &assignments_result {
-                        project_count = *total_projects;
-                        let code_map: std::collections::HashMap<u64, &str> = assignments
-                            .iter()
-                            .filter_map(|a| {
-                                a.project_code.as_ref().map(|c| (a.project.id, c.as_str()))
-                            })
-                            .collect();
-                        for e in &mut entries {
-                            e.project_code = code_map.get(&e.project.id).map(|&c| c.to_string());
+                    match assignments_result {
+                        Ok((assignments, total_projects)) => {
+                            project_count = total_projects;
+                            let code_map: std::collections::HashMap<u64, &str> = assignments
+                                .iter()
+                                .filter_map(|a| {
+                                    a.project_code.as_ref().map(|c| (a.project.id, c.as_str()))
+                                })
+                                .collect();
+                            for e in &mut entries {
+                                e.project_code =
+                                    code_map.get(&e.project.id).map(|&c| c.to_string());
+                            }
+                        }
+                        Err(error) => {
+                            tracing::debug!(%error, "failed to load project assignments");
                         }
                     }
-                    let total: f64 = entries.iter().filter_map(|e| e.hours).sum();
-                    let _ = tx.send(Action::TodayEntriesUpdate(entries, total, project_count));
+                    let _ = tx.send(Action::TodayEntriesUpdate {
+                        date,
+                        entries,
+                        project_count,
+                    });
                 }
                 Err(e) => {
                     let _ = tx.send(Action::Error(e.user_message()));
-                    let _ = tx.send(Action::TodayEntriesUpdate(vec![], 0.0, 0));
+                    let _ = tx.send(Action::TodayEntriesUpdate {
+                        date,
+                        entries: vec![],
+                        project_count: 0,
+                    });
                 }
             };
         });
@@ -748,8 +803,11 @@ impl App {
 
             match client.time_entries().list(&params).await {
                 Ok(entries) => {
-                    let total: f64 = entries.iter().filter_map(|e| e.hours).sum();
-                    let _ = tx.send(Action::TodayEntriesUpdate(entries, total, 0));
+                    let _ = tx.send(Action::TodayEntriesUpdate {
+                        date,
+                        entries,
+                        project_count: 0,
+                    });
                 }
                 Err(e) => {
                     let _ = tx.send(Action::Error(e.user_message()));
@@ -1294,6 +1352,31 @@ mod tests {
         };
         app.dispatch(Action::TimerUpdate(vec![entry]), &tx);
         assert!(app.dashboard().has_running());
+    }
+
+    #[test]
+    fn test_dispatch_ignores_entries_for_a_stale_date() {
+        let mut app = make_app();
+        let (tx, _rx) = make_channel();
+        let current_date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
+        let stale_date = current_date.pred_opt().unwrap();
+        let View::Dashboard(dashboard) = &mut app.current_view;
+        dashboard.set_date(current_date);
+        dashboard.update_entries(
+            vec![mock_data::make_time_entry(1, 10, 20, Some(1.0), false)],
+            1,
+        );
+
+        app.dispatch(
+            Action::TodayEntriesUpdate {
+                date: stale_date,
+                entries: vec![],
+                project_count: 0,
+            },
+            &tx,
+        );
+
+        assert_eq!(app.dashboard().entry_count(), 1);
     }
 
     #[tokio::test]

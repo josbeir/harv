@@ -263,10 +263,10 @@ impl TimeEntryForm {
                         hours,
                         notes,
                     },
-                    Action::SwitchView(crate::action::ViewId::Dashboard),
+                    Action::CloseForm,
                 ]
             } else {
-                vec![Action::SwitchView(crate::action::ViewId::Dashboard)]
+                vec![Action::CloseForm]
             }
         } else {
             vec![
@@ -277,7 +277,7 @@ impl TimeEntryForm {
                     hours,
                     notes,
                 },
-                Action::SwitchView(crate::action::ViewId::Dashboard),
+                Action::CloseForm,
             ]
         }
     }
@@ -616,6 +616,10 @@ fn render_textarea_field(
 }
 
 impl TimeEntryForm {
+    pub fn is_loading(&self) -> bool {
+        self.assignments_loading || self.tasks_loading
+    }
+
     pub fn handle_key(&mut self, key: &ratatui::crossterm::event::KeyEvent) -> Vec<Action> {
         match self.active {
             Field::ProjectList => self.handle_project_key(key),
@@ -630,7 +634,7 @@ impl TimeEntryForm {
         match key.code {
             KeyCode::Esc => {
                 self.visible = false;
-                vec![Action::SwitchView(crate::action::ViewId::Dashboard)]
+                vec![Action::CloseForm]
             }
             KeyCode::Tab => {
                 self.active = Field::TaskList;
@@ -677,7 +681,7 @@ impl TimeEntryForm {
         match key.code {
             KeyCode::Esc => {
                 self.visible = false;
-                vec![Action::SwitchView(crate::action::ViewId::Dashboard)]
+                vec![Action::CloseForm]
             }
             KeyCode::Tab => {
                 self.active = if self.is_full_layout() {
@@ -776,7 +780,7 @@ impl TimeEntryForm {
         match key.code {
             KeyCode::Esc => {
                 self.visible = false;
-                vec![Action::SwitchView(crate::action::ViewId::Dashboard)]
+                vec![Action::CloseForm]
             }
             KeyCode::Tab => {
                 self.active = tab_field;
@@ -809,7 +813,7 @@ impl TimeEntryForm {
         match key.code {
             KeyCode::Esc => {
                 self.visible = false;
-                vec![Action::SwitchView(crate::action::ViewId::Dashboard)]
+                vec![Action::CloseForm]
             }
             KeyCode::Tab => {
                 self.active = Field::ProjectList;
