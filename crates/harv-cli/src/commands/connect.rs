@@ -1,6 +1,6 @@
 use harv_core::{HarvError, t, t_args};
 use harv_sdk::auth;
-use harv_sdk::{AuthMethod, Authentication, HarvConfig};
+use harv_sdk::{AuthMethod, Authentication, HarvClient, HarvConfig};
 use inquire::{Password, Select, Text, validator::Validation};
 
 #[derive(Clone, Copy)]
@@ -86,7 +86,7 @@ async fn connect_personal_token() -> color_eyre::eyre::Result<HarvConfig> {
             )
         })
         .prompt()?;
-    Ok(config_with_credentials(
+    let config = config_with_credentials(
         AuthMethod::PersonalAccessToken,
         token,
         account_id,
@@ -95,7 +95,9 @@ async fn connect_personal_token() -> color_eyre::eyre::Result<HarvConfig> {
         None,
         None,
     )
-    .await?)
+    .await?;
+    validate_credentials(&config).await.map_err(connect_error)?;
+    Ok(config)
 }
 
 async fn connect_refreshable_oauth() -> color_eyre::eyre::Result<HarvConfig> {
@@ -163,6 +165,14 @@ async fn config_with_credentials(
 fn apply_authentication(mut config: HarvConfig, authentication: Authentication) -> HarvConfig {
     config.set_authentication(authentication);
     config
+}
+
+async fn validate_credentials(config: &HarvConfig) -> Result<(), HarvError> {
+    HarvClient::new(config.clone())?
+        .users()
+        .me()
+        .await
+        .map(|_| ())
 }
 
 fn connect_error(error: HarvError) -> color_eyre::eyre::Report {
