@@ -187,7 +187,7 @@ Affects all CLI output, error messages, and TUI labels. Falls back to English if
 
 #### Authentication
 
-Run `harv connect` to choose an authentication method at any time. For a user-owned OAuth application, register it at [id.getharvest.com/developers](https://id.getharvest.com/developers) with the redirect URI `http://localhost:5006`; Harv asks for its client ID and secret interactively and refreshes its tokens automatically.
+Run `harv connect` to choose an authentication method at any time. Create either a personal access token or a user-owned OAuth application in [Harvest's developer settings](https://id.getharvest.com/developers). For OAuth, register the redirect URI `http://localhost:5006`; Harv asks for its client ID and secret interactively and refreshes its tokens automatically.
 
 For headless or manually managed setups, create a [Harvest personal access token](https://id.getharvest.com/developers) and write the following file. The account ID is shown alongside the token in Harvest. Do not commit this file or share its token.
 
