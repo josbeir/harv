@@ -79,7 +79,13 @@ harv completion fish | source    # fish
 harv connect
 ```
 
-Choose one of three authentication methods. **Quick browser sign-in** is the simplest option but needs reconnecting when Harvest expires its token. A **personal access token** is suitable for a long-lived personal setup. If you own a Harvest OAuth application, **Your OAuth application** uses refresh tokens so Harv renews the session automatically. Credentials are stored at `~/.config/harv/config.toml`.
+Choose one of three authentication methods:
+
+- **Quick browser sign-in** — the simplest option; reconnect when Harvest expires its token.
+- **Personal access token** — suitable for a long-lived personal setup.
+- **Your OAuth application** — for a Harvest OAuth application you own; Harv uses refresh tokens to renew the session automatically.
+
+Credentials are stored at `~/.config/harv/config.toml`.
 
 ### 2. Log your first entry
 
