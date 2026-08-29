@@ -14,7 +14,7 @@ pub async fn run() -> color_eyre::eyre::Result<()> {
     let method = choose_method()?;
     let config = match method {
         ConnectMethod::QuickOAuth => connect_quick_oauth().await?,
-        ConnectMethod::PersonalToken => connect_personal_token()?,
+        ConnectMethod::PersonalToken => connect_personal_token().await?,
         ConnectMethod::RefreshableOAuth => connect_refreshable_oauth().await?,
     };
     config.save().await.map_err(|error| {
@@ -71,7 +71,7 @@ async fn connect_quick_oauth() -> color_eyre::eyre::Result<HarvConfig> {
     .await?)
 }
 
-fn connect_personal_token() -> color_eyre::eyre::Result<HarvConfig> {
+async fn connect_personal_token() -> color_eyre::eyre::Result<HarvConfig> {
     let token = Password::new(&t("cli-connect-pat-token-prompt"))
         .without_confirmation()
         .prompt()?;
@@ -86,8 +86,7 @@ fn connect_personal_token() -> color_eyre::eyre::Result<HarvConfig> {
             )
         })
         .prompt()?;
-    let mut config = HarvConfig::new(token.clone(), account_id.clone());
-    config.set_authentication(Authentication::new(
+    Ok(config_with_credentials(
         AuthMethod::PersonalAccessToken,
         token,
         account_id,
@@ -95,8 +94,8 @@ fn connect_personal_token() -> color_eyre::eyre::Result<HarvConfig> {
         None,
         None,
         None,
-    ));
-    Ok(config)
+    )
+    .await?)
 }
 
 async fn connect_refreshable_oauth() -> color_eyre::eyre::Result<HarvConfig> {
@@ -140,23 +139,30 @@ async fn config_with_credentials(
     client_id: Option<String>,
     client_secret: Option<String>,
 ) -> Result<HarvConfig, HarvError> {
-    let mut config = match HarvConfig::load().await {
+    let config = match HarvConfig::load().await {
         Ok(config) => config,
         Err(HarvError::ConfigNotFound(_)) => {
             HarvConfig::new(access_token.clone(), account_id.clone())
         }
         Err(error) => return Err(error),
     };
-    config.set_authentication(Authentication::new(
-        method,
-        access_token,
-        account_id,
-        expires_at,
-        refresh_token,
-        client_id,
-        client_secret,
-    ));
-    Ok(config)
+    Ok(apply_authentication(
+        config,
+        Authentication::new(
+            method,
+            access_token,
+            account_id,
+            expires_at,
+            refresh_token,
+            client_id,
+            client_secret,
+        ),
+    ))
+}
+
+fn apply_authentication(mut config: HarvConfig, authentication: Authentication) -> HarvConfig {
+    config.set_authentication(authentication);
+    config
 }
 
 fn connect_error(error: HarvError) -> color_eyre::eyre::Report {
@@ -164,4 +170,42 @@ fn connect_error(error: HarvError) -> color_eyre::eyre::Report {
         "{}",
         t_args("cli-connect-failed", &[("err", error.user_message())])
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use harv_sdk::Alias;
+
+    #[test]
+    fn applying_personal_token_keeps_existing_preferences() {
+        let mut config = HarvConfig::new("old".into(), "1".into());
+        config.set_cache_ttl_hours(12);
+        config.set_locale(Some("nl".into()));
+        config.insert_alias(
+            "work",
+            Alias {
+                project_id: 10,
+                task_id: 20,
+            },
+        );
+        let config = apply_authentication(
+            config,
+            Authentication::new(
+                AuthMethod::PersonalAccessToken,
+                "personal".into(),
+                "2".into(),
+                None,
+                None,
+                None,
+                None,
+            ),
+        );
+        assert_eq!(config.access_token(), "personal");
+        assert_eq!(config.account_id(), "2");
+        assert_eq!(config.auth_method(), AuthMethod::PersonalAccessToken);
+        assert_eq!(config.cache_ttl_hours(), 12);
+        assert_eq!(config.locale(), Some("nl"));
+        assert_eq!(config.alias("work").map(|alias| alias.task_id), Some(20));
+    }
 }

@@ -212,7 +212,7 @@ impl HarvConfig {
         let path = Self::path();
         let toml =
             toml::to_string_pretty(self).map_err(|e| HarvError::ConfigMalformed(e.to_string()))?;
-        crate::storage::atomic_write(&path, toml.into_bytes()).await
+        crate::storage::atomic_write_private(&path, toml.into_bytes()).await
     }
 
     /// Returns the path to the config file: `~/.config/harv/config.toml`.

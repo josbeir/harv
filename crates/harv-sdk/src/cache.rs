@@ -227,7 +227,7 @@ impl ProjectsCache {
         let path = Self::path(account_id);
         let bytes =
             rmp_serde::to_vec_named(self).map_err(|e| HarvError::ConfigMalformed(e.to_string()))?;
-        crate::storage::atomic_write(&path, bytes).await?;
+        crate::storage::atomic_write_private(&path, bytes).await?;
         // Clean up legacy JSON after successful save
         Self::remove_legacy(account_id).await;
         Ok(())

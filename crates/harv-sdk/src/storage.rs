@@ -11,20 +11,27 @@ use harv_core::HarvError;
 pub(crate) async fn atomic_write(path: &Path, contents: Vec<u8>) -> Result<(), HarvError> {
     if let Some(parent) = path.parent() {
         tokio::fs::create_dir_all(parent).await?;
-        restrict_directory_permissions(parent).await?;
     }
 
     let path = path.to_path_buf();
-    let written_path = path.clone();
     tokio::task::spawn_blocking(move || {
         AtomicFile::new(path, AllowOverwrite)
             .write(|file| file.write_all(&contents))
             .map_err(|error| HarvError::Other(format!("Failed to write file atomically: {error}")))
     })
     .await
-    .map_err(|error| HarvError::Other(format!("Atomic write task failed: {error}")))??;
+    .map_err(|error| HarvError::Other(format!("Atomic write task failed: {error}")))?
+}
 
-    restrict_file_permissions(written_path.as_path()).await
+/// Atomically writes state that is scoped to the current user, restricting it
+/// on Unix without changing the permissions of project configuration files.
+pub(crate) async fn atomic_write_private(path: &Path, contents: Vec<u8>) -> Result<(), HarvError> {
+    if let Some(parent) = path.parent() {
+        tokio::fs::create_dir_all(parent).await?;
+        restrict_directory_permissions(parent).await?;
+    }
+    atomic_write(path, contents).await?;
+    restrict_file_permissions(path).await
 }
 
 #[cfg(unix)]
