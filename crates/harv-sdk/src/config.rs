@@ -264,18 +264,30 @@ impl HarvConfig {
         Ok(())
     }
 
-    /// Persist newly refreshed credentials without replacing unrelated settings
-    /// that may have changed since this client was created.
+    /// Persist newly refreshed credentials without replacing an authentication
+    /// flow that completed after this client was created.
+    ///
+    /// When the config's authentication identity no longer matches
+    /// `previous`, the newer credentials remain untouched.
     pub async fn save_refreshed_credentials(
+        previous: &Self,
         access_token: String,
         refresh_token: String,
         expires_at: DateTime<Utc>,
     ) -> Result<(), HarvError> {
         let mut latest = Self::load().await?;
+        if latest.auth_method != AuthMethod::RefreshableOAuth
+            || latest.account_id != previous.account_id
+            || latest.oauth_client_id != previous.oauth_client_id
+            || latest.refresh_token != previous.refresh_token
+        {
+            return Ok(());
+        }
         latest.access_token = access_token;
         latest.refresh_token = Some(refresh_token);
         latest.access_token_expires_at = Some(expires_at);
-        latest.save().await
+        latest.save().await?;
+        Ok(())
     }
 }
 

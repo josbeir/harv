@@ -181,8 +181,15 @@ impl HarvClient {
                 "Authentication refresh failed; run `harv connect`: {error}"
             ))
         })?;
+        {
+            let mut state = self.auth.write().await;
+            state.access_token = access_token.clone();
+            state.refresh_token = Some(refresh_token.clone());
+            state.expires_at = Some(expires_at);
+        }
         if self.persist_refreshed_credentials {
             HarvConfig::save_refreshed_credentials(
+                &self.config,
                 access_token.clone(),
                 refresh_token.clone(),
                 expires_at,
@@ -194,10 +201,6 @@ impl HarvClient {
                 ))
             })?;
         }
-        let mut state = self.auth.write().await;
-        state.access_token = access_token.clone();
-        state.refresh_token = Some(refresh_token);
-        state.expires_at = Some(expires_at);
         Ok(access_token)
     }
 
@@ -444,6 +447,100 @@ mod tests {
         let saved = HarvConfig::load().await.unwrap();
         assert_eq!(saved.access_token(), "global-token");
         assert_eq!(saved.account_id(), "99");
+    }
+
+    #[tokio::test]
+    async fn refresh_does_not_overwrite_a_newer_login() {
+        let _guard = crate::TEST_PROCESS_MUTEX.lock().await;
+        let directory = tempdir().unwrap();
+        unsafe { std::env::set_var("HARV_CONFIG_DIR", directory.path()) };
+        let mut original = HarvConfig::new("old-token".into(), "1".into());
+        original.set_authentication(crate::config::Authentication::new(
+            AuthMethod::RefreshableOAuth,
+            "old-token".into(),
+            "1".into(),
+            Some(Utc::now() - Duration::seconds(1)),
+            Some("old-refresh".into()),
+            Some("client-id".into()),
+            Some("client-secret".into()),
+        ));
+        original.save().await.unwrap();
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "access_token": "refreshed-token", "refresh_token": "refreshed-refresh", "expires_in": 3600
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/data"))
+            .and(header("authorization", "Bearer refreshed-token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"ok": true})))
+            .mount(&server)
+            .await;
+        let client = HarvClient::from_config_file()
+            .await
+            .unwrap()
+            .with_base_url(&server.uri())
+            .with_token_url(&format!("{}/token", server.uri()));
+        let mut replacement = HarvConfig::new("new-login-token".into(), "2".into());
+        replacement.set_authentication(crate::config::Authentication::new(
+            AuthMethod::RefreshableOAuth,
+            "new-login-token".into(),
+            "2".into(),
+            Some(Utc::now() + Duration::hours(1)),
+            Some("new-login-refresh".into()),
+            Some("other-client-id".into()),
+            Some("other-client-secret".into()),
+        ));
+        replacement.save().await.unwrap();
+        let _: serde_json::Value = client.get("/data", &[]).await.unwrap();
+        let saved = HarvConfig::load().await.unwrap();
+        assert_eq!(saved.account_id(), "2");
+        assert_eq!(saved.access_token(), "new-login-token");
+        assert_eq!(saved.refresh_token(), Some("new-login-refresh"));
+    }
+
+    #[tokio::test]
+    async fn refresh_retains_credentials_when_persistence_fails() {
+        let _guard = crate::TEST_PROCESS_MUTEX.lock().await;
+        let directory = tempdir().unwrap();
+        unsafe { std::env::set_var("HARV_CONFIG_DIR", directory.path()) };
+        let mut config = HarvConfig::new("old-token".into(), "1".into());
+        config.set_authentication(crate::config::Authentication::new(
+            AuthMethod::RefreshableOAuth,
+            "old-token".into(),
+            "1".into(),
+            Some(Utc::now() - Duration::seconds(1)),
+            Some("old-refresh".into()),
+            Some("client-id".into()),
+            Some("client-secret".into()),
+        ));
+        config.save().await.unwrap();
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "access_token": "new-token", "refresh_token": "new-refresh", "expires_in": 3600
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/data"))
+            .and(header("authorization", "Bearer new-token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"ok": true})))
+            .mount(&server)
+            .await;
+        let client = HarvClient::from_config_file()
+            .await
+            .unwrap()
+            .with_base_url(&server.uri())
+            .with_token_url(&format!("{}/token", server.uri()));
+        tokio::fs::remove_file(HarvConfig::path()).await.unwrap();
+        assert!(client.get::<serde_json::Value>("/data", &[]).await.is_err());
+        let value: serde_json::Value = client.get("/data", &[]).await.unwrap();
+        assert_eq!(value["ok"], true);
     }
 
     #[tokio::test]
