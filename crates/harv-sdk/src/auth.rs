@@ -120,6 +120,7 @@ async fn exchange_code(
             ("code", code),
             ("client_id", client_id),
             ("client_secret", client_secret),
+            ("redirect_uri", CALLBACK_URL),
             ("grant_type", "authorization_code"),
         ])
         .send()
@@ -237,6 +238,8 @@ fn expires_at(query: &HashMap<String, String>) -> Option<DateTime<Utc>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wiremock::matchers::{body_string_contains, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     fn implicit_params() -> HashMap<String, String> {
         HashMap::from([
@@ -280,5 +283,30 @@ mod tests {
         assert_eq!(parse_code_callback(&params, "expected").unwrap(), "code-1");
         assert_eq!(account_id_from_scope(&params).unwrap(), "42");
         assert!(parse_code_callback(&params, "other").is_err());
+    }
+
+    #[tokio::test]
+    async fn code_exchange_uses_the_authorization_redirect_uri() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/"))
+            .and(body_string_contains(
+                "redirect_uri=http%3A%2F%2Flocalhost%3A5006",
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "access_token": "access", "refresh_token": "refresh", "expires_in": 3600
+            })))
+            .mount(&server)
+            .await;
+        let token = exchange_code(
+            &reqwest::Client::new(),
+            &server.uri(),
+            "code",
+            "client-id",
+            "client-secret",
+        )
+        .await
+        .unwrap();
+        assert_eq!(token.access_token, "access");
     }
 }

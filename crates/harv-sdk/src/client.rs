@@ -528,7 +528,7 @@ mod tests {
             Some("other-client-id".into()),
             Some("other-client-secret".into()),
         ));
-        replacement.save().await.unwrap();
+        replacement.save_authentication().await.unwrap();
         let _: serde_json::Value = client.get("/data", &[]).await.unwrap();
         let saved = HarvConfig::load().await.unwrap();
         assert_eq!(saved.account_id(), "2");

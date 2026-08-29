@@ -209,12 +209,38 @@ impl HarvConfig {
         toml::from_str(&contents).map_err(|e| HarvError::ConfigMalformed(e.to_string()))
     }
 
-    /// Save config to `~/.config/harv/config.toml`. Creates the directory if needed.
+    /// Save non-authentication settings without overwriting refreshed credentials.
     pub async fn save(&self) -> Result<(), HarvError> {
+        let _lock = Self::acquire_refresh_lock().await?;
+        let mut config = self.clone();
+        if let Ok(latest) = Self::load().await {
+            config.copy_authentication_from(&latest);
+        }
+        config.save_unlocked().await
+    }
+
+    /// Save a newly completed authentication flow, replacing existing credentials.
+    pub async fn save_authentication(&self) -> Result<(), HarvError> {
+        let _lock = Self::acquire_refresh_lock().await?;
+        self.save_unlocked().await
+    }
+
+    async fn save_unlocked(&self) -> Result<(), HarvError> {
         let path = Self::path();
         let toml =
             toml::to_string_pretty(self).map_err(|e| HarvError::ConfigMalformed(e.to_string()))?;
         crate::storage::atomic_write_private(&path, toml.into_bytes()).await
+    }
+
+    fn copy_authentication_from(&mut self, other: &Self) {
+        self.access_token.clone_from(&other.access_token);
+        self.account_id.clone_from(&other.account_id);
+        self.auth_method = other.auth_method;
+        self.access_token_expires_at = other.access_token_expires_at;
+        self.refresh_token.clone_from(&other.refresh_token);
+        self.oauth_client_id.clone_from(&other.oauth_client_id);
+        self.oauth_client_secret
+            .clone_from(&other.oauth_client_secret);
     }
 
     /// Returns the path to the config file: `~/.config/harv/config.toml`.
@@ -267,7 +293,7 @@ impl HarvConfig {
     }
 
     /// Persist newly refreshed credentials without replacing a newer login.
-    pub async fn save_refreshed_credentials(
+    pub(crate) async fn save_refreshed_credentials(
         account_id: &str,
         client_id: &str,
         previous_refresh_token: &str,
@@ -286,7 +312,7 @@ impl HarvConfig {
         latest.access_token = access_token;
         latest.refresh_token = Some(refresh_token);
         latest.access_token_expires_at = Some(expires_at);
-        latest.save().await?;
+        latest.save_unlocked().await?;
         Ok(())
     }
 
@@ -377,6 +403,35 @@ mod tests {
         let saved = HarvConfig::load().await.unwrap();
         assert_eq!(saved.access_token(), "second-access");
         assert_eq!(saved.refresh_token(), Some("second-refresh"));
+    }
+
+    #[tokio::test]
+    async fn save_preserves_credentials_refreshed_after_the_config_was_loaded() {
+        let _guard = crate::TEST_PROCESS_MUTEX.lock().await;
+        let dir = tempdir().unwrap();
+        set_test_config_dir(dir.path());
+        let mut original = HarvConfig::new("old-access".into(), "1".into());
+        original.set_authentication(Authentication::new(
+            AuthMethod::RefreshableOAuth,
+            "old-access".into(),
+            "1".into(),
+            Some(Utc::now()),
+            Some("old-refresh".into()),
+            Some("client-id".into()),
+            Some("client-secret".into()),
+        ));
+        original.save_authentication().await.unwrap();
+        let mut stale_settings = HarvConfig::load().await.unwrap();
+        stale_settings.set_locale(Some("nl".into()));
+        let mut refreshed = original;
+        refreshed.access_token = "new-access".into();
+        refreshed.refresh_token = Some("new-refresh".into());
+        refreshed.save_authentication().await.unwrap();
+        stale_settings.save().await.unwrap();
+        let saved = HarvConfig::load().await.unwrap();
+        assert_eq!(saved.access_token(), "new-access");
+        assert_eq!(saved.refresh_token(), Some("new-refresh"));
+        assert_eq!(saved.locale(), Some("nl"));
     }
 
     #[tokio::test]
