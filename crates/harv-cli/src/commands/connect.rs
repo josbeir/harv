@@ -17,7 +17,7 @@ pub async fn run() -> color_eyre::eyre::Result<()> {
         ConnectMethod::PersonalToken => connect_personal_token().await?,
         ConnectMethod::RefreshableOAuth => connect_refreshable_oauth().await?,
     };
-    config.save_authentication().await.map_err(|error| {
+    config.save().await.map_err(|error| {
         color_eyre::eyre::eyre!(
             "{}",
             t_args("cli-connect-save-failed", &[("err", error.user_message())])

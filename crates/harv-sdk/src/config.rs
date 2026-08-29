@@ -209,20 +209,20 @@ impl HarvConfig {
         toml::from_str(&contents).map_err(|e| HarvError::ConfigMalformed(e.to_string()))
     }
 
-    /// Save non-authentication settings without overwriting refreshed credentials.
+    /// Save the complete configuration, including credentials.
     pub async fn save(&self) -> Result<(), HarvError> {
+        let _lock = Self::acquire_refresh_lock().await?;
+        self.save_unlocked().await
+    }
+
+    /// Save non-authentication settings without overwriting refreshed credentials.
+    pub async fn save_settings(&self) -> Result<(), HarvError> {
         let _lock = Self::acquire_refresh_lock().await?;
         let mut config = self.clone();
         if let Ok(latest) = Self::load().await {
             config.copy_authentication_from(&latest);
         }
         config.save_unlocked().await
-    }
-
-    /// Save a newly completed authentication flow, replacing existing credentials.
-    pub async fn save_authentication(&self) -> Result<(), HarvError> {
-        let _lock = Self::acquire_refresh_lock().await?;
-        self.save_unlocked().await
     }
 
     async fn save_unlocked(&self) -> Result<(), HarvError> {
@@ -263,7 +263,7 @@ impl HarvConfig {
     /// Insert or update an alias and persist to disk.
     pub async fn set_alias(&mut self, name: &str, alias: Alias) -> Result<(), HarvError> {
         self.insert_alias(name, alias);
-        self.save().await
+        self.save_settings().await
     }
 
     /// Insert or update an alias without persisting to disk.
@@ -274,7 +274,7 @@ impl HarvConfig {
     /// Remove an alias and persist to disk.
     pub async fn remove_alias(&mut self, name: &str) -> Result<(), HarvError> {
         self.aliases.remove(name);
-        self.save().await
+        self.save_settings().await
     }
 
     /// Record the last used project and task IDs.
@@ -287,7 +287,7 @@ impl HarvConfig {
     pub async fn save_last_used(&mut self, project_id: u64, task_id: u64) -> Result<(), HarvError> {
         let mut latest = Self::load().await.unwrap_or_else(|_| self.clone());
         latest.set_last_used(project_id, task_id);
-        latest.save().await?;
+        latest.save_settings().await?;
         *self = latest;
         Ok(())
     }
@@ -420,14 +420,14 @@ mod tests {
             Some("client-id".into()),
             Some("client-secret".into()),
         ));
-        original.save_authentication().await.unwrap();
+        original.save().await.unwrap();
         let mut stale_settings = HarvConfig::load().await.unwrap();
         stale_settings.set_locale(Some("nl".into()));
         let mut refreshed = original;
         refreshed.access_token = "new-access".into();
         refreshed.refresh_token = Some("new-refresh".into());
-        refreshed.save_authentication().await.unwrap();
-        stale_settings.save().await.unwrap();
+        refreshed.save().await.unwrap();
+        stale_settings.save_settings().await.unwrap();
         let saved = HarvConfig::load().await.unwrap();
         assert_eq!(saved.access_token(), "new-access");
         assert_eq!(saved.refresh_token(), Some("new-refresh"));

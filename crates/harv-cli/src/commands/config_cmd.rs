@@ -193,7 +193,7 @@ async fn set(setting: &str, value: &str) -> color_eyre::eyre::Result<()> {
         }
     }
 
-    config.save().await.map_err(|e| {
+    config.save_settings().await.map_err(|e| {
         color_eyre::eyre::eyre!(
             "{}",
             t_args("cli-config-save-failed", &[("err", e.user_message())])
