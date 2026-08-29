@@ -35,6 +35,7 @@ pub struct TimeEntryForm {
     task_search: String,
     date: TextArea<'static>,
     hours: TextArea<'static>,
+    prefilled_hours: String,
     notes: TextArea<'static>,
     active: Field,
     visible: bool,
@@ -63,6 +64,8 @@ impl TimeEntryForm {
             project_list.select(Some(0));
         }
 
+        let prefilled_hours = entry_hours.unwrap_or_default();
+
         Self {
             entry_id,
             last_project_id,
@@ -79,7 +82,8 @@ impl TimeEntryForm {
             project_search: project_name.unwrap_or_default(),
             task_search: String::new(),
             date: Self::make_textarea(date),
-            hours: Self::make_textarea(entry_hours.unwrap_or_default()),
+            hours: Self::make_textarea(prefilled_hours.clone()),
+            prefilled_hours,
             notes: Self::make_textarea(entry_notes.unwrap_or_default()),
             active: Field::ProjectList,
             visible: true,
@@ -231,7 +235,9 @@ impl TimeEntryForm {
         let notes_text = self.notes.lines().join("\n");
 
         let (hours, notes) = if self.is_full_layout() {
-            let h = if hours_text.trim().is_empty() {
+            let h = if hours_text.trim().is_empty()
+                || (self.mode == FormMode::Edit && hours_text == self.prefilled_hours)
+            {
                 None
             } else {
                 harv_core::datetime::parse_hours(hours_text.trim()).ok()
@@ -1292,7 +1298,7 @@ mod tests {
             FormMode::Edit,
             Some(42),
             Some("2026-06-09".into()),
-            Some("1.5".into()),
+            Some("1:01".into()),
             None,
             false,
         );
@@ -1305,7 +1311,47 @@ mod tests {
         f.task_list.select(Some(0));
 
         let actions = f.submit_entry();
-        assert!(matches!(actions[0], Action::EditEntry { entry_id: 42, .. }));
+        assert!(matches!(
+            actions[0],
+            Action::EditEntry {
+                entry_id: 42,
+                hours: None,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn test_submit_edit_sends_changed_hours() {
+        let mut f = TimeEntryForm::new(
+            Some(10),
+            Some(20),
+            None,
+            FormMode::Edit,
+            Some(42),
+            Some("2026-06-09".into()),
+            Some("1:01".into()),
+            None,
+            false,
+        );
+        f.assignments = vec![project_assignment(10, "Beta")];
+        f.filtered_assignments = vec![0];
+        f.project_list.select(Some(0));
+        f.selected_project_id = Some(10);
+        f.tasks = vec![task_assignment(20, "Development")];
+        f.filter_tasks();
+        f.task_list.select(Some(0));
+        f.hours = TimeEntryForm::make_textarea("1:02".into());
+
+        let actions = f.submit_entry();
+        assert!(matches!(
+            actions[0],
+            Action::EditEntry {
+                entry_id: 42,
+                hours: Some(hours),
+                ..
+            } if (hours - 31.0 / 30.0).abs() < f64::EPSILON
+        ));
     }
 
     #[test]

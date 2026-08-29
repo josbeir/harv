@@ -390,7 +390,7 @@ impl Dashboard {
                         .unwrap_or_else(|| {
                             harv_core::datetime::format_date(harv_core::datetime::today())
                         });
-                    let hours = entry.hours.map(|h| format!("{:.2}", h));
+                    let hours = entry.hours.map(harv_core::text::decimal_hours_to_hhmm);
                     let notes = entry.notes.clone();
                     vec![Action::OpenForm {
                         last_project_id: Some(entry.project.id),
@@ -744,15 +744,16 @@ mod tests {
     #[test]
     fn test_e_opens_edit_form() {
         let mut d = Dashboard::default();
-        d.update_entries(vec![make_time_entry(42, 10, 20, Some(2.0), false)], 0);
+        d.update_entries(vec![make_time_entry(42, 10, 20, Some(1.5), false)], 0);
         let actions = d.handle_key(&key_press(KeyCode::Char('e')));
         assert!(matches!(
             actions[0],
             Action::OpenForm {
                 mode: FormMode::Edit,
                 entry_id: Some(42),
+                entry_hours: Some(ref hours),
                 ..
-            }
+            } if hours == "1:30"
         ));
     }
 
