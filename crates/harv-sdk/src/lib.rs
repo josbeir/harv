@@ -20,7 +20,7 @@ pub(crate) static TEST_PROCESS_MUTEX: tokio::sync::Mutex<()> = tokio::sync::Mute
 
 pub use cache::clear_cache;
 pub use client::HarvClient;
-pub use config::{Alias, HarvConfig};
+pub use config::{Alias, AuthMethod, Authentication, HarvConfig};
 pub use project_config::{NoteTemplate, PROJECT_CONFIG_FILENAME, ProjectConfig};
 pub use resolved_config::ResolvedConfig;
 pub use template::TemplateContext;

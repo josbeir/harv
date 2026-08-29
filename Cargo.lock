@@ -1530,6 +1530,7 @@ dependencies = [
  "tokio-test",
  "toml",
  "tracing",
+ "uuid",
  "wiremock",
 ]
 

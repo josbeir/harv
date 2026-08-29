@@ -1,6 +1,9 @@
+use chrono::{DateTime, Utc};
+use fs4::fs_std::FileExt;
 use harv_core::HarvError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fs::{File, OpenOptions};
 use std::path::PathBuf;
 use tokio::fs;
 
@@ -9,6 +12,18 @@ use tokio::fs;
 pub struct HarvConfig {
     pub(crate) access_token: String,
     pub(crate) account_id: String,
+    /// How the access token was acquired. Older configurations used the
+    /// implicit OAuth flow and therefore deserialize as `QuickOAuth`.
+    #[serde(default)]
+    pub(crate) auth_method: AuthMethod,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) access_token_expires_at: Option<DateTime<Utc>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) refresh_token: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) oauth_client_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) oauth_client_secret: Option<String>,
     #[serde(default = "default_cache_ttl")]
     pub(crate) cache_ttl_hours: u64,
     #[serde(default)]
@@ -21,6 +36,55 @@ pub struct HarvConfig {
     pub(crate) check_updates: bool,
     #[serde(default)]
     pub(crate) aliases: HashMap<String, Alias>,
+}
+
+/// The credential strategy used to authenticate requests to Harvest.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AuthMethod {
+    /// Harv's built-in OAuth application using the implicit grant.
+    #[default]
+    #[serde(rename = "quick-oauth")]
+    QuickOAuth,
+    /// A user-created Harvest personal access token.
+    #[serde(rename = "personal-access-token")]
+    PersonalAccessToken,
+    /// A user-owned OAuth application using refresh tokens.
+    #[serde(rename = "refreshable-oauth")]
+    RefreshableOAuth,
+}
+
+/// Credentials and metadata to persist after an authentication flow.
+#[derive(Debug, Clone)]
+pub struct Authentication {
+    method: AuthMethod,
+    access_token: String,
+    account_id: String,
+    expires_at: Option<DateTime<Utc>>,
+    refresh_token: Option<String>,
+    client_id: Option<String>,
+    client_secret: Option<String>,
+}
+
+impl Authentication {
+    pub fn new(
+        method: AuthMethod,
+        access_token: String,
+        account_id: String,
+        expires_at: Option<DateTime<Utc>>,
+        refresh_token: Option<String>,
+        client_id: Option<String>,
+        client_secret: Option<String>,
+    ) -> Self {
+        Self {
+            method,
+            access_token,
+            account_id,
+            expires_at,
+            refresh_token,
+            client_id,
+            client_secret,
+        }
+    }
 }
 
 fn default_check_updates() -> bool {
@@ -44,6 +108,11 @@ impl HarvConfig {
         Self {
             access_token,
             account_id,
+            auth_method: AuthMethod::QuickOAuth,
+            access_token_expires_at: None,
+            refresh_token: None,
+            oauth_client_id: None,
+            oauth_client_secret: None,
             cache_ttl_hours: 24,
             last_project_id: None,
             last_task_id: None,
@@ -59,6 +128,37 @@ impl HarvConfig {
 
     pub fn account_id(&self) -> &str {
         &self.account_id
+    }
+
+    pub fn auth_method(&self) -> AuthMethod {
+        self.auth_method
+    }
+
+    pub fn access_token_expires_at(&self) -> Option<DateTime<Utc>> {
+        self.access_token_expires_at
+    }
+
+    pub fn refresh_token(&self) -> Option<&str> {
+        self.refresh_token.as_deref()
+    }
+
+    pub fn oauth_client_id(&self) -> Option<&str> {
+        self.oauth_client_id.as_deref()
+    }
+
+    pub fn oauth_client_secret(&self) -> Option<&str> {
+        self.oauth_client_secret.as_deref()
+    }
+
+    /// Replace only credentials, retaining the user's non-auth preferences.
+    pub fn set_authentication(&mut self, authentication: Authentication) {
+        self.auth_method = authentication.method;
+        self.access_token = authentication.access_token;
+        self.account_id = authentication.account_id;
+        self.access_token_expires_at = authentication.expires_at;
+        self.refresh_token = authentication.refresh_token;
+        self.oauth_client_id = authentication.client_id;
+        self.oauth_client_secret = authentication.client_secret;
     }
 
     pub fn cache_ttl_hours(&self) -> u64 {
@@ -109,12 +209,38 @@ impl HarvConfig {
         toml::from_str(&contents).map_err(|e| HarvError::ConfigMalformed(e.to_string()))
     }
 
-    /// Save config to `~/.config/harv/config.toml`. Creates the directory if needed.
+    /// Save the complete configuration, including credentials.
     pub async fn save(&self) -> Result<(), HarvError> {
+        let _lock = Self::acquire_refresh_lock().await?;
+        self.save_unlocked().await
+    }
+
+    /// Save non-authentication settings without overwriting refreshed credentials.
+    pub async fn save_settings(&self) -> Result<(), HarvError> {
+        let _lock = Self::acquire_refresh_lock().await?;
+        let mut config = self.clone();
+        if let Ok(latest) = Self::load().await {
+            config.copy_authentication_from(&latest);
+        }
+        config.save_unlocked().await
+    }
+
+    async fn save_unlocked(&self) -> Result<(), HarvError> {
         let path = Self::path();
         let toml =
             toml::to_string_pretty(self).map_err(|e| HarvError::ConfigMalformed(e.to_string()))?;
-        crate::storage::atomic_write(&path, toml.into_bytes()).await
+        crate::storage::atomic_write_private(&path, toml.into_bytes()).await
+    }
+
+    fn copy_authentication_from(&mut self, other: &Self) {
+        self.access_token.clone_from(&other.access_token);
+        self.account_id.clone_from(&other.account_id);
+        self.auth_method = other.auth_method;
+        self.access_token_expires_at = other.access_token_expires_at;
+        self.refresh_token.clone_from(&other.refresh_token);
+        self.oauth_client_id.clone_from(&other.oauth_client_id);
+        self.oauth_client_secret
+            .clone_from(&other.oauth_client_secret);
     }
 
     /// Returns the path to the config file: `~/.config/harv/config.toml`.
@@ -137,7 +263,7 @@ impl HarvConfig {
     /// Insert or update an alias and persist to disk.
     pub async fn set_alias(&mut self, name: &str, alias: Alias) -> Result<(), HarvError> {
         self.insert_alias(name, alias);
-        self.save().await
+        self.save_settings().await
     }
 
     /// Insert or update an alias without persisting to disk.
@@ -148,7 +274,7 @@ impl HarvConfig {
     /// Remove an alias and persist to disk.
     pub async fn remove_alias(&mut self, name: &str) -> Result<(), HarvError> {
         self.aliases.remove(name);
-        self.save().await
+        self.save_settings().await
     }
 
     /// Record the last used project and task IDs.
@@ -159,8 +285,55 @@ impl HarvConfig {
 
     /// Record the last used project and task IDs and persist to disk.
     pub async fn save_last_used(&mut self, project_id: u64, task_id: u64) -> Result<(), HarvError> {
-        self.set_last_used(project_id, task_id);
-        self.save().await
+        let mut latest = Self::load().await.unwrap_or_else(|_| self.clone());
+        latest.set_last_used(project_id, task_id);
+        latest.save_settings().await?;
+        *self = latest;
+        Ok(())
+    }
+
+    /// Persist newly refreshed credentials without replacing a newer login.
+    pub(crate) async fn save_refreshed_credentials(
+        account_id: &str,
+        client_id: &str,
+        previous_refresh_token: &str,
+        access_token: String,
+        refresh_token: String,
+        expires_at: DateTime<Utc>,
+    ) -> Result<(), HarvError> {
+        let mut latest = Self::load().await?;
+        if latest.auth_method != AuthMethod::RefreshableOAuth
+            || latest.account_id != account_id
+            || latest.oauth_client_id.as_deref() != Some(client_id)
+            || latest.refresh_token.as_deref() != Some(previous_refresh_token)
+        {
+            return Ok(());
+        }
+        latest.access_token = access_token;
+        latest.refresh_token = Some(refresh_token);
+        latest.access_token_expires_at = Some(expires_at);
+        latest.save_unlocked().await?;
+        Ok(())
+    }
+
+    /// Acquires the cross-process lock used while rotating refresh tokens.
+    pub(crate) async fn acquire_refresh_lock() -> Result<File, HarvError> {
+        let path = Self::path().with_extension("lock");
+        if let Some(parent) = path.parent() {
+            tokio::fs::create_dir_all(parent).await?;
+        }
+        tokio::task::spawn_blocking(move || {
+            let file = OpenOptions::new()
+                .create(true)
+                .read(true)
+                .write(true)
+                .truncate(false)
+                .open(path)?;
+            file.lock_exclusive().map_err(HarvError::Io)?;
+            Ok(file)
+        })
+        .await
+        .map_err(|error| HarvError::Other(format!("Refresh lock task failed: {error}")))?
     }
 }
 
@@ -177,6 +350,11 @@ mod tests {
         HarvConfig {
             access_token: "test-token".into(),
             account_id: "1234567".into(),
+            auth_method: AuthMethod::QuickOAuth,
+            access_token_expires_at: None,
+            refresh_token: None,
+            oauth_client_id: None,
+            oauth_client_secret: None,
             cache_ttl_hours: 24,
             last_project_id: None,
             last_task_id: None,
@@ -184,6 +362,76 @@ mod tests {
             check_updates: true,
             aliases: HashMap::new(),
         }
+    }
+
+    #[tokio::test]
+    async fn refreshed_credentials_accept_the_latest_rotated_token() {
+        let _guard = crate::TEST_PROCESS_MUTEX.lock().await;
+        let dir = tempdir().unwrap();
+        set_test_config_dir(dir.path());
+        let mut config = HarvConfig::new("old-access".into(), "1".into());
+        config.set_authentication(Authentication::new(
+            AuthMethod::RefreshableOAuth,
+            "old-access".into(),
+            "1".into(),
+            Some(Utc::now()),
+            Some("old-refresh".into()),
+            Some("client-id".into()),
+            Some("client-secret".into()),
+        ));
+        config.save().await.unwrap();
+        HarvConfig::save_refreshed_credentials(
+            "1",
+            "client-id",
+            "old-refresh",
+            "first-access".into(),
+            "first-refresh".into(),
+            Utc::now(),
+        )
+        .await
+        .unwrap();
+        HarvConfig::save_refreshed_credentials(
+            "1",
+            "client-id",
+            "first-refresh",
+            "second-access".into(),
+            "second-refresh".into(),
+            Utc::now(),
+        )
+        .await
+        .unwrap();
+        let saved = HarvConfig::load().await.unwrap();
+        assert_eq!(saved.access_token(), "second-access");
+        assert_eq!(saved.refresh_token(), Some("second-refresh"));
+    }
+
+    #[tokio::test]
+    async fn save_preserves_credentials_refreshed_after_the_config_was_loaded() {
+        let _guard = crate::TEST_PROCESS_MUTEX.lock().await;
+        let dir = tempdir().unwrap();
+        set_test_config_dir(dir.path());
+        let mut original = HarvConfig::new("old-access".into(), "1".into());
+        original.set_authentication(Authentication::new(
+            AuthMethod::RefreshableOAuth,
+            "old-access".into(),
+            "1".into(),
+            Some(Utc::now()),
+            Some("old-refresh".into()),
+            Some("client-id".into()),
+            Some("client-secret".into()),
+        ));
+        original.save().await.unwrap();
+        let mut stale_settings = HarvConfig::load().await.unwrap();
+        stale_settings.set_locale(Some("nl".into()));
+        let mut refreshed = original;
+        refreshed.access_token = "new-access".into();
+        refreshed.refresh_token = Some("new-refresh".into());
+        refreshed.save().await.unwrap();
+        stale_settings.save_settings().await.unwrap();
+        let saved = HarvConfig::load().await.unwrap();
+        assert_eq!(saved.access_token(), "new-access");
+        assert_eq!(saved.refresh_token(), Some("new-refresh"));
+        assert_eq!(saved.locale(), Some("nl"));
     }
 
     #[tokio::test]
@@ -309,6 +557,34 @@ account_id = "1"
         assert_eq!(loaded.account_id, "1234567");
     }
 
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn save_restricts_config_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let _guard = crate::TEST_PROCESS_MUTEX.lock().await;
+        let tmp = tempdir().unwrap();
+        set_test_config_dir(tmp.path());
+        test_config().save().await.unwrap();
+        let config_path = HarvConfig::path();
+        assert_eq!(
+            std::fs::metadata(&config_path)
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o600
+        );
+        assert_eq!(
+            std::fs::metadata(config_path.parent().unwrap())
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o700
+        );
+    }
+
     #[tokio::test]
     async fn test_save_set_and_remove_alias() {
         let _guard = crate::TEST_PROCESS_MUTEX.lock().await;
@@ -360,6 +636,40 @@ account_id = "1"
 "#;
         let config: HarvConfig = toml::from_str(toml).unwrap();
         assert_eq!(config.cache_ttl_hours, 24);
+    }
+
+    #[test]
+    fn legacy_config_defaults_to_quick_oauth() {
+        let config: HarvConfig = toml::from_str(
+            r#"
+access_token = "tok"
+account_id = "1"
+"#,
+        )
+        .unwrap();
+        assert_eq!(config.auth_method(), AuthMethod::QuickOAuth);
+        assert_eq!(config.refresh_token(), None);
+        assert_eq!(config.access_token_expires_at(), None);
+    }
+
+    #[test]
+    fn serializes_refreshable_credentials_without_omitting_them() {
+        let mut config = test_config();
+        config.set_authentication(Authentication::new(
+            AuthMethod::RefreshableOAuth,
+            "access".into(),
+            "1".into(),
+            Some(Utc::now()),
+            Some("refresh".into()),
+            Some("client".into()),
+            Some("secret".into()),
+        ));
+        let serialized = toml::to_string(&config).unwrap();
+        assert!(serialized.contains("auth_method = \"refreshable-oauth\""));
+        assert!(serialized.contains("refresh_token = \"refresh\""));
+        let loaded: HarvConfig = toml::from_str(&serialized).unwrap();
+        assert_eq!(loaded.auth_method(), AuthMethod::RefreshableOAuth);
+        assert_eq!(loaded.oauth_client_secret(), Some("secret"));
     }
 
     #[test]

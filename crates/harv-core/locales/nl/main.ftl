@@ -30,6 +30,16 @@ cli-connect-opening = Browser openen voor Harvest-authenticatie…
 cli-connect-success = Succesvol geauthenticeerd met Harvest. Configuratie opgeslagen in { $path }.
 cli-connect-failed = Authenticatie mislukt: { $err }
 cli-connect-save-failed = Kon configuratie niet opslaan: { $err }
+cli-connect-method-prompt = Kies een authenticatiemethode:
+cli-connect-method-quick = Snelle browseraanmelding (regelmatig opnieuw verbinden)
+cli-connect-method-pat = Persoonlijk toegangstoken (handmatig, langdurig)
+cli-connect-method-refreshable = Je eigen OAuth-applicatie (automatisch vernieuwen)
+cli-connect-pat-token-prompt = Persoonlijk Harvest-toegangstoken:
+cli-connect-pat-account-prompt = Harvest-account-ID:
+cli-connect-pat-account-invalid = Account-ID mag alleen cijfers bevatten
+cli-connect-client-id-prompt = Harvest OAuth-client-ID:
+cli-connect-client-secret-prompt = Harvest OAuth-clientgeheim:
+cli-connect-value-required = Deze waarde is verplicht
 
 # CLI — Track
 cli-track-loading-projects = Projecttoewijzingen laden…
@@ -119,6 +129,10 @@ cli-disconnect-done = U bent nu ontkoppeld. Voer `harv connect` uit om opnieuw i
 cli-config-file = Configuratiebestand: { $path }
 cli-config-not-found = (niet gevonden)
 cli-config-access-token = access-token:
+cli-config-auth-method = authenticatie:
+cli-config-auth-method-quick = snelle browseraanmelding
+cli-config-auth-method-pat = persoonlijk toegangstoken
+cli-config-auth-method-refreshable = OAuth-applicatie met vernieuwing
 cli-config-locale = locale:
 cli-config-auto-detect = (auto-detect)
 cli-config-account-id = account-id:

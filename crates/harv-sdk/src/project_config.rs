@@ -267,6 +267,23 @@ pattern = "Daily standup — {date} — Branch: {branch_name}"
         assert_eq!(loaded.default_project_id, Some(1));
     }
 
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn save_does_not_restrict_project_directory_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o755)).unwrap();
+        ProjectConfig::default()
+            .save_to(&dir.path().join(PROJECT_CONFIG_FILENAME))
+            .await
+            .unwrap();
+        assert_eq!(
+            std::fs::metadata(dir.path()).unwrap().permissions().mode() & 0o777,
+            0o755
+        );
+    }
+
     #[tokio::test]
     async fn test_aliases_serialize_as_table() {
         let mut config = ProjectConfig::default();

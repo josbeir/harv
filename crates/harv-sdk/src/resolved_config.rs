@@ -112,6 +112,11 @@ mod tests {
         HarvConfig {
             access_token: "tok".into(),
             account_id: "1".into(),
+            auth_method: Default::default(),
+            access_token_expires_at: None,
+            refresh_token: None,
+            oauth_client_id: None,
+            oauth_client_secret: None,
             cache_ttl_hours: 24,
             last_project_id: Some(100),
             last_task_id: Some(200),
@@ -209,6 +214,11 @@ mod tests {
         let empty_global = HarvConfig {
             access_token: "tok".into(),
             account_id: "1".into(),
+            auth_method: Default::default(),
+            access_token_expires_at: None,
+            refresh_token: None,
+            oauth_client_id: None,
+            oauth_client_secret: None,
             cache_ttl_hours: 24,
             last_project_id: None,
             last_task_id: None,
