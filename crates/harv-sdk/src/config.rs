@@ -1,7 +1,9 @@
 use chrono::{DateTime, Utc};
+use fs4::fs_std::FileExt;
 use harv_core::HarvError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fs::{File, OpenOptions};
 use std::path::PathBuf;
 use tokio::fs;
 
@@ -264,22 +266,20 @@ impl HarvConfig {
         Ok(())
     }
 
-    /// Persist newly refreshed credentials without replacing an authentication
-    /// flow that completed after this client was created.
-    ///
-    /// When the config's authentication identity no longer matches
-    /// `previous`, the newer credentials remain untouched.
+    /// Persist newly refreshed credentials without replacing a newer login.
     pub async fn save_refreshed_credentials(
-        previous: &Self,
+        account_id: &str,
+        client_id: &str,
+        previous_refresh_token: &str,
         access_token: String,
         refresh_token: String,
         expires_at: DateTime<Utc>,
     ) -> Result<(), HarvError> {
         let mut latest = Self::load().await?;
         if latest.auth_method != AuthMethod::RefreshableOAuth
-            || latest.account_id != previous.account_id
-            || latest.oauth_client_id != previous.oauth_client_id
-            || latest.refresh_token != previous.refresh_token
+            || latest.account_id != account_id
+            || latest.oauth_client_id.as_deref() != Some(client_id)
+            || latest.refresh_token.as_deref() != Some(previous_refresh_token)
         {
             return Ok(());
         }
@@ -288,6 +288,26 @@ impl HarvConfig {
         latest.access_token_expires_at = Some(expires_at);
         latest.save().await?;
         Ok(())
+    }
+
+    /// Acquires the cross-process lock used while rotating refresh tokens.
+    pub(crate) async fn acquire_refresh_lock() -> Result<File, HarvError> {
+        let path = Self::path().with_extension("lock");
+        if let Some(parent) = path.parent() {
+            tokio::fs::create_dir_all(parent).await?;
+        }
+        tokio::task::spawn_blocking(move || {
+            let file = OpenOptions::new()
+                .create(true)
+                .read(true)
+                .write(true)
+                .truncate(false)
+                .open(path)?;
+            file.lock_exclusive().map_err(HarvError::Io)?;
+            Ok(file)
+        })
+        .await
+        .map_err(|error| HarvError::Other(format!("Refresh lock task failed: {error}")))?
     }
 }
 
@@ -316,6 +336,47 @@ mod tests {
             check_updates: true,
             aliases: HashMap::new(),
         }
+    }
+
+    #[tokio::test]
+    async fn refreshed_credentials_accept_the_latest_rotated_token() {
+        let _guard = crate::TEST_PROCESS_MUTEX.lock().await;
+        let dir = tempdir().unwrap();
+        set_test_config_dir(dir.path());
+        let mut config = HarvConfig::new("old-access".into(), "1".into());
+        config.set_authentication(Authentication::new(
+            AuthMethod::RefreshableOAuth,
+            "old-access".into(),
+            "1".into(),
+            Some(Utc::now()),
+            Some("old-refresh".into()),
+            Some("client-id".into()),
+            Some("client-secret".into()),
+        ));
+        config.save().await.unwrap();
+        HarvConfig::save_refreshed_credentials(
+            "1",
+            "client-id",
+            "old-refresh",
+            "first-access".into(),
+            "first-refresh".into(),
+            Utc::now(),
+        )
+        .await
+        .unwrap();
+        HarvConfig::save_refreshed_credentials(
+            "1",
+            "client-id",
+            "first-refresh",
+            "second-access".into(),
+            "second-refresh".into(),
+            Utc::now(),
+        )
+        .await
+        .unwrap();
+        let saved = HarvConfig::load().await.unwrap();
+        assert_eq!(saved.access_token(), "second-access");
+        assert_eq!(saved.refresh_token(), Some("second-refresh"));
     }
 
     #[tokio::test]
