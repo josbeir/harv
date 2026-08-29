@@ -265,7 +265,9 @@ pub fn ask_date_with_default(default: NaiveDate) -> color_eyre::eyre::Result<Opt
 /// Prompt for hours with the current value as default.
 /// Returns None to keep existing hours, Some(0.0) to clear, Some(h) to change.
 pub fn ask_hours_with_default(current: Option<f64>) -> color_eyre::eyre::Result<Option<f64>> {
-    let default_str = current.map(|h| format!("{:.2}", h)).unwrap_or_default();
+    let default_str = current
+        .map(harv_core::text::decimal_hours_to_hhmm)
+        .unwrap_or_default();
     let input = CustomType::<String>::new("Hours (empty to keep, 0 to clear):")
         .with_default(default_str.clone())
         .with_validator(|input: &String| {
