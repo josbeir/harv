@@ -14,6 +14,11 @@ pub fn test_config() -> HarvConfig {
     HarvConfig {
         access_token: "t".into(),
         account_id: "1".into(),
+        auth_method: Default::default(),
+        access_token_expires_at: None,
+        refresh_token: None,
+        oauth_client_id: None,
+        oauth_client_secret: None,
         cache_ttl_hours: 0,
         last_project_id: None,
         last_task_id: None,

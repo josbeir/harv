@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use harv_core::HarvError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -9,6 +10,18 @@ use tokio::fs;
 pub struct HarvConfig {
     pub(crate) access_token: String,
     pub(crate) account_id: String,
+    /// How the access token was acquired. Older configurations used the
+    /// implicit OAuth flow and therefore deserialize as `QuickOAuth`.
+    #[serde(default)]
+    pub(crate) auth_method: AuthMethod,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) access_token_expires_at: Option<DateTime<Utc>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) refresh_token: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) oauth_client_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) oauth_client_secret: Option<String>,
     #[serde(default = "default_cache_ttl")]
     pub(crate) cache_ttl_hours: u64,
     #[serde(default)]
@@ -21,6 +34,55 @@ pub struct HarvConfig {
     pub(crate) check_updates: bool,
     #[serde(default)]
     pub(crate) aliases: HashMap<String, Alias>,
+}
+
+/// The credential strategy used to authenticate requests to Harvest.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AuthMethod {
+    /// Harv's built-in OAuth application using the implicit grant.
+    #[default]
+    #[serde(rename = "quick-oauth")]
+    QuickOAuth,
+    /// A user-created Harvest personal access token.
+    #[serde(rename = "personal-access-token")]
+    PersonalAccessToken,
+    /// A user-owned OAuth application using refresh tokens.
+    #[serde(rename = "refreshable-oauth")]
+    RefreshableOAuth,
+}
+
+/// Credentials and metadata to persist after an authentication flow.
+#[derive(Debug, Clone)]
+pub struct Authentication {
+    method: AuthMethod,
+    access_token: String,
+    account_id: String,
+    expires_at: Option<DateTime<Utc>>,
+    refresh_token: Option<String>,
+    client_id: Option<String>,
+    client_secret: Option<String>,
+}
+
+impl Authentication {
+    pub fn new(
+        method: AuthMethod,
+        access_token: String,
+        account_id: String,
+        expires_at: Option<DateTime<Utc>>,
+        refresh_token: Option<String>,
+        client_id: Option<String>,
+        client_secret: Option<String>,
+    ) -> Self {
+        Self {
+            method,
+            access_token,
+            account_id,
+            expires_at,
+            refresh_token,
+            client_id,
+            client_secret,
+        }
+    }
 }
 
 fn default_check_updates() -> bool {
@@ -44,6 +106,11 @@ impl HarvConfig {
         Self {
             access_token,
             account_id,
+            auth_method: AuthMethod::QuickOAuth,
+            access_token_expires_at: None,
+            refresh_token: None,
+            oauth_client_id: None,
+            oauth_client_secret: None,
             cache_ttl_hours: 24,
             last_project_id: None,
             last_task_id: None,
@@ -59,6 +126,37 @@ impl HarvConfig {
 
     pub fn account_id(&self) -> &str {
         &self.account_id
+    }
+
+    pub fn auth_method(&self) -> AuthMethod {
+        self.auth_method
+    }
+
+    pub fn access_token_expires_at(&self) -> Option<DateTime<Utc>> {
+        self.access_token_expires_at
+    }
+
+    pub fn refresh_token(&self) -> Option<&str> {
+        self.refresh_token.as_deref()
+    }
+
+    pub fn oauth_client_id(&self) -> Option<&str> {
+        self.oauth_client_id.as_deref()
+    }
+
+    pub fn oauth_client_secret(&self) -> Option<&str> {
+        self.oauth_client_secret.as_deref()
+    }
+
+    /// Replace only credentials, retaining the user's non-auth preferences.
+    pub fn set_authentication(&mut self, authentication: Authentication) {
+        self.auth_method = authentication.method;
+        self.access_token = authentication.access_token;
+        self.account_id = authentication.account_id;
+        self.access_token_expires_at = authentication.expires_at;
+        self.refresh_token = authentication.refresh_token;
+        self.oauth_client_id = authentication.client_id;
+        self.oauth_client_secret = authentication.client_secret;
     }
 
     pub fn cache_ttl_hours(&self) -> u64 {
@@ -159,8 +257,25 @@ impl HarvConfig {
 
     /// Record the last used project and task IDs and persist to disk.
     pub async fn save_last_used(&mut self, project_id: u64, task_id: u64) -> Result<(), HarvError> {
-        self.set_last_used(project_id, task_id);
-        self.save().await
+        let mut latest = Self::load().await.unwrap_or_else(|_| self.clone());
+        latest.set_last_used(project_id, task_id);
+        latest.save().await?;
+        *self = latest;
+        Ok(())
+    }
+
+    /// Persist newly refreshed credentials without replacing unrelated settings
+    /// that may have changed since this client was created.
+    pub async fn save_refreshed_credentials(
+        access_token: String,
+        refresh_token: String,
+        expires_at: DateTime<Utc>,
+    ) -> Result<(), HarvError> {
+        let mut latest = Self::load().await?;
+        latest.access_token = access_token;
+        latest.refresh_token = Some(refresh_token);
+        latest.access_token_expires_at = Some(expires_at);
+        latest.save().await
     }
 }
 
@@ -177,6 +292,11 @@ mod tests {
         HarvConfig {
             access_token: "test-token".into(),
             account_id: "1234567".into(),
+            auth_method: AuthMethod::QuickOAuth,
+            access_token_expires_at: None,
+            refresh_token: None,
+            oauth_client_id: None,
+            oauth_client_secret: None,
             cache_ttl_hours: 24,
             last_project_id: None,
             last_task_id: None,
@@ -309,6 +429,34 @@ account_id = "1"
         assert_eq!(loaded.account_id, "1234567");
     }
 
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn save_restricts_config_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let _guard = crate::TEST_PROCESS_MUTEX.lock().await;
+        let tmp = tempdir().unwrap();
+        set_test_config_dir(tmp.path());
+        test_config().save().await.unwrap();
+        let config_path = HarvConfig::path();
+        assert_eq!(
+            std::fs::metadata(&config_path)
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o600
+        );
+        assert_eq!(
+            std::fs::metadata(config_path.parent().unwrap())
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o700
+        );
+    }
+
     #[tokio::test]
     async fn test_save_set_and_remove_alias() {
         let _guard = crate::TEST_PROCESS_MUTEX.lock().await;
@@ -360,6 +508,40 @@ account_id = "1"
 "#;
         let config: HarvConfig = toml::from_str(toml).unwrap();
         assert_eq!(config.cache_ttl_hours, 24);
+    }
+
+    #[test]
+    fn legacy_config_defaults_to_quick_oauth() {
+        let config: HarvConfig = toml::from_str(
+            r#"
+access_token = "tok"
+account_id = "1"
+"#,
+        )
+        .unwrap();
+        assert_eq!(config.auth_method(), AuthMethod::QuickOAuth);
+        assert_eq!(config.refresh_token(), None);
+        assert_eq!(config.access_token_expires_at(), None);
+    }
+
+    #[test]
+    fn serializes_refreshable_credentials_without_omitting_them() {
+        let mut config = test_config();
+        config.set_authentication(Authentication::new(
+            AuthMethod::RefreshableOAuth,
+            "access".into(),
+            "1".into(),
+            Some(Utc::now()),
+            Some("refresh".into()),
+            Some("client".into()),
+            Some("secret".into()),
+        ));
+        let serialized = toml::to_string(&config).unwrap();
+        assert!(serialized.contains("auth_method = \"refreshable-oauth\""));
+        assert!(serialized.contains("refresh_token = \"refresh\""));
+        let loaded: HarvConfig = toml::from_str(&serialized).unwrap();
+        assert_eq!(loaded.auth_method(), AuthMethod::RefreshableOAuth);
+        assert_eq!(loaded.oauth_client_secret(), Some("secret"));
     }
 
     #[test]

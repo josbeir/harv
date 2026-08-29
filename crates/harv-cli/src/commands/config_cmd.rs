@@ -1,5 +1,5 @@
 use harv_core::{t, t_args};
-use harv_sdk::HarvConfig;
+use harv_sdk::{AuthMethod, HarvConfig};
 
 use crate::{ConfigAction, ConfigArgs};
 
@@ -45,6 +45,11 @@ async fn show() -> color_eyre::eyre::Result<()> {
     );
     println!(
         "  {:<20} {}",
+        t("cli-config-auth-method"),
+        auth_method_label(config.auth_method())
+    );
+    println!(
+        "  {:<20} {}",
         t("cli-config-locale"),
         config.locale().unwrap_or(&t("cli-config-auto-detect"))
     );
@@ -78,6 +83,14 @@ async fn show() -> color_eyre::eyre::Result<()> {
     );
 
     Ok(())
+}
+
+fn auth_method_label(method: AuthMethod) -> String {
+    match method {
+        AuthMethod::QuickOAuth => t("cli-config-auth-method-quick"),
+        AuthMethod::PersonalAccessToken => t("cli-config-auth-method-pat"),
+        AuthMethod::RefreshableOAuth => t("cli-config-auth-method-refreshable"),
+    }
 }
 
 async fn get(setting: &str) -> color_eyre::eyre::Result<()> {

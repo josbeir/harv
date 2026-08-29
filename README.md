@@ -79,7 +79,7 @@ harv completion fish | source    # fish
 harv connect
 ```
 
-Opens your browser to authenticate via OAuth2. Credentials are stored at `~/.config/harv/config.toml`.
+Choose one of three authentication methods. **Quick browser sign-in** is the simplest option but needs reconnecting when Harvest expires its token. A **personal access token** is suitable for a long-lived personal setup. If you own a Harvest OAuth application, **Your OAuth application** uses refresh tokens so Harv renews the session automatically. Credentials are stored at `~/.config/harv/config.toml`.
 
 ### 2. Log your first entry
 
@@ -179,15 +179,20 @@ harv config set locale nl
 
 Affects all CLI output, error messages, and TUI labels. Falls back to English if a translation is missing.
 
-#### Custom OAuth2 Application
+#### Authentication
 
-To use your own Harvest OAuth2 application (registered at [id.getharvest.com/developers](https://id.getharvest.com/developers)), set `HARV_CLIENT_ID` at compile time:
+Run `harv connect` to choose an authentication method at any time. For a user-owned OAuth application, register it at [id.getharvest.com/developers](https://id.getharvest.com/developers) with the redirect URI `http://localhost:5006`; Harv asks for its client ID and secret interactively and refreshes its tokens automatically.
 
-```bash
-HARV_CLIENT_ID="your-app-id" cargo install --git https://github.com/josbeir/harv harv-cli
+For headless or manually managed setups, create a [Harvest personal access token](https://id.getharvest.com/developers) and write the following file. The account ID is shown alongside the token in Harvest. Do not commit this file or share its token.
+
+```toml
+# ~/.config/harv/config.toml
+access_token = "your-personal-access-token"
+account_id = "your-harvest-account-id"
+auth_method = "personal-access-token"
 ```
 
-Set your redirect URI to `http://localhost:5006`.
+On Unix, Harv limits the config directory and file to the current user when it writes them. On Windows, keep the file in your normal user profile, where its ACL is user-scoped by default.
 
 ### Project config (`harv.toml`)
 
