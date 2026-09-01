@@ -14,7 +14,7 @@ harv-core = { path = "../harv-core" }
 harv-sdk = { path = "../harv-sdk" }
 harv-tui = { path = "../harv-tui" }
 clap = { version = "4", features = ["derive", "env"] }
-clap_complete = "4"
+clap_complete = { version = "4", features = ["unstable-dynamic"] }
 tokio = { version = "1", features = ["full"] }
 color-eyre = "0.6"
 tabled = "0.19"

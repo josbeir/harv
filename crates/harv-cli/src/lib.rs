@@ -4,8 +4,15 @@ pub(crate) mod prompts;
 pub(crate) mod resolution;
 pub(crate) mod spinner;
 
-use clap::{Parser, Subcommand};
-use clap_complete::Shell;
+use std::ffi::OsStr;
+
+use clap::{CommandFactory, Parser, Subcommand};
+use clap_complete::env::{Bash, Elvish, EnvCompleter, Fish, Powershell, Zsh};
+use clap_complete::{ArgValueCompleter, CompletionCandidate, Shell};
+use harv_sdk::{HarvConfig, ResolvedConfig};
+
+/// Environment variable used by Harv's generated completion scripts.
+pub const COMPLETION_ENV_VAR: &str = "HARV_COMPLETE";
 
 #[derive(Clone, Debug, clap::ValueEnum)]
 pub enum OutputFormat {
@@ -207,6 +214,82 @@ pub struct InitArgs {
 #[derive(clap::Args, Clone, Debug)]
 pub struct CompletionArgs {
     pub shell: Shell,
+}
+
+/// Build the CLI command with dynamic completion hooks attached.
+///
+/// The normal parser remains derive-based; this command factory is used only
+/// by the shell-completion protocol.
+pub fn completion_command() -> clap::Command {
+    Cli::command()
+        .mut_subcommand("track", |command| {
+            command.mut_arg("alias", |arg| {
+                arg.add(ArgValueCompleter::new(complete_entry_aliases))
+            })
+        })
+        .mut_subcommand("start", |command| {
+            command.mut_arg("alias", |arg| {
+                arg.add(ArgValueCompleter::new(complete_entry_aliases))
+            })
+        })
+        .mut_subcommand("alias", |command| {
+            command.mut_subcommand("delete", |command| {
+                command.mut_arg("name", |arg| {
+                    arg.add(ArgValueCompleter::new(complete_global_aliases))
+                })
+            })
+        })
+}
+
+/// Write a dynamic completion registration script for a supported shell.
+pub fn generate_completion(shell: Shell) -> std::io::Result<()> {
+    let command = completion_command();
+    let name = command.get_name();
+    let mut stdout = std::io::stdout();
+
+    match shell {
+        Shell::Bash => Bash.write_registration(COMPLETION_ENV_VAR, name, name, name, &mut stdout),
+        Shell::Elvish => {
+            Elvish.write_registration(COMPLETION_ENV_VAR, name, name, name, &mut stdout)
+        }
+        Shell::Fish => Fish.write_registration(COMPLETION_ENV_VAR, name, name, name, &mut stdout),
+        Shell::PowerShell => {
+            Powershell.write_registration(COMPLETION_ENV_VAR, name, name, name, &mut stdout)
+        }
+        Shell::Zsh => Zsh.write_registration(COMPLETION_ENV_VAR, name, name, name, &mut stdout),
+        _ => Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("dynamic completion is not supported for {shell}"),
+        )),
+    }
+}
+
+fn complete_entry_aliases(current: &OsStr) -> Vec<CompletionCandidate> {
+    let aliases = HarvConfig::load_blocking()
+        .and_then(|global| ResolvedConfig::resolve_from_environment_blocking(&global))
+        .map(|resolved| resolved.aliases)
+        .unwrap_or_default();
+    alias_candidates(aliases.into_keys(), current)
+}
+
+fn complete_global_aliases(current: &OsStr) -> Vec<CompletionCandidate> {
+    let aliases = HarvConfig::load_blocking()
+        .map(|global| global.aliases().keys().cloned().collect::<Vec<_>>())
+        .unwrap_or_default();
+    alias_candidates(aliases, current)
+}
+
+fn alias_candidates(
+    aliases: impl IntoIterator<Item = String>,
+    current: &OsStr,
+) -> Vec<CompletionCandidate> {
+    let current = current.to_string_lossy();
+    let mut aliases: Vec<_> = aliases
+        .into_iter()
+        .filter(|alias| alias.starts_with(current.as_ref()))
+        .collect();
+    aliases.sort_unstable();
+    aliases.into_iter().map(CompletionCandidate::new).collect()
 }
 
 pub fn setup_tracing() {

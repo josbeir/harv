@@ -102,6 +102,14 @@ impl ResolvedConfig {
         let project_config = ProjectConfig::discover().await?;
         Ok(Self::resolve(global, project_config.as_ref()))
     }
+
+    /// Discover and merge project-level configuration without an async runtime.
+    ///
+    /// Intended for short-lived, read-only operations such as shell completion.
+    pub fn resolve_from_environment_blocking(global: &HarvConfig) -> Result<Self, HarvError> {
+        let project_config = ProjectConfig::discover_blocking()?;
+        Ok(Self::resolve(global, project_config.as_ref()))
+    }
 }
 
 #[cfg(test)]
