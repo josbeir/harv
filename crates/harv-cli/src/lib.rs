@@ -4,8 +4,15 @@ pub(crate) mod prompts;
 pub(crate) mod resolution;
 pub(crate) mod spinner;
 
-use clap::{Parser, Subcommand};
-use clap_complete::Shell;
+use std::ffi::OsStr;
+
+use clap::{CommandFactory, Parser, Subcommand};
+use clap_complete::env::{Bash, Elvish, EnvCompleter, Fish, Powershell, Zsh};
+use clap_complete::{ArgValueCompleter, CompletionCandidate, Shell};
+use harv_sdk::{HarvConfig, ResolvedConfig};
+
+/// Environment variable used by Harv's generated completion scripts.
+pub const COMPLETION_ENV_VAR: &str = "HARV_COMPLETE";
 
 #[derive(Clone, Debug, clap::ValueEnum)]
 pub enum OutputFormat {
@@ -209,6 +216,83 @@ pub struct CompletionArgs {
     pub shell: Shell,
 }
 
+/// Build the CLI command with dynamic completion hooks attached.
+///
+/// The normal parser remains derive-based; this command factory is used only
+/// by the shell-completion protocol.
+pub fn completion_command() -> clap::Command {
+    Cli::command()
+        .mut_subcommand("track", |command| {
+            command.mut_arg("alias", |arg| {
+                arg.add(ArgValueCompleter::new(complete_entry_aliases))
+            })
+        })
+        .mut_subcommand("start", |command| {
+            command.mut_arg("alias", |arg| {
+                arg.add(ArgValueCompleter::new(complete_entry_aliases))
+            })
+        })
+        .mut_subcommand("alias", |command| {
+            command.mut_subcommand("delete", |command| {
+                command.mut_arg("name", |arg| {
+                    arg.add(ArgValueCompleter::new(complete_global_aliases))
+                })
+            })
+        })
+}
+
+/// Write a dynamic completion registration script for a supported shell.
+pub fn generate_completion(shell: Shell) -> std::io::Result<()> {
+    generate_completion_to(shell, &mut std::io::stdout())
+}
+
+fn generate_completion_to(shell: Shell, writer: &mut dyn std::io::Write) -> std::io::Result<()> {
+    let command = completion_command();
+    let name = command.get_name();
+
+    match shell {
+        Shell::Bash => Bash.write_registration(COMPLETION_ENV_VAR, name, name, name, writer),
+        Shell::Elvish => Elvish.write_registration(COMPLETION_ENV_VAR, name, name, name, writer),
+        Shell::Fish => Fish.write_registration(COMPLETION_ENV_VAR, name, name, name, writer),
+        Shell::PowerShell => {
+            Powershell.write_registration(COMPLETION_ENV_VAR, name, name, name, writer)
+        }
+        Shell::Zsh => Zsh.write_registration(COMPLETION_ENV_VAR, name, name, name, writer),
+        _ => Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("dynamic completion is not supported for {shell}"),
+        )),
+    }
+}
+
+fn complete_entry_aliases(current: &OsStr) -> Vec<CompletionCandidate> {
+    let aliases = HarvConfig::load_blocking()
+        .and_then(|global| ResolvedConfig::resolve_from_environment_blocking(&global))
+        .map(|resolved| resolved.aliases)
+        .unwrap_or_default();
+    alias_candidates(aliases.into_keys(), current)
+}
+
+fn complete_global_aliases(current: &OsStr) -> Vec<CompletionCandidate> {
+    let aliases = HarvConfig::load_blocking()
+        .map(|global| global.aliases().keys().cloned().collect::<Vec<_>>())
+        .unwrap_or_default();
+    alias_candidates(aliases, current)
+}
+
+fn alias_candidates(
+    aliases: impl IntoIterator<Item = String>,
+    current: &OsStr,
+) -> Vec<CompletionCandidate> {
+    let current = current.to_string_lossy();
+    let mut aliases: Vec<_> = aliases
+        .into_iter()
+        .filter(|alias| alias.starts_with(current.as_ref()))
+        .collect();
+    aliases.sort_unstable();
+    aliases.into_iter().map(CompletionCandidate::new).collect()
+}
+
 pub fn setup_tracing() {
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -234,4 +318,41 @@ pub fn ensure_mock_config() -> color_eyre::eyre::Result<()> {
 /// Custom clap value parser for hours. Accepts decimal (1.5) or HH:MM (1:30).
 fn parse_hours_arg(s: &str) -> Result<f64, String> {
     harv_core::datetime::parse_hours(s)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn alias_candidates_are_prefix_filtered_and_sorted() {
+        let candidates = alias_candidates(
+            ["zebra".into(), "alpha".into(), "alpine".into()],
+            OsStr::new("al"),
+        );
+        let values: Vec<_> = candidates
+            .iter()
+            .map(|candidate| candidate.get_value().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(values, ["alpha", "alpine"]);
+    }
+
+    #[test]
+    fn dynamic_completion_scripts_are_generated_for_supported_shells() {
+        for shell in [
+            Shell::Bash,
+            Shell::Elvish,
+            Shell::Fish,
+            Shell::PowerShell,
+            Shell::Zsh,
+        ] {
+            let mut output = Vec::new();
+            generate_completion_to(shell, &mut output).unwrap();
+            assert!(
+                String::from_utf8(output)
+                    .unwrap()
+                    .contains(COMPLETION_ENV_VAR)
+            );
+        }
+    }
 }

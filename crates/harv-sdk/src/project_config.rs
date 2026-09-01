@@ -50,6 +50,15 @@ impl ProjectConfig {
         toml::from_str(&contents).map_err(|e| HarvError::ConfigMalformed(e.to_string()))
     }
 
+    /// Load a project config without requiring an async runtime.
+    ///
+    /// This is intended for short-lived, read-only operations such as shell
+    /// completion. Normal application code should use [`Self::load_from`].
+    pub fn load_from_blocking(path: &Path) -> Result<Self, HarvError> {
+        let contents = std::fs::read_to_string(path).map_err(HarvError::Io)?;
+        toml::from_str(&contents).map_err(|e| HarvError::ConfigMalformed(e.to_string()))
+    }
+
     /// Save this project config to a specific file path.
     /// Creates parent directories if they don't exist.
     pub async fn save_to(&self, path: &Path) -> Result<(), HarvError> {
@@ -67,6 +76,15 @@ impl ProjectConfig {
     pub async fn discover() -> Result<Option<Self>, HarvError> {
         let cwd = std::env::current_dir()?;
         Self::discover_from(&cwd).await
+    }
+
+    /// Discover a `harv.toml` without requiring an async runtime.
+    ///
+    /// This mirrors [`Self::discover`] for short-lived, read-only operations
+    /// such as shell completion.
+    pub fn discover_blocking() -> Result<Option<Self>, HarvError> {
+        let cwd = std::env::current_dir()?;
+        Self::discover_from_blocking(&cwd)
     }
 
     /// Discover a `harv.toml` by walking up from the given starting directory.
@@ -91,6 +109,37 @@ impl ProjectConfig {
                     // Move up to parent. Stop if we've reached the root.
                     if let Some(parent) = current.parent() {
                         // On Unix, root's parent is root itself — check for that.
+                        if parent == current {
+                            return Ok(None);
+                        }
+                        current = parent.to_path_buf();
+                    } else {
+                        return Ok(None);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Discover a `harv.toml` from a directory without requiring an async runtime.
+    pub fn discover_from_blocking(start_dir: &Path) -> Result<Option<Self>, HarvError> {
+        let mut current = if start_dir.is_absolute() {
+            start_dir.to_path_buf()
+        } else {
+            std::env::current_dir()?.join(start_dir)
+        };
+
+        current = current.canonicalize().unwrap_or_else(|_| current.clone());
+
+        loop {
+            let candidate = current.join(PROJECT_CONFIG_FILENAME);
+
+            match std::fs::metadata(&candidate) {
+                Ok(meta) if meta.is_file() => {
+                    return Self::load_from_blocking(&candidate).map(Some);
+                }
+                _ => {
+                    if let Some(parent) = current.parent() {
                         if parent == current {
                             return Ok(None);
                         }
@@ -172,6 +221,22 @@ pattern = "Daily standup — {date} — Branch: {branch_name}"
             config.templates.get("daily").unwrap().pattern,
             "Daily standup — {date} — Branch: {branch_name}"
         );
+    }
+
+    #[test]
+    fn test_blocking_load_and_discover_walk_up() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(PROJECT_CONFIG_FILENAME);
+        std::fs::write(&path, sample_config_toml()).unwrap();
+        let nested = dir.path().join("nested");
+        std::fs::create_dir(&nested).unwrap();
+
+        let loaded = ProjectConfig::load_from_blocking(&path).unwrap();
+        assert_eq!(loaded.aliases.get("dev").unwrap().task_id, 200);
+        let discovered = ProjectConfig::discover_from_blocking(&nested)
+            .unwrap()
+            .unwrap();
+        assert_eq!(discovered.default_project_id, Some(12345));
     }
 
     #[tokio::test]

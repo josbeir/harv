@@ -209,6 +209,19 @@ impl HarvConfig {
         toml::from_str(&contents).map_err(|e| HarvError::ConfigMalformed(e.to_string()))
     }
 
+    /// Load config from disk without requiring an async runtime.
+    ///
+    /// This is intended for short-lived, read-only operations such as shell
+    /// completion. Normal application code should use [`Self::load`].
+    pub fn load_blocking() -> Result<Self, HarvError> {
+        let path = Self::path();
+        let contents = std::fs::read_to_string(&path).map_err(|e| match e.kind() {
+            std::io::ErrorKind::NotFound => HarvError::ConfigNotFound(path),
+            _ => HarvError::Io(e),
+        })?;
+        toml::from_str(&contents).map_err(|e| HarvError::ConfigMalformed(e.to_string()))
+    }
+
     /// Save the complete configuration, including credentials.
     pub async fn save(&self) -> Result<(), HarvError> {
         let _lock = Self::acquire_refresh_lock().await?;
@@ -362,6 +375,25 @@ mod tests {
             check_updates: true,
             aliases: HashMap::new(),
         }
+    }
+
+    #[tokio::test]
+    async fn test_load_blocking_reads_saved_config() {
+        let _guard = crate::TEST_PROCESS_MUTEX.lock().await;
+        let dir = tempdir().unwrap();
+        set_test_config_dir(dir.path());
+        let mut config = test_config();
+        config.insert_alias(
+            "dev",
+            Alias {
+                project_id: 1,
+                task_id: 2,
+            },
+        );
+        config.save().await.unwrap();
+
+        let loaded = HarvConfig::load_blocking().unwrap();
+        assert_eq!(loaded.alias("dev").unwrap().task_id, 2);
     }
 
     #[tokio::test]

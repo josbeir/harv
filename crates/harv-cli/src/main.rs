@@ -1,8 +1,12 @@
-use clap::{CommandFactory, Parser};
+use clap::Parser;
 use harv_cli::commands;
-use harv_cli::{AliasCommand, Cli, Commands};
+use harv_cli::{AliasCommand, COMPLETION_ENV_VAR, Cli, Commands};
 
 fn main() -> color_eyre::eyre::Result<()> {
+    clap_complete::CompleteEnv::with_factory(harv_cli::completion_command)
+        .var(COMPLETION_ENV_VAR)
+        .complete();
+
     color_eyre::install()?;
     harv_cli::setup_tracing();
 
@@ -100,9 +104,7 @@ fn main() -> color_eyre::eyre::Result<()> {
                     },
                     Commands::Init(args) => commands::init::run(&args).await?,
                     Commands::Completion(args) => {
-                        let mut cmd = Cli::command();
-                        let name = cmd.get_name().to_string();
-                        clap_complete::generate(args.shell, &mut cmd, name, &mut std::io::stdout());
+                        harv_cli::generate_completion(args.shell)?;
                     }
                 }
                 Ok(())

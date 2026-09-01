@@ -69,6 +69,10 @@ source <(harv completion zsh)    # zsh
 harv completion fish | source    # fish
 ```
 
+Completions include aliases for `harv track` and `harv start`, including
+aliases from the nearest `harv.toml`. Re-source the command after upgrading
+Harv so your shell uses the current completion script.
+
 ---
 
 ## Quick Start

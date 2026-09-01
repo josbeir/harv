@@ -102,6 +102,14 @@ impl ResolvedConfig {
         let project_config = ProjectConfig::discover().await?;
         Ok(Self::resolve(global, project_config.as_ref()))
     }
+
+    /// Discover and merge project-level configuration without an async runtime.
+    ///
+    /// Intended for short-lived, read-only operations such as shell completion.
+    pub fn resolve_from_environment_blocking(global: &HarvConfig) -> Result<Self, HarvError> {
+        let project_config = ProjectConfig::discover_blocking()?;
+        Ok(Self::resolve(global, project_config.as_ref()))
+    }
 }
 
 #[cfg(test)]
@@ -284,5 +292,22 @@ mod tests {
 
         let empty = ResolvedConfig::default();
         assert!(empty.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_resolve_from_environment_blocking_merges_project_aliases() {
+        let _guard = crate::TEST_PROCESS_MUTEX.lock().await;
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(crate::PROJECT_CONFIG_FILENAME),
+            "[aliases.conflict]\nproject_id = 99\ntask_id = 88\n",
+        )
+        .unwrap();
+
+        let original = std::env::current_dir().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+        let resolved = ResolvedConfig::resolve_from_environment_blocking(&global_config()).unwrap();
+        std::env::set_current_dir(original).unwrap();
+        assert_eq!(resolved.resolve_alias("conflict").unwrap().project_id, 99);
     }
 }
