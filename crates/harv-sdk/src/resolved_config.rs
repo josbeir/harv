@@ -115,6 +115,15 @@ impl ResolvedConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::TempDir;
+
+    fn with_temp_cwd<T>(dir: &TempDir, f: impl FnOnce() -> T) -> T {
+        let original = std::env::current_dir().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+        let result = f();
+        std::env::set_current_dir(original).unwrap();
+        result
+    }
 
     fn global_config() -> HarvConfig {
         HarvConfig {
@@ -292,5 +301,20 @@ mod tests {
 
         let empty = ResolvedConfig::default();
         assert!(empty.is_empty());
+    }
+
+    #[test]
+    fn test_resolve_from_environment_blocking_merges_project_aliases() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(crate::PROJECT_CONFIG_FILENAME),
+            "[aliases.conflict]\nproject_id = 99\ntask_id = 88\n",
+        )
+        .unwrap();
+
+        let resolved = with_temp_cwd(&dir, || {
+            ResolvedConfig::resolve_from_environment_blocking(&global_config()).unwrap()
+        });
+        assert_eq!(resolved.resolve_alias("conflict").unwrap().project_id, 99);
     }
 }

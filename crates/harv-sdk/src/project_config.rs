@@ -223,6 +223,22 @@ pattern = "Daily standup — {date} — Branch: {branch_name}"
         );
     }
 
+    #[test]
+    fn test_blocking_load_and_discover_walk_up() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(PROJECT_CONFIG_FILENAME);
+        std::fs::write(&path, sample_config_toml()).unwrap();
+        let nested = dir.path().join("nested");
+        std::fs::create_dir(&nested).unwrap();
+
+        let loaded = ProjectConfig::load_from_blocking(&path).unwrap();
+        assert_eq!(loaded.aliases.get("dev").unwrap().task_id, 200);
+        let discovered = ProjectConfig::discover_from_blocking(&nested)
+            .unwrap()
+            .unwrap();
+        assert_eq!(discovered.default_project_id, Some(12345));
+    }
+
     #[tokio::test]
     async fn test_load_missing_file() {
         let dir = tempfile::tempdir().unwrap();

@@ -378,6 +378,25 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_load_blocking_reads_saved_config() {
+        let _guard = crate::TEST_PROCESS_MUTEX.lock().await;
+        let dir = tempdir().unwrap();
+        set_test_config_dir(dir.path());
+        let mut config = test_config();
+        config.insert_alias(
+            "dev",
+            Alias {
+                project_id: 1,
+                task_id: 2,
+            },
+        );
+        config.save().await.unwrap();
+
+        let loaded = HarvConfig::load_blocking().unwrap();
+        assert_eq!(loaded.alias("dev").unwrap().task_id, 2);
+    }
+
+    #[tokio::test]
     async fn refreshed_credentials_accept_the_latest_rotated_token() {
         let _guard = crate::TEST_PROCESS_MUTEX.lock().await;
         let dir = tempdir().unwrap();

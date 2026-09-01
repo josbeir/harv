@@ -243,20 +243,21 @@ pub fn completion_command() -> clap::Command {
 
 /// Write a dynamic completion registration script for a supported shell.
 pub fn generate_completion(shell: Shell) -> std::io::Result<()> {
+    generate_completion_to(shell, &mut std::io::stdout())
+}
+
+fn generate_completion_to(shell: Shell, writer: &mut dyn std::io::Write) -> std::io::Result<()> {
     let command = completion_command();
     let name = command.get_name();
-    let mut stdout = std::io::stdout();
 
     match shell {
-        Shell::Bash => Bash.write_registration(COMPLETION_ENV_VAR, name, name, name, &mut stdout),
-        Shell::Elvish => {
-            Elvish.write_registration(COMPLETION_ENV_VAR, name, name, name, &mut stdout)
-        }
-        Shell::Fish => Fish.write_registration(COMPLETION_ENV_VAR, name, name, name, &mut stdout),
+        Shell::Bash => Bash.write_registration(COMPLETION_ENV_VAR, name, name, name, writer),
+        Shell::Elvish => Elvish.write_registration(COMPLETION_ENV_VAR, name, name, name, writer),
+        Shell::Fish => Fish.write_registration(COMPLETION_ENV_VAR, name, name, name, writer),
         Shell::PowerShell => {
-            Powershell.write_registration(COMPLETION_ENV_VAR, name, name, name, &mut stdout)
+            Powershell.write_registration(COMPLETION_ENV_VAR, name, name, name, writer)
         }
-        Shell::Zsh => Zsh.write_registration(COMPLETION_ENV_VAR, name, name, name, &mut stdout),
+        Shell::Zsh => Zsh.write_registration(COMPLETION_ENV_VAR, name, name, name, writer),
         _ => Err(std::io::Error::new(
             std::io::ErrorKind::InvalidInput,
             format!("dynamic completion is not supported for {shell}"),
@@ -317,4 +318,41 @@ pub fn ensure_mock_config() -> color_eyre::eyre::Result<()> {
 /// Custom clap value parser for hours. Accepts decimal (1.5) or HH:MM (1:30).
 fn parse_hours_arg(s: &str) -> Result<f64, String> {
     harv_core::datetime::parse_hours(s)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn alias_candidates_are_prefix_filtered_and_sorted() {
+        let candidates = alias_candidates(
+            ["zebra".into(), "alpha".into(), "alpine".into()],
+            OsStr::new("al"),
+        );
+        let values: Vec<_> = candidates
+            .iter()
+            .map(|candidate| candidate.get_value().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(values, ["alpha", "alpine"]);
+    }
+
+    #[test]
+    fn dynamic_completion_scripts_are_generated_for_supported_shells() {
+        for shell in [
+            Shell::Bash,
+            Shell::Elvish,
+            Shell::Fish,
+            Shell::PowerShell,
+            Shell::Zsh,
+        ] {
+            let mut output = Vec::new();
+            generate_completion_to(shell, &mut output).unwrap();
+            assert!(
+                String::from_utf8(output)
+                    .unwrap()
+                    .contains(COMPLETION_ENV_VAR)
+            );
+        }
+    }
 }
